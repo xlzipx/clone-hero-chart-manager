@@ -4,9 +4,42 @@ import { Icon } from './Icon'
 
 type Game = 'clone-hero' | 'yarg' | null
 
-function gameName(g: Game): string {
-  if (g === 'yarg') return 'YARG'
-  return 'Clone Hero'
+function gameName(g: Exclude<Game, null>): string {
+  return g === 'yarg' ? 'YARG' : 'Clone Hero'
+}
+
+interface LaunchBtnProps {
+  game: Exclude<Game, null>
+  runningGame: Game
+  onLaunch: (game: Exclude<Game, null>) => void
+  busy: boolean
+}
+
+function LaunchBtn({ game, runningGame, onLaunch, busy }: LaunchBtnProps): JSX.Element {
+  const isThisRunning = runningGame === game
+  const label = busy
+    ? 'Working…'
+    : isThisRunning
+      ? `Switch to ${gameName(game)}`
+      : `Launch ${gameName(game)}`
+  const title = isThisRunning
+    ? `${gameName(game)} is running — click to bring it to the front`
+    : `Launch ${gameName(game)}`
+
+  return (
+    <button
+      className={`gamebtn ${isThisRunning ? 'gamebtn--running' : ''} ${
+        busy ? 'gamebtn--busy' : ''
+      }`}
+      title={title}
+      onClick={() => onLaunch(game)}
+      disabled={busy}
+    >
+      <span className={`gamebtn__dot ${isThisRunning ? 'gamebtn__dot--on' : ''}`} />
+      <Icon name="gamepad" size={16} />
+      <span className="gamebtn__label">{label}</span>
+    </button>
+  )
 }
 
 export function TitleBar(): JSX.Element {
@@ -23,14 +56,14 @@ export function TitleBar(): JSX.Element {
     return off
   }, [])
 
-  const onClickGame = async (): Promise<void> => {
+  const launchGame = async (game: Exclude<Game, null>): Promise<void> => {
     if (busy) return
     setBusy(true)
     try {
-      // Když nějaká hra běží, přepneme na ni (její název). Když ne, spustí CH.
-      const res = await window.api.bringGameToFront(runningGame ?? 'clone-hero')
-      if (!res.ok) window.alert(res.error)
-      else if (!runningGame && res.game) {
+      const res = await window.api.bringGameToFront(game)
+      if (!res.ok) {
+        window.alert(res.error)
+      } else if (!runningGame && res.game) {
         // Po spuštění obvykle trvá pár sekund než se objeví v procesech.
         setRunningGame(res.game)
       }
@@ -39,31 +72,16 @@ export function TitleBar(): JSX.Element {
     }
   }
 
-  const isRunning = runningGame !== null
-  const label = busy
-    ? 'Working…'
-    : isRunning
-      ? `Switch to ${gameName(runningGame)}`
-      : 'Launch Clone Hero'
-  const title = isRunning
-    ? `${gameName(runningGame)} is running — click to bring it to the front`
-    : 'Launch Clone Hero'
-
   return (
     <div className="titlebar">
       <div className="titlebar__left">
-        <button
-          className={`gamebtn ${isRunning ? 'gamebtn--running' : ''} ${
-            busy ? 'gamebtn--busy' : ''
-          }`}
-          title={title}
-          onClick={onClickGame}
-          disabled={busy}
-        >
-          <span className={`gamebtn__dot ${isRunning ? 'gamebtn__dot--on' : ''}`} />
-          <Icon name="gamepad" size={16} />
-          <span className="gamebtn__label">{label}</span>
-        </button>
+        <LaunchBtn
+          game="clone-hero"
+          runningGame={runningGame}
+          onLaunch={launchGame}
+          busy={busy}
+        />
+        <LaunchBtn game="yarg" runningGame={runningGame} onLaunch={launchGame} busy={busy} />
       </div>
 
       <div className="titlebar__brand">

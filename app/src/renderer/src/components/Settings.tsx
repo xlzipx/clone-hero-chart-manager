@@ -181,7 +181,7 @@ export function Settings(): JSX.Element | null {
                 placeholder={
                   yargStatus?.autoDetected && yargStatus.path
                     ? `Using: ${yargStatus.path}`
-                    : 'e.g. G:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe'
+                    : 'e.g. C:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe'
                 }
                 value={draft.yargExePath}
                 onChange={(e) => setDraft({ ...draft, yargExePath: e.target.value })}
