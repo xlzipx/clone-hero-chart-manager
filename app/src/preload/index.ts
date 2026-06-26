@@ -81,19 +81,25 @@ const api = {
   /** Rozbalí shortlink na finální URL. */
   resolveUrl: (url: string) => ipcRenderer.invoke('url:resolve', url) as Promise<string>,
 
-  isGameRunning: () => ipcRenderer.invoke('game:isRunning') as Promise<boolean>,
-  bringGameToFront: () =>
-    ipcRenderer.invoke('game:bringToFront') as Promise<
-      { ok: true } | { ok: false; error: string }
+  runningGame: () =>
+    ipcRenderer.invoke('game:running') as Promise<'clone-hero' | 'yarg' | null>,
+  bringGameToFront: (prefer?: 'clone-hero' | 'yarg') =>
+    ipcRenderer.invoke('game:bringToFront', prefer) as Promise<
+      { ok: true; game?: 'clone-hero' | 'yarg' } | { ok: false; error: string }
     >,
   chExeStatus: () =>
-    ipcRenderer.invoke('game:exeStatus') as Promise<{
+    ipcRenderer.invoke('game:chExeStatus') as Promise<{
+      path: string | null
+      autoDetected: boolean
+    }>,
+  yargExeStatus: () =>
+    ipcRenderer.invoke('game:yargExeStatus') as Promise<{
       path: string | null
       autoDetected: boolean
     }>,
   chooseExeFile: () => ipcRenderer.invoke('dialog:chooseExe') as Promise<string | null>,
-  onGameStatus: (cb: (running: boolean) => void) => {
-    const handler = (_e: unknown, running: boolean): void => cb(running)
+  onGameStatus: (cb: (game: 'clone-hero' | 'yarg' | null) => void) => {
+    const handler = (_e: unknown, game: 'clone-hero' | 'yarg' | null): void => cb(game)
     ipcRenderer.on('game:status', handler)
     return () => ipcRenderer.removeListener('game:status', handler)
   },

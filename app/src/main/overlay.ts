@@ -4,7 +4,7 @@
 import { app, BrowserWindow, screen, shell } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { bringGameToFront, isGameRunning } from './core/gamedetect'
+import { bringGameToFront, runningGame } from './core/gamedetect'
 import { hideReminder, showReminder } from './reminder'
 
 /** Cesta k ikoně okna (v devu), pokud existuje. */
@@ -97,10 +97,11 @@ export async function toggleOverlay(): Promise<void> {
   if (win.isVisible() && win.isFocused()) {
     win.hide()
     // Vrátí focus zpět na hru (pokud běží) — bez tohohle by uživatel musel
-    // ručně kliknout na CH okno. + ukázat reminder pill.
+    // ručně kliknout na CH/YARG okno. + ukázat reminder pill.
     try {
-      if (await isGameRunning()) {
-        await bringGameToFront()
+      const game = await runningGame()
+      if (game) {
+        await bringGameToFront(game)
         showReminder()
       }
     } catch {
@@ -119,8 +120,9 @@ export async function hideOverlay(): Promise<void> {
   if (!win) return
   win.hide()
   try {
-    if (await isGameRunning()) {
-      await bringGameToFront()
+    const game = await runningGame()
+    if (game) {
+      await bringGameToFront(game)
       showReminder()
     }
   } catch {

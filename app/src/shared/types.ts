@@ -91,6 +91,8 @@ export interface AppConfig {
   onyxPath: string
   /** Manuální cesta ke Clone Hero.exe. Prázdné = auto-detekce z `songsDir`. */
   chExePath: string
+  /** Manuální cesta k YARG.exe. Prázdné = auto-detekce v běžných instalech. */
+  yargExePath: string
   recordsPerPage: number
   hotkeys: HotkeyConfig
   /** Zobrazit malý reminder pill přes hru, když CH běží. */
@@ -159,16 +161,20 @@ export interface RendererApi {
   peekFileMeta(path: string): Promise<{ artist: string; title: string } | null>
   /** Rozbalí shortlink (bit.ly aj.) na finální URL. */
   resolveUrl(url: string): Promise<string>
-  /** True pokud Clone Hero.exe momentálně běží. */
-  isGameRunning(): Promise<boolean>
-  /** Spustí hru, nebo ji přepne do popředí pokud už běží. */
-  bringGameToFront(): Promise<{ ok: true } | { ok: false; error: string }>
+  /** Která rhythm hra běží (CH nebo YARG), nebo null. */
+  runningGame(): Promise<'clone-hero' | 'yarg' | null>
+  /** Přepne hru do popředí — pokud žádná neběží, spustí preferenci (default CH). */
+  bringGameToFront(
+    prefer?: 'clone-hero' | 'yarg'
+  ): Promise<{ ok: true; game?: 'clone-hero' | 'yarg' } | { ok: false; error: string }>
   /** Status detekce Clone Hero.exe – `path: null` znamená, že nebyl nalezen. */
   chExeStatus(): Promise<{ path: string | null; autoDetected: boolean }>
+  /** Status detekce YARG.exe. */
+  yargExeStatus(): Promise<{ path: string | null; autoDetected: boolean }>
   /** Otevře file picker pro `.exe`. */
   chooseExeFile(): Promise<string | null>
-  /** Odběr změn stavu hry (poll 3s). */
-  onGameStatus(cb: (running: boolean) => void): () => void
+  /** Odběr změn stavu hry (poll 3s) — vrací která hra běží, nebo null. */
+  onGameStatus(cb: (game: 'clone-hero' | 'yarg' | null) => void): () => void
   hideOverlay(): void
   quitApp(): void
   /** Dočasně pozastaví globální zkratky (při zachytávání nové zkratky). */

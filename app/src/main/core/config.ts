@@ -122,6 +122,7 @@ function defaults(): AppConfig {
     c3BinDir: detect7zDir(),
     onyxPath: detectOnyxPath(),
     chExePath: '', // auto-detekce z songsDir
+    yargExePath: '', // auto-detekce v běžných YARG instalech
     recordsPerPage: 25,
     hotkeys: {
       // Show / hide window — Ctrl+I (rychlý "Insert/Invoke" toggle, ergonomický

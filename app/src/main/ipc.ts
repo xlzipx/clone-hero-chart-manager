@@ -6,7 +6,12 @@ import type { Database, RhythmVerseSystem, SearchResponse, SongResult } from '..
 import { getConfig, setConfig } from './core/config'
 import { search as searchEnchor } from './core/enchor'
 import { peekFileMeta } from './core/filemeta'
-import { bringGameToFront, chExeStatus, isGameRunning } from './core/gamedetect'
+import {
+  bringGameToFront,
+  chExeStatus,
+  runningGame,
+  yargExeStatus
+} from './core/gamedetect'
 import { hideReminder, showReminder } from './reminder'
 import { jobManager } from './core/jobs'
 import { listSongFolders } from './core/library'
@@ -135,9 +140,12 @@ export function registerIpc(): void {
     return { path, name }
   })
 
-  ipcMain.handle('game:isRunning', () => isGameRunning())
-  ipcMain.handle('game:bringToFront', () => bringGameToFront())
-  ipcMain.handle('game:exeStatus', () => chExeStatus())
+  ipcMain.handle('game:running', () => runningGame())
+  ipcMain.handle('game:bringToFront', (_e, prefer?: 'clone-hero' | 'yarg') =>
+    bringGameToFront(prefer)
+  )
+  ipcMain.handle('game:chExeStatus', () => chExeStatus())
+  ipcMain.handle('game:yargExeStatus', () => yargExeStatus())
 
   ipcMain.handle('dialog:chooseExe', async () => {
     const win = getOverlay() ?? undefined
@@ -178,24 +186,25 @@ export function registerIpc(): void {
     getOverlay()?.webContents.send('jobs:update', job)
   })
 
-  // Polling stavu hry — vysílá změny rendereru + řídí reminder pill.
-  let lastRunning: boolean | null = null
+  // Polling stavu her — vysílá změny rendereru + řídí reminder pill.
+  // Status je teď 'clone-hero' | 'yarg' | null — pill se zobrazí pro JAKOUKOLI hru.
+  let lastRunning: string | null | 'init' = 'init'
   const pollGame = async (): Promise<void> => {
-    const running = await isGameRunning()
+    const running = await runningGame()
     if (running !== lastRunning) {
-      const wasRunning = lastRunning === true
+      const wasNone = lastRunning === null || lastRunning === 'init'
+      const isNow = running !== null
       lastRunning = running
       getOverlay()?.webContents.send('game:status', running)
 
-      if (running && !wasRunning) {
-        // CH se právě spustil → ukázat reminder pill (pokud je v Settings ON
-        // a naše okno momentálně není v popředí).
+      if (isNow && wasNone) {
+        // Hra se právě spustila → reminder pill (pokud opt-in a okno neni v popředí).
         const main = getOverlay()
         if (!main || !main.isVisible() || !main.isFocused()) {
           showReminder()
         }
-      } else if (!running && wasRunning) {
-        // CH se vypnul → schovat pill (kdyby zrovna svítil).
+      } else if (!isNow && !wasNone) {
+        // Žádná hra už neběží → skrýt pill.
         hideReminder()
       }
     }

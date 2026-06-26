@@ -18,3 +18,11 @@ release/portable/*.exe
 Thumbs.db
 .vscode/
 .idea/
+
+# Wrangler cache
+.wrangler/
+
+# Video assets (lokální, ne pro repo — pošleme přes YouTube)
+how it works video/
+*.mp4
+*.mp3
