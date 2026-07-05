@@ -124,6 +124,7 @@ function defaults(): AppConfig {
     chExePath: '', // auto-detekce z songsDir
     yargExePath: '', // auto-detekce v běžných YARG instalech
     recordsPerPage: 25,
+    uiScale: 1,
     hotkeys: {
       // Show / hide window — Ctrl+I (rychlý "Insert/Invoke" toggle, ergonomický
       // pro pravou ruku na klávesnici; nepřekrývá běžné herní bindings v CH).

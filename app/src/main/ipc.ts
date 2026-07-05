@@ -28,7 +28,7 @@ import {
 import { search as searchRhythmverse } from './core/rhythmverse'
 import { getReleaseNotes, getReleaseNotesSince } from './core/update'
 import { registerHotkeys, unregisterHotkeys } from './hotkeys'
-import { getOverlay, hideOverlay } from './overlay'
+import { applyUiScale, getOverlay, hideOverlay } from './overlay'
 
 let ipcRegistered = false
 let gamePollHandle: NodeJS.Timeout | null = null
@@ -117,8 +117,11 @@ export function registerIpc(): void {
   ipcMain.handle('config:set', (_e, patch) => {
     const next = setConfig(patch)
     registerHotkeys() // hotkeys se mohly změnit
+    applyUiScale(next.uiScale) // sjednoť zoom s uloženou hodnotou
     return next
   })
+  // Živý náhled UI scale (bez zápisu na disk) — Nastavení volá při posouvání.
+  ipcMain.handle('ui:scale', (_e, scale: number) => applyUiScale(scale))
 
   ipcMain.handle('dialog:chooseDir', async () => {
     const win = getOverlay() ?? undefined

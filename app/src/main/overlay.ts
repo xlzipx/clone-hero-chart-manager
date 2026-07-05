@@ -4,8 +4,12 @@
 import { app, BrowserWindow, screen, shell } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
+import { getConfig } from './core/config'
 import { bringGameToFront, runningGame } from './core/gamedetect'
 import { hideReminder, showReminder } from './reminder'
+
+/** Základní zoom UI (nad Windows DPI scalingem). Násobí se uživatelským uiScale. */
+const BASE_ZOOM = 1.15
 
 /** Cesta k ikoně okna (v devu), pokud existuje. */
 function windowIcon(): string | undefined {
@@ -19,23 +23,27 @@ export function getOverlay(): BrowserWindow | null {
   return mainWindow
 }
 
+/** Živě aplikuje UI scale na hlavní okno (náhled z Nastavení). */
+export function applyUiScale(scale: number): void {
+  const s = Number.isFinite(scale) && scale > 0 ? scale : 1
+  mainWindow?.webContents.setZoomFactor(BASE_ZOOM * s)
+}
+
 export function createOverlay(): BrowserWindow {
   const primary = screen.getPrimaryDisplay()
   const { width, height } = primary.workAreaSize
 
-  // UI je vyladěné na efektivní zoom 1.15. Electron `zoomFactor` se ale NÁSOBÍ
-  // s Windows DPI scalingem, takže na 150 % by výsledek byl 1.15 × 1.5 ≈ 1.73×
-  // a layout přetéká (Reddit: „display is a little odd at 150% displayer or
-  // higher"). Proto zoom dělíme scaleFactorem → výsledná velikost je
-  // konzistentní na všech DPI (na HiDPI jen ostřejší, ne větší).
-  const scale = primary.scaleFactor || 1
-  const ZOOM = 1.15 / scale
+  // Zoom RESPEKTUJE Windows DPI scaling: Electron `zoomFactor` se s ním násobí,
+  // což je správně — kdo si dá 125/150 %, chce větší UI. (Dřív jsme dělili
+  // scaleFactorem, což scaling zrušilo a na 4K@125 % bylo UI moc malé.)
+  // Uživatel si může doladit přes `uiScale` v Nastavení.
+  const uiScale = getConfig().uiScale || 1
+  const ZOOM = BASE_ZOOM * uiScale
 
-  // Rozměry okna počítáme v „design" CSS px a přes tenhle zoom je převádíme na
-  // DIP. Díky tomu jde okno na malých HiDPI noteboocích zmenšit — dřív bylo
-  // minWidth 1180 DIP širší než 1280 DIP obrazovka (1080p @ 150 %) a okno
-  // trčelo přes okraj. (Při 100 % scalingu vyjdou čísla identicky jako dřív:
-  // 1500 / 1000 / 1180 / 760.)
+  // Rozměry okna v „design" CSS px → DIP přes ZOOM, VŽDY clampnuté na work area,
+  // ať okno nikdy netrčí přes okraj obrazovky. Právě to (ne velikost zoomu) byl
+  // ten „odd" stav na malých HiDPI displejích (1080p @ 150 %): okno se otevřelo
+  // širší než obrazovka. Clamp to řeší bez zmenšování UI.
   const dip = (css: number): number => Math.round(css * ZOOM)
   const winW = Math.min(Math.max(dip(1304), Math.round(width * 0.7)), width)
   const winH = Math.min(Math.max(dip(870), Math.round(height * 0.78)), height)

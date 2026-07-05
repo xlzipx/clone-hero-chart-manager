@@ -101,6 +101,8 @@ export interface AppConfig {
   /** Manuální cesta k YARG.exe. Prázdné = auto-detekce v běžných instalech. */
   yargExePath: string
   recordsPerPage: number
+  /** Ruční škála UI (multiplikátor nad základem). 1 = výchozí. Násobí se s Windows DPI scalingem. */
+  uiScale: number
   hotkeys: HotkeyConfig
   /** Zobrazit malý reminder pill přes hru, když CH běží. */
   showReminder: boolean
@@ -244,6 +246,8 @@ export interface RendererApi {
   appVersion(): Promise<string>
   /** Ruční kontrola aktualizací (bez restartu). U instalační verze vyvolá i update banner. */
   checkForUpdates(): Promise<UpdateCheckResult>
+  /** Živě přepne škálu UI (náhled z Nastavení; trvale se uloží přes config). */
+  setUiScale(scale: number): Promise<void>
   /** Poznámky k vydání dané (nebo aktuální) verze z GitHubu. */
   getReleaseNotes(version?: string): Promise<ReleaseNotes | null>
   /**

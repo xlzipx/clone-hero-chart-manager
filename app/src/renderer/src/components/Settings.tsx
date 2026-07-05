@@ -104,6 +104,19 @@ export function Settings(): JSX.Element | null {
     }
   }
 
+  // UI scale: clamp 0.7–1.6, živý náhled přes IPC (uloží se až na Save).
+  const setScale = (next: number): void => {
+    const clamped = Math.min(1.6, Math.max(0.7, Math.round(next * 10) / 10))
+    setDraft((d) => (d ? { ...d, uiScale: clamped } : d))
+    void window.api.setUiScale(clamped)
+  }
+
+  // Zavření bez uložení → zahoď živý náhled a vrať uloženou škálu.
+  const cancelSettings = (): void => {
+    void window.api.setUiScale(config?.uiScale ?? 1)
+    setShowSettings(false)
+  }
+
   if (!show || !draft) return null
 
   const pickDir = async (key: 'songsDir') => {
@@ -128,13 +141,13 @@ export function Settings(): JSX.Element | null {
       className="modal-overlay"
       onMouseDown={(e) => {
         // Zavři jen když stisk začal přímo na pozadí (ne tažením z inputu ven).
-        if (e.target === e.currentTarget) setShowSettings(false)
+        if (e.target === e.currentTarget) cancelSettings()
       }}
     >
       <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal__head">
           <h2>Settings</h2>
-          <button className="modal__close" onClick={() => setShowSettings(false)}>
+          <button className="modal__close" onClick={cancelSettings}>
             ✕
           </button>
         </div>
@@ -293,6 +306,50 @@ export function Settings(): JSX.Element | null {
           </fieldset>
 
           <fieldset className="field">
+            <span>
+              UI scale
+              <span
+                className="info"
+                title="Make the whole interface bigger or smaller. This stacks on top of your Windows display scaling, so it's handy on very high-resolution (4K) screens where things can look small."
+              >
+                <Icon name="info" size={13} />
+              </span>
+            </span>
+            <div className="scaler">
+              <button
+                type="button"
+                className="scaler__btn"
+                onClick={() => setScale((draft.uiScale ?? 1) - 0.1)}
+                disabled={(draft.uiScale ?? 1) <= 0.7}
+                aria-label="Smaller"
+              >
+                −
+              </button>
+              <span className="scaler__val">{Math.round((draft.uiScale ?? 1) * 100)}%</span>
+              <button
+                type="button"
+                className="scaler__btn"
+                onClick={() => setScale((draft.uiScale ?? 1) + 0.1)}
+                disabled={(draft.uiScale ?? 1) >= 1.6}
+                aria-label="Bigger"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                className="linkbtn scaler__reset"
+                onClick={() => setScale(1)}
+                disabled={(draft.uiScale ?? 1) === 1}
+              >
+                Reset
+              </button>
+            </div>
+            <p className="field__hint">
+              Stacks on top of Windows display scaling. Preview updates live; click Save to keep it.
+            </p>
+          </fieldset>
+
+          <fieldset className="field">
             <span>Updates</span>
             <div className="about">
               <span className="about__ver">
@@ -339,7 +396,7 @@ export function Settings(): JSX.Element | null {
         </div>
 
         <div className="modal__foot">
-          <button className="btn-secondary" onClick={() => setShowSettings(false)}>
+          <button className="btn-secondary" onClick={cancelSettings}>
             Cancel
           </button>
           <button

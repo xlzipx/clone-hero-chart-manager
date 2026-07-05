@@ -148,6 +148,7 @@ const api = {
 
   appVersion: () => ipcRenderer.invoke('app:version') as Promise<string>,
   checkForUpdates: () => ipcRenderer.invoke('update:check') as Promise<UpdateCheckResult>,
+  setUiScale: (scale: number) => ipcRenderer.invoke('ui:scale', scale) as Promise<void>,
   getReleaseNotes: (version?: string) =>
     ipcRenderer.invoke('app:releaseNotes', version) as Promise<ReleaseNotes | null>,
   getReleaseNotesSince: (since?: string, max?: number) =>
