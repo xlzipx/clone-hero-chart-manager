@@ -26,3 +26,6 @@ Thumbs.db
 how it works video/
 *.mp4
 *.mp3
+
+# Náhodné screenshoty
+pages/Screenshot*.png
