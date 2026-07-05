@@ -8,9 +8,18 @@
 //      → výstup je složka se song.ini + notes.mid + album.png + audio (.ogg),
 //        kterou Clone Hero přečte přímo.
 
-import { existsSync, mkdtempSync, readFileSync, rmSync, appendFileSync, writeFileSync } from 'fs'
+import {
+  appendFileSync,
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'fs'
 import { tmpdir } from 'os'
-import { join } from 'path'
+import { basename, dirname, extname, join } from 'path'
 import { getConfig } from './config'
 import { run } from './proc'
 
@@ -70,10 +79,29 @@ async function onyxConvert(
   // uvnitř dočasného rodiče (mkdtemp jen ten rodič).
   const parentDir = mkdtempSync(join(tmpdir(), 'onyx-'))
   const projDir = join(parentDir, 'proj')
+
+  // Onyx tiskne vstupní cestu na stdout a na Windows padá na ne-ASCII znacích
+  // (`commitBuffer: invalid argument (invalid character)`) — typicky japonské
+  // DTXMania songy ve složkách s japonskými názvy. Když cesta obsahuje ne-ASCII,
+  // naimportujeme z ASCII-only staging kopie (název v chartu se tím nezmění).
+  let stageDir: string | null = null
+  let importPath = inputPath
+  if (/[^\x00-\x7F]/.test(inputPath)) {
+    stageDir = mkdtempSync(join(tmpdir(), 'onyx-in-'))
+    if (kind === 'DTX') {
+      // DTX potřebuje celou složku (samply vedle set.def/.dtx).
+      cpSync(dirname(inputPath), stageDir, { recursive: true })
+      importPath = join(stageDir, basename(inputPath))
+    } else {
+      importPath = join(stageDir, `input${extname(inputPath) || '.con'}`)
+      copyFileSync(inputPath, importPath)
+    }
+  }
+
   try {
     // 1) Import
     onProgress?.({ progress: -1, message: kind === 'DTX' ? 'Importing DTX…' : 'Importing CON…' })
-    const imp = await run(onyx, ['import', inputPath, '--to', projDir])
+    const imp = await run(onyx, ['import', importPath, '--to', projDir])
     if (imp.code !== 0) {
       throw new Error(`Onyx import failed (code ${imp.code}): ${imp.stderr || imp.stdout}`)
     }
@@ -101,6 +129,11 @@ async function onyxConvert(
       throw new Error(`Onyx build failed (code ${build.code}): ${build.stderr || build.stdout}`)
     }
   } finally {
+    try {
+      if (stageDir && existsSync(stageDir)) rmSync(stageDir, { recursive: true, force: true })
+    } catch {
+      /* úklid best-effort */
+    }
     try {
       if (existsSync(parentDir)) rmSync(parentDir, { recursive: true, force: true })
     } catch {

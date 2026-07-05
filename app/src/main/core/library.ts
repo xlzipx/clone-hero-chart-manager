@@ -222,8 +222,11 @@ export function listSongFolders(): string[] {
 export function install(sourceRoot: string, song: SongResult, subfolder?: string): InstallResult {
   const baseSongsDir = getConfig().songsDir
   // Sanitizace případné podsložky (může obsahovat i vnořenou cestu od uživatele).
+  // POZOR: prázdné segmenty musí pryč PŘED sanitizací — `sanitize('')` vrací
+  // 'Unknown', takže Root ('') by jinak vytvořil složku „Unknown".
   const cleanSub = (subfolder ?? '')
     .split(/[\\/]/)
+    .filter(Boolean)
     .map((p) => sanitize(p))
     .filter(Boolean)
     .join('\\')

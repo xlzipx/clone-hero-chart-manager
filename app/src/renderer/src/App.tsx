@@ -262,8 +262,8 @@ export function App(): JSX.Element {
         <div className="rec-hint">
           <Icon name="info" size={14} />
           <span>
-            <strong>Chorus Encore</strong>: curated Clone Hero charts only. Files are hosted
-            directly as <code>.sng</code> — no Google Drive or MEGA friction.
+            <strong>Chorus Encore</strong>: curated Clone Hero charts. Most download directly as
+            a <code>.sng</code> from Encore, so usually no Google Drive or MEGA step.
           </span>
         </div>
       ) : null}
