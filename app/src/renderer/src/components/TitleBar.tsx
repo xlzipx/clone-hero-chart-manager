@@ -46,13 +46,16 @@ function LaunchBtn({ game, runningGame, onLaunch, busy }: LaunchBtnProps): JSX.E
 export function TitleBar(): JSX.Element {
   const setShowSettings = useStore((s) => s.setShowSettings)
   const setShowLibrary = useStore((s) => s.setShowLibrary)
+  const setShowWhatsNew = useStore((s) => s.setShowWhatsNew)
 
   const [runningGame, setRunningGame] = useState<Game>(null)
   const [busy, setBusy] = useState(false)
+  const [version, setVersion] = useState('')
 
   // Init + subscribe na změny stavu hry.
   useEffect(() => {
     void window.api.runningGame().then(setRunningGame)
+    void window.api.appVersion().then(setVersion)
     const off = window.api.onGameStatus(setRunningGame)
     return off
   }, [])
@@ -95,6 +98,15 @@ export function TitleBar(): JSX.Element {
       </div>
 
       <div className="titlebar__actions">
+        {version ? (
+          <button
+            className="titlebar__version"
+            title="What's new in this version"
+            onClick={() => setShowWhatsNew(true)}
+          >
+            v{version}
+          </button>
+        ) : null}
         <button
           className="titlebar__btn"
           title="Library manager"

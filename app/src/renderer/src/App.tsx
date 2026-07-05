@@ -9,13 +9,15 @@ import { MarketplaceModal } from './components/MarketplaceModal'
 import { Pager } from './components/Pager'
 import { SearchBar } from './components/SearchBar'
 import { Settings } from './components/Settings'
+import { RefineFilters } from './components/RefineFilters'
 import { SongRow } from './components/SongRow'
 import { SortSelect } from './components/SortSelect'
 import { TargetFolderModal } from './components/TargetFolderModal'
 import { TitleBar } from './components/TitleBar'
 import { UpdateBanner } from './components/UpdateBanner'
+import { WhatsNew } from './components/WhatsNew'
 import { useStore } from './store'
-import { isAutoDownloadable } from './utils'
+import { isAutoDownloadable, songKey } from './utils'
 
 export function App(): JSX.Element {
   const results = useStore((s) => s.results)
@@ -33,19 +35,33 @@ export function App(): JSX.Element {
   const instrumentFilters = useStore((s) => s.instrumentFilters)
   const diffMin = useStore((s) => s.diffMin)
   const diffMax = useStore((s) => s.diffMax)
+  const charterFilter = useStore((s) => s.charterFilter)
+  const albumFilter = useStore((s) => s.albumFilter)
+  const yearFilter = useStore((s) => s.yearFilter)
+  const ownedKeys = useStore((s) => s.ownedKeys)
+  const hideOwned = useStore((s) => s.hideOwned)
   const sort = useStore((s) => s.sort)
 
   // Klientský filtr + řazení.
   const visible = useMemo(() => {
-    const filtered =
-      instrumentFilters.length === 0
-        ? results
-        : results.filter((song) =>
-            instrumentFilters.every((id) => {
-              const d = song.difficulties[id as keyof typeof song.difficulties]
-              return d !== undefined && d >= diffMin && d <= diffMax
-            })
-          )
+    const cf = charterFilter.trim().toLowerCase()
+    const af = albumFilter.trim().toLowerCase()
+    const yf = yearFilter.trim()
+    const filtered = results.filter((song) => {
+      if (
+        instrumentFilters.length > 0 &&
+        !instrumentFilters.every((id) => {
+          const d = song.difficulties[id as keyof typeof song.difficulties]
+          return d !== undefined && d >= diffMin && d <= diffMax
+        })
+      )
+        return false
+      if (cf && !(song.charter ?? '').toLowerCase().includes(cf)) return false
+      if (af && !(song.album ?? '').toLowerCase().includes(af)) return false
+      if (yf && !String(song.year ?? '').includes(yf)) return false
+      if (hideOwned && ownedKeys.has(songKey(song.artist, song.title))) return false
+      return true
+    })
     if (sort === 'relevance') return filtered
     const arr = [...filtered]
     if (sort === 'title') arr.sort((a, b) => a.title.localeCompare(b.title))
@@ -53,7 +69,18 @@ export function App(): JSX.Element {
       arr.sort((a, b) => a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title))
     else if (sort === 'length') arr.sort((a, b) => (b.lengthSeconds ?? 0) - (a.lengthSeconds ?? 0))
     return arr
-  }, [results, instrumentFilters, diffMin, diffMax, sort])
+  }, [
+    results,
+    instrumentFilters,
+    diffMin,
+    diffMax,
+    charterFilter,
+    albumFilter,
+    yearFilter,
+    hideOwned,
+    ownedKeys,
+    sort
+  ])
 
   const setSelectedIndex = useStore((s) => s.setSelectedIndex)
   const openDownload = useStore((s) => s.openDownload)
@@ -101,9 +128,20 @@ export function App(): JSX.Element {
   useEffect(() => {
     void (async () => {
       await loadConfig()
+      // Index „už mám v knihovně" (nápověda ve výsledcích).
+      void useStore.getState().loadOwnedKeys()
       // První spuštění mimo složku hry: pokud Songs neexistuje, otevři Nastavení.
       const exists = await window.api.songsDirExists()
       if (!exists) useStore.getState().setShowSettings(true)
+      // Po aktualizaci (změna verze oproti minule) ukaž „What's new".
+      try {
+        const v = await window.api.appVersion()
+        const last = localStorage.getItem('chm.lastSeenVersion')
+        if (last && last !== v) useStore.getState().setShowWhatsNew(true)
+        localStorage.setItem('chm.lastSeenVersion', v)
+      } catch {
+        /* nevadí */
+      }
     })()
     const offJob = window.api.onJobUpdate(applyJobUpdate)
     const offHotkey = window.api.onHotkey((action) => {
@@ -144,13 +182,19 @@ export function App(): JSX.Element {
 
       if (e.key === 'Escape') {
         const st = useStore.getState()
-        if (st.showLibrary) st.setShowLibrary(false)
+        if (st.showWhatsNew) st.setShowWhatsNew(false)
+        else if (st.showLibrary) st.setShowLibrary(false)
         else if (st.showSettings) st.setShowSettings(false)
         else window.api.hideOverlay()
         return
       }
-      // Otevřené Nastavení/Správce: nech projít jen Escape (výše), nenaviguj.
-      if (useStore.getState().showSettings || useStore.getState().showLibrary) return
+      // Otevřené Nastavení/Správce/What's new: nech projít jen Escape (výše), nenaviguj.
+      if (
+        useStore.getState().showSettings ||
+        useStore.getState().showLibrary ||
+        useStore.getState().showWhatsNew
+      )
+        return
       if (e.key === '/' && !typing) {
         e.preventDefault()
         ;(document.querySelector('.searchbar input') as HTMLInputElement)?.focus()
@@ -256,6 +300,7 @@ export function App(): JSX.Element {
                 </button>
               </div>
             ) : null}
+            <RefineFilters />
             <SortSelect />
           </div>
         </div>
@@ -281,6 +326,7 @@ export function App(): JSX.Element {
               key={song.key}
               song={song}
               selected={i === selectedIndex}
+              owned={ownedKeys.has(songKey(song.artist, song.title))}
               checked={selectedSet.has(song.key)}
               checkable={isAutoDownloadable(song) && !enqueuedKeys[song.key]}
               onToggleCheck={() => toggleSelected(song.key)}
@@ -301,6 +347,7 @@ export function App(): JSX.Element {
       <MarketplaceModal />
       <LibraryManager />
       <LocalDropModal />
+      <WhatsNew />
     </div>
   )
 }

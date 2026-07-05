@@ -5,10 +5,31 @@
 // vrací null, UI nic neukáže.
 
 import { app } from 'electron'
-import type { UpdateInfo } from '../../shared/types'
+import type { ReleaseNotes, UpdateInfo } from '../../shared/types'
 
 const REPO = 'xlzipx/clone-hero-chart-manager'
 const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`
+
+/** Načte poznámky k vydání dané verze (default aktuální) z GitHub Releases. */
+export async function getReleaseNotes(version?: string): Promise<ReleaseNotes | null> {
+  const v = (version || app.getVersion()).replace(/^v/i, '')
+  const tag = `v${v}`
+  try {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/tags/${tag}`, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': `CHM/${v}` }
+    })
+    if (!res.ok) return null
+    const j = (await res.json()) as { name?: string; body?: string; html_url?: string }
+    return {
+      version: v,
+      name: j.name || tag,
+      body: j.body || '',
+      url: j.html_url || `https://github.com/${REPO}/releases/tag/${tag}`
+    }
+  } catch {
+    return null
+  }
+}
 
 /** "v0.2.4" | "0.2.4" → [0, 2, 4]. Nečíselné části se ignorují. */
 function parseVersion(v: string): number[] {

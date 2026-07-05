@@ -141,6 +141,14 @@ export interface UpdateAvailable {
   url?: string
 }
 
+export interface ReleaseNotes {
+  version: string
+  name: string
+  /** Markdown tělo poznámek k vydání z GitHubu. */
+  body: string
+  url: string
+}
+
 /** API vystavené do renderer procesu přes contextBridge (window.api). */
 export interface RendererApi {
   search(
@@ -161,6 +169,8 @@ export interface RendererApi {
   enqueueLocalBatch(paths: string[], targetSubfolder?: string): Promise<string[]>
   /** Vrátí názvy přímých podsložek v knihovně Songs. */
   listSongFolders(): Promise<string[]>
+  /** Normalizované klíče (artist|title) písní už v knihovně — pro „In library" nápovědu. */
+  ownedSongKeys(): Promise<string[]>
   // Správce knihovny
   libList(rel: string): Promise<LibListing>
   libCreateFolder(rel: string, name: string): Promise<void>
@@ -218,4 +228,8 @@ export interface RendererApi {
   onUpdateProgress(cb: (p: { percent: number }) => void): () => void
   /** Aktualizace stažená a připravená k instalaci. */
   onUpdateDownloaded(cb: (info: { version: string }) => void): () => void
+  /** Aktuální verze aplikace. */
+  appVersion(): Promise<string>
+  /** Poznámky k vydání dané (nebo aktuální) verze z GitHubu. */
+  getReleaseNotes(version?: string): Promise<ReleaseNotes | null>
 }

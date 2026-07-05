@@ -14,7 +14,7 @@ import {
 } from './core/gamedetect'
 import { hideReminder, showReminder } from './reminder'
 import { jobManager } from './core/jobs'
-import { listSongFolders } from './core/library'
+import { listSongFolders, ownedSongKeys } from './core/library'
 import {
   libCopy,
   libCreateFolder,
@@ -26,6 +26,7 @@ import {
   libTrash
 } from './core/librarymgr'
 import { search as searchRhythmverse } from './core/rhythmverse'
+import { getReleaseNotes } from './core/update'
 import { registerHotkeys, unregisterHotkeys } from './hotkeys'
 import { getOverlay, hideOverlay } from './overlay'
 
@@ -97,6 +98,7 @@ export function registerIpc(): void {
   ipcMain.handle('jobs:getAll', () => jobManager.getAll())
   ipcMain.handle('jobs:clearFinished', () => jobManager.clearFinished())
   ipcMain.handle('library:listFolders', () => listSongFolders())
+  ipcMain.handle('library:ownedKeys', () => ownedSongKeys())
 
   // Správce knihovny
   ipcMain.handle('lib:list', (_e, rel: string) => libList(rel))
@@ -185,6 +187,8 @@ export function registerIpc(): void {
   ipcMain.on('shell:openExternal', (_e, url: string) => {
     if (typeof url === 'string' && /^https?:\/\//.test(url)) shell.openExternal(url)
   })
+  ipcMain.handle('app:version', () => app.getVersion())
+  ipcMain.handle('app:releaseNotes', (_e, version?: string) => getReleaseNotes(version))
 
   // Přeposílání průběhu úloh do renderer procesu.
   jobManager.on('update', (job) => {

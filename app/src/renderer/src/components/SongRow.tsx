@@ -27,6 +27,8 @@ interface Props {
   song: SongResult
   selected: boolean
   job?: DownloadJob
+  /** Nápověda: píseň (artist+title) už je v knihovně. */
+  owned?: boolean
   /** Multi-select: je řádek zaškrtnutý pro hromadné stažení? */
   checked?: boolean
   /** Multi-select: lze řádek zaškrtnout (auto-stažitelný, nezařazený)? */
@@ -63,6 +65,7 @@ function SongRowBase({
   song,
   selected,
   job,
+  owned = false,
   checked = false,
   checkable = false,
   onToggleCheck,
@@ -168,6 +171,11 @@ function SongRowBase({
               E/M/H/X
             </span>
           ) : null}
+          {owned ? (
+            <span className="badge badge--owned" title="You already have this song in your library">
+              <Icon name="check" size={11} /> In library
+            </span>
+          ) : null}
           {song.charter ? (
             <span className="song__charter">
               <Icon name="charter" size={12} /> {song.charter}
@@ -247,6 +255,7 @@ function SongRowBase({
 export const SongRow = memo(SongRowBase, (prev, next) => {
   if (prev.song.key !== next.song.key) return false
   if (prev.selected !== next.selected) return false
+  if (prev.owned !== next.owned) return false
   if (prev.checked !== next.checked) return false
   if (prev.checkable !== next.checkable) return false
   if (prev.job?.id !== next.job?.id) return false

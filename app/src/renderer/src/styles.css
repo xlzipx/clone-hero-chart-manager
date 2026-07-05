@@ -395,6 +395,83 @@ body {
   color: #fff;
   box-shadow: 0 6px 16px -4px rgba(226, 59, 91, 0.55);
 }
+/* Verze v title baru — klik otevře „What's new". */
+.titlebar__version {
+  align-self: center;
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 5px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.titlebar__version:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(124, 92, 255, 0.12);
+}
+
+/* ---------- What's new panel ---------- */
+.modal--whatsnew {
+  width: 560px;
+}
+.wn__body {
+  gap: 0;
+}
+.wn__h {
+  margin: 16px 0 8px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.wn__h:first-child {
+  margin-top: 0;
+}
+.wn__p {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin: 6px 0;
+}
+.wn__list {
+  margin: 4px 0 10px;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wn__list li {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.wn__list li::marker {
+  color: var(--accent);
+}
+.wn__body strong {
+  color: var(--text);
+  font-weight: 700;
+}
+.wn__note {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  border-left: 2px solid rgba(124, 92, 255, 0.5);
+  padding: 6px 0 6px 12px;
+  margin: 10px 0;
+  background: rgba(124, 92, 255, 0.06);
+  border-radius: 0 8px 8px 0;
+}
+.wn__muted {
+  color: var(--text-faint);
+}
 
 /* ---------- Update banner ---------- */
 .updatebar {
@@ -1319,6 +1396,124 @@ body {
   color: var(--text);
 }
 
+/* ---------- Refine (charter/album/year) ---------- */
+.refine {
+  position: relative;
+  display: inline-flex;
+}
+.refine__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 8px 13px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.refine__toggle:hover,
+.refine--open .refine__toggle {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--panel-hover);
+}
+.refine__toggle--on {
+  color: #fff;
+  border-color: transparent;
+  background: var(--accent-grad);
+}
+.refine__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+}
+.refine__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 14px;
+  background: #121627;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  animation: modalIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.refine__field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.refine__field span {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--text-faint);
+  font-weight: 700;
+}
+.refine__field input {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.refine__field input:focus {
+  border-color: var(--accent);
+}
+.refine__check {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  gap: 8px;
+}
+.refine__check .chk__box {
+  width: 17px;
+  height: 17px;
+}
+.refine__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+}
+.refine__hint {
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--text-faint);
+}
+.refine__clear {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.refine__clear:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 /* ---------- Results list ---------- */
 .results {
   flex: 1;
@@ -1547,6 +1742,16 @@ body {
   border-color: rgba(45, 214, 192, 0.35);
   background: rgba(45, 214, 192, 0.08);
   letter-spacing: 0.3px;
+}
+/* Nápověda „už mám v knihovně". */
+.badge--owned {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #7fe0a8;
+  border-color: rgba(80, 220, 140, 0.4);
+  background: rgba(80, 220, 140, 0.1);
+  font-weight: 700;
 }
 .song__charter {
   display: inline-flex;

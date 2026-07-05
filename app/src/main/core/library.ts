@@ -1,7 +1,15 @@
 // Instalace stažených/zkonvertovaných písní do knihovny Clone Hero (Songs).
 
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs'
-import { join } from 'path'
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync
+} from 'fs'
+import { basename, join } from 'path'
 import { getConfig } from './config'
 import type { SongResult } from '../../shared/types'
 
@@ -109,6 +117,55 @@ function findSngFiles(root: string): string[] {
     walk(root, 0)
   }
   return found
+}
+
+/** Normalizovaný klíč skladby: jen malá písmena a číslice, artist|title. */
+function normKey(artist: string, title: string): string {
+  const n = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+  return `${n(artist)}|${n(title)}`
+}
+
+/** Přečte artist/title ze `song.ini` (rychlé, malý soubor). */
+function readIniMeta(folder: string): { artist: string; title: string } | null {
+  try {
+    const ini = join(folder, 'song.ini')
+    if (!existsSync(ini)) return null
+    const txt = readFileSync(ini, 'utf-8')
+    const name = /^\s*name\s*=\s*(.+)$/im.exec(txt)?.[1]?.trim()
+    const artist = /^\s*artist\s*=\s*(.+)$/im.exec(txt)?.[1]?.trim()
+    if (!name && !artist) return null
+    return { artist: artist ?? '', title: name ?? '' }
+  } catch {
+    return null
+  }
+}
+
+/** "Artist - Title" → rozdělené; jinak title = celý název. */
+function splitName(name: string): { artist: string; title: string } {
+  const dash = name.indexOf(' - ')
+  if (dash > 0) return { artist: name.slice(0, dash).trim(), title: name.slice(dash + 3).trim() }
+  return { artist: '', title: name.trim() }
+}
+
+/**
+ * Normalizované klíče (artist|title) všech písní v knihovně Songs — z názvů složek
+ * a ze `song.ini` (rekurzivně, i podsložky) + volných .sng. Slouží jako NÁPOVĚDA
+ * „tohle už asi máš" ve výsledcích hledání. Match není 100% (různé zápisy názvů).
+ */
+export function ownedSongKeys(): string[] {
+  const songsDir = getConfig().songsDir
+  if (!existsSync(songsDir)) return []
+  const keys = new Set<string>()
+  for (const folder of findSongFolders(songsDir)) {
+    const meta = readIniMeta(folder) ?? splitName(basename(folder))
+    if (!meta.title) continue
+    keys.add(normKey(meta.artist, meta.title))
+  }
+  for (const sng of findSngFiles(songsDir)) {
+    const { artist, title } = splitName(basename(sng).replace(/\.sng$/i, ''))
+    if (title) keys.add(normKey(artist, title))
+  }
+  return [...keys]
 }
 
 export function sanitize(name: string): string {

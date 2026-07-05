@@ -6,6 +6,7 @@ import type {
   Database,
   DownloadJob,
   LibListing,
+  ReleaseNotes,
   RhythmVerseSystem,
   SearchResponse,
   SongResult,
@@ -32,6 +33,7 @@ const api = {
     ipcRenderer.invoke('jobs:enqueueLocalBatch', paths, targetSubfolder) as Promise<string[]>,
 
   listSongFolders: () => ipcRenderer.invoke('library:listFolders') as Promise<string[]>,
+  ownedSongKeys: () => ipcRenderer.invoke('library:ownedKeys') as Promise<string[]>,
 
   libList: (rel: string) => ipcRenderer.invoke('lib:list', rel) as Promise<LibListing>,
   libCreateFolder: (rel: string, name: string) =>
@@ -141,7 +143,11 @@ const api = {
     const handler = (_e: unknown, info: { version: string }): void => cb(info)
     ipcRenderer.on('update:downloaded', handler)
     return () => ipcRenderer.removeListener('update:downloaded', handler)
-  }
+  },
+
+  appVersion: () => ipcRenderer.invoke('app:version') as Promise<string>,
+  getReleaseNotes: (version?: string) =>
+    ipcRenderer.invoke('app:releaseNotes', version) as Promise<ReleaseNotes | null>
 }
 
 contextBridge.exposeInMainWorld('api', api)

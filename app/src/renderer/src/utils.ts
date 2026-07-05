@@ -45,6 +45,12 @@ export const INSTRUMENTS: InstrumentMeta[] = [
 
 export const MAX_DIFFICULTY = 6
 
+/** Normalizovaný klíč skladby (musí sedět s main `normKey`): artist|title. */
+export function songKey(artist: string, title: string): string {
+  const n = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+  return `${n(artist)}|${n(title)}`
+}
+
 export type ManualHost = 'MEGA' | 'Mediafire' | 'Shortener' | null
 
 export const SHORTENER_RE =

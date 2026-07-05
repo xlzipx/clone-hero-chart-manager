@@ -27,12 +27,20 @@ interface AppState {
   config: AppConfig | null
   showSettings: boolean
   showLibrary: boolean
+  showWhatsNew: boolean
 
   // Filtr podle nástroje (id nástroje, který musí být zahraný)
   instrumentFilters: string[]
   // Filtr obtížnosti (0–6) aplikovaný na vybrané nástroje
   diffMin: number
   diffMax: number
+  // Zpřesňující filtry přes načtené výsledky (contains, case-insensitive)
+  charterFilter: string
+  albumFilter: string
+  yearFilter: string
+  // „Už mám v knihovně" — normalizované klíče písní + přepínač skrytí
+  ownedKeys: Set<string>
+  hideOwned: boolean
   // Řazení výsledků
   sort: SortKey
 
@@ -67,11 +75,17 @@ interface AppState {
   setSystem: (s: RhythmVerseSystem) => void
   toggleInstrumentFilter: (id: string) => void
   setDiffRange: (min: number, max: number) => void
+  setCharterFilter: (v: string) => void
+  setAlbumFilter: (v: string) => void
+  setYearFilter: (v: string) => void
+  setHideOwned: (v: boolean) => void
+  loadOwnedKeys: () => Promise<void>
   setSort: (s: SortKey) => void
   clearFilters: () => void
   setSelectedIndex: (i: number) => void
   setShowSettings: (v: boolean) => void
   setShowLibrary: (v: boolean) => void
+  setShowWhatsNew: (v: boolean) => void
   doSearch: (page?: number) => Promise<void>
   openDownload: (song: SongResult) => Promise<void>
   confirmDownload: (subfolder: string) => Promise<void>
@@ -161,6 +175,9 @@ function humanize(s: string): string {
   )
 }
 
+/** Debounce pro znovunačtení „In library" indexu po dávce instalací. */
+let ownedReloadTimer: ReturnType<typeof setTimeout> | null = null
+
 export const useStore = create<AppState>((set, get) => ({
   query: '',
   database: 'rhythmverse',
@@ -177,9 +194,15 @@ export const useStore = create<AppState>((set, get) => ({
   config: null,
   showSettings: false,
   showLibrary: false,
+  showWhatsNew: false,
   instrumentFilters: [],
   diffMin: 0,
   diffMax: 6,
+  charterFilter: '',
+  albumFilter: '',
+  yearFilter: '',
+  ownedKeys: new Set<string>(),
+  hideOwned: false,
   sort: 'relevance',
   marketplacePrompt: null,
   pendingSong: null,
@@ -208,11 +231,33 @@ export const useStore = create<AppState>((set, get) => ({
       diffMax: Math.max(0, Math.min(6, Math.max(min, max))),
       selectedIndex: 0
     }),
+  setCharterFilter: (v) => set({ charterFilter: v, selectedIndex: 0 }),
+  setAlbumFilter: (v) => set({ albumFilter: v, selectedIndex: 0 }),
+  setYearFilter: (v) => set({ yearFilter: v, selectedIndex: 0 }),
+  setHideOwned: (v) => set({ hideOwned: v, selectedIndex: 0 }),
+  loadOwnedKeys: async () => {
+    try {
+      const keys = await window.api.ownedSongKeys()
+      set({ ownedKeys: new Set(keys) })
+    } catch {
+      /* nevadí — nápověda „In library" prostě nebude */
+    }
+  },
   setSort: (s) => set({ sort: s, selectedIndex: 0 }),
-  clearFilters: () => set({ instrumentFilters: [], diffMin: 0, diffMax: 6, selectedIndex: 0 }),
+  clearFilters: () =>
+    set({
+      instrumentFilters: [],
+      diffMin: 0,
+      diffMax: 6,
+      charterFilter: '',
+      albumFilter: '',
+      yearFilter: '',
+      selectedIndex: 0
+    }),
   setSelectedIndex: (i) => set({ selectedIndex: i }),
   setShowSettings: (v) => set({ showSettings: v }),
   setShowLibrary: (v) => set({ showLibrary: v }),
+  setShowWhatsNew: (v) => set({ showWhatsNew: v }),
 
   doSearch: async (page = 1) => {
     const { query, system, database, records } = get()
@@ -425,6 +470,11 @@ export const useStore = create<AppState>((set, get) => ({
     // Chybové joby zůstávají, dokud uživatel nestiskne „Clear history" — chce
     // si přečíst, co se pokazilo.
     if (job.stage === 'done') {
+      // Po instalaci osvěž „In library" index (debounced kvůli dávkám).
+      if (ownedReloadTimer) clearTimeout(ownedReloadTimer)
+      ownedReloadTimer = setTimeout(() => {
+        void useStore.getState().loadOwnedKeys()
+      }, 1500)
       setTimeout(() => {
         const cur = useStore.getState().jobs[job.id]
         if (!cur || cur.stage !== 'done') return // už ho mezitím něco změnilo
