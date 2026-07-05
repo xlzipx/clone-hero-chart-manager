@@ -462,6 +462,27 @@ body {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text);
 }
+/* Připravená aktualizace — zelenkavý nádech, ať je jasné, že stačí restart. */
+.updatebar--ready {
+  background: linear-gradient(90deg, rgba(45, 214, 192, 0.16), rgba(124, 92, 255, 0.12));
+  border-color: rgba(45, 214, 192, 0.45);
+}
+/* Průběh stahování. */
+.updatebar__progress {
+  flex: 1;
+  height: 6px;
+  margin-left: auto;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  max-width: 220px;
+}
+.updatebar__progress-fill {
+  height: 100%;
+  background: var(--accent-grad);
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
 
 /* ---------- Search bar ---------- */
 .searchbar {

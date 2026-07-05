@@ -26,7 +26,6 @@ import {
   libTrash
 } from './core/librarymgr'
 import { search as searchRhythmverse } from './core/rhythmverse'
-import { checkForUpdate } from './core/update'
 import { registerHotkeys, unregisterHotkeys } from './hotkeys'
 import { getOverlay, hideOverlay } from './overlay'
 
@@ -181,7 +180,6 @@ export function registerIpc(): void {
   ipcMain.on('shell:openExternal', (_e, url: string) => {
     if (typeof url === 'string' && /^https?:\/\//.test(url)) shell.openExternal(url)
   })
-  ipcMain.handle('app:checkUpdate', () => checkForUpdate())
 
   // Přeposílání průběhu úloh do renderer procesu.
   jobManager.on('update', (job) => {

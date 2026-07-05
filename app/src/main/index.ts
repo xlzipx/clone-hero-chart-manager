@@ -6,6 +6,7 @@ import { registerHotkeys, unregisterHotkeys } from './hotkeys'
 import { createOverlay, getOverlay } from './overlay'
 import { destroyReminder } from './reminder'
 import { createTray, destroyTray } from './tray'
+import { initAutoUpdate } from './core/autoupdate'
 
 // Jediná instance aplikace.
 if (!app.requestSingleInstanceLock()) {
@@ -24,6 +25,7 @@ if (!app.requestSingleInstanceLock()) {
     createOverlay()
     createTray()
     registerHotkeys()
+    initAutoUpdate(getOverlay)
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createOverlay()

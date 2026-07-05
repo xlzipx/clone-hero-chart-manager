@@ -9,7 +9,7 @@ import type {
   RhythmVerseSystem,
   SearchResponse,
   SongResult,
-  UpdateInfo
+  UpdateAvailable
 } from '../shared/types'
 
 const api = {
@@ -118,7 +118,27 @@ const api = {
 
   openExternal: (url: string) => ipcRenderer.send('shell:openExternal', url),
 
-  checkUpdate: () => ipcRenderer.invoke('app:checkUpdate') as Promise<UpdateInfo | null>
+  // ---- Auto-update ----
+  downloadUpdate: () =>
+    ipcRenderer.invoke('update:download') as Promise<
+      { ok: true } | { ok: false; error: string }
+    >,
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateAvailable: (cb: (info: UpdateAvailable) => void) => {
+    const handler = (_e: unknown, info: UpdateAvailable): void => cb(info)
+    ipcRenderer.on('update:available', handler)
+    return () => ipcRenderer.removeListener('update:available', handler)
+  },
+  onUpdateProgress: (cb: (p: { percent: number }) => void) => {
+    const handler = (_e: unknown, p: { percent: number }): void => cb(p)
+    ipcRenderer.on('update:progress', handler)
+    return () => ipcRenderer.removeListener('update:progress', handler)
+  },
+  onUpdateDownloaded: (cb: (info: { version: string }) => void) => {
+    const handler = (_e: unknown, info: { version: string }): void => cb(info)
+    ipcRenderer.on('update:downloaded', handler)
+    return () => ipcRenderer.removeListener('update:downloaded', handler)
+  }
 }
 
 contextBridge.exposeInMainWorld('api', api)

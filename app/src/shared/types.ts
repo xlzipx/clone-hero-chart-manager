@@ -133,6 +133,14 @@ export interface UpdateInfo {
   url: string
 }
 
+export interface UpdateAvailable {
+  version: string
+  /** true = instalační verze umí self-update; false = portable → jen ruční odkaz. */
+  canAutoUpdate: boolean
+  /** URL na release (jen u ručního fallbacku). */
+  url?: string
+}
+
 /** API vystavené do renderer procesu přes contextBridge (window.api). */
 export interface RendererApi {
   search(
@@ -197,6 +205,15 @@ export interface RendererApi {
   resumeHotkeys(): void
   onHotkey(cb: (action: string) => void): () => void
   openExternal(url: string): void
-  /** Zkontroluje nejnovější GitHub release. `null` = chyba/offline (tiché). */
-  checkUpdate(): Promise<UpdateInfo | null>
+  // ---- Auto-update ----
+  /** Spustí stažení aktualizace (jen instalační verze). */
+  downloadUpdate(): Promise<{ ok: true } | { ok: false; error: string }>
+  /** Nainstaluje staženou aktualizaci a restartuje appku. */
+  installUpdate(): Promise<void>
+  /** Přišla nová verze (auto nebo ruční fallback). */
+  onUpdateAvailable(cb: (info: UpdateAvailable) => void): () => void
+  /** Průběh stahování aktualizace (procenta). */
+  onUpdateProgress(cb: (p: { percent: number }) => void): () => void
+  /** Aktualizace stažená a připravená k instalaci. */
+  onUpdateDownloaded(cb: (info: { version: string }) => void): () => void
 }

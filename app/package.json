@@ -1,6 +1,6 @@
 {
   "name": "chm",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Clone Hero Chart Manager (CHM): search, download and convert Clone Hero charts from RhythmVerse and Chorus Encore.",
   "main": "./out/main/index.js",
   "author": "ZIPEEK",
@@ -23,6 +23,13 @@
       "output": "dist",
       "buildResources": "build"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "xlzipx",
+        "repo": "clone-hero-chart-manager"
+      }
+    ],
     "files": [
       "out/**/*",
       "build/icon.png",
@@ -75,6 +82,7 @@
     }
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "parse-sng": "^4.0.3",
     "zustand": "^5.0.2"
   },
