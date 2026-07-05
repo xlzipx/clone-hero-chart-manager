@@ -110,7 +110,7 @@ export function FilterBar(): JSX.Element {
       <button
         type="button"
         className={`dropzone ${dragOver ? 'dropzone--hover' : ''}`}
-        title="Drop a chart file here, or click to browse (.zip / .rar / .7z / .sng / .rb3con)"
+        title="Drop a chart file here, or click to browse (.zip / .rar / .7z / .sng / .rb3con). Rock Band CON and DTXMania songs (in an archive) are auto-converted."
         onClick={async () => {
           const picked = await window.api.chooseSongFile()
           if (picked) void openLocalDrop(picked.path, picked.name)

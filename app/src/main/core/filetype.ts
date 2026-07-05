@@ -102,3 +102,44 @@ export function findConFiles(root: string, maxDepth = 6): string[] {
   }
   return out
 }
+
+/**
+ * Najde vstupní body pro DTXMania konverzi ve stromu.
+ * - Preferuje `set.def` (import celé sady = Expert + autogen nižší obtížnosti);
+ *   jeden set.def = jedna píseň (packy mají víc podsložek).
+ * - Když žádný set.def není, vezme jeden `.dtx`/`.gda` na složku (soubory v jedné
+ *   složce jsou obtížnosti jedné písně → jinak by vznikly duplikáty).
+ */
+export function findDtxEntries(root: string, maxDepth = 6): string[] {
+  const setDefs: string[] = []
+  const dtxByDir = new Map<string, string>()
+  const walk = (dir: string, depth: number): void => {
+    if (depth > maxDepth) return
+    let entries: string[]
+    try {
+      entries = readdirSync(dir)
+    } catch {
+      return
+    }
+    for (const name of entries) {
+      const full = join(dir, name)
+      let st
+      try {
+        st = statSync(full)
+      } catch {
+        continue
+      }
+      if (st.isDirectory()) {
+        walk(full, depth + 1)
+      } else if (st.isFile() && st.size > 0) {
+        const lower = name.toLowerCase()
+        if (lower === 'set.def') setDefs.push(full)
+        else if ((lower.endsWith('.dtx') || lower.endsWith('.gda')) && !dtxByDir.has(dir)) {
+          dtxByDir.set(dir, full)
+        }
+      }
+    }
+  }
+  walk(root, 0)
+  return setDefs.length > 0 ? setDefs : [...dtxByDir.values()]
+}

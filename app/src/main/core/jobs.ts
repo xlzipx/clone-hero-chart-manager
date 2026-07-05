@@ -8,8 +8,8 @@ import { randomUUID } from 'crypto'
 import type { DownloadJob, JobStage, SongResult } from '../../shared/types'
 import { downloadDriveFolder, downloadTo, guessFileName, isDriveFolder } from './download'
 import { extract } from './extractor'
-import { findConFiles, isArchiveByMagic, isHtmlFile } from './filetype'
-import { convertCon } from './converter'
+import { findConFiles, findDtxEntries, isArchiveByMagic, isHtmlFile } from './filetype'
+import { convertCon, convertDtx } from './converter'
 import { install } from './library'
 import { extractSng, isSngFile } from './sngextract'
 
@@ -175,7 +175,7 @@ class JobManager extends EventEmitter {
         }
       }
 
-      // 3) Konverze CON (pokud potřeba)
+      // 3) Konverze (pokud potřeba) — nejdřív CON, jinak zkus DTXMania.
       const conFiles = findConFiles(workDir)
       let installSource = workDir
       if (conFiles.length > 0) {
@@ -197,6 +197,28 @@ class JobManager extends EventEmitter {
           done++
         }
         installSource = convOut
+      } else {
+        const dtxEntries = findDtxEntries(workDir)
+        if (dtxEntries.length > 0) {
+          this.setStage(
+            id,
+            'converting',
+            'Converting DTXMania song — this can take a few minutes…',
+            -1
+          )
+          const convOut = join(tmpRoot, '_converted')
+          mkdirSync(convOut, { recursive: true })
+          let done = 0
+          for (const dtx of dtxEntries) {
+            const dest = join(convOut, `song_${done}`)
+            await convertDtx(dtx, dest, (cp) => {
+              const overall = (done + Math.max(cp.progress, 0)) / dtxEntries.length
+              this.update(id, { stage: 'converting', progress: overall, message: cp.message })
+            })
+            done++
+          }
+          installSource = convOut
+        }
       }
 
       // 4) Install into the library
