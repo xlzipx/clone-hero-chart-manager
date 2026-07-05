@@ -20,7 +20,9 @@ export function FilterBar(): JSX.Element {
   const diffMax = useStore((s) => s.diffMax)
   const setDiffRange = useStore((s) => s.setDiffRange)
 
-  const diffActive = filters.length > 0
+  // Difficulty je použitelná vždy: s vybranými nástroji filtruje je, bez výběru
+  // platí „jakýkoli nástroj v rozsahu".
+  const anyInstrument = filters.length === 0
   const openLocalDrop = useStore((s) => s.openLocalDrop)
   const openLocalBatch = useStore((s) => s.openLocalBatch)
   const [dragOver, setDragOver] = useState(false)
@@ -82,11 +84,15 @@ export function FilterBar(): JSX.Element {
         })}
       </div>
 
-      <span className={`filterbar__diff ${diffActive ? '' : 'filterbar__diff--off'}`}>
+      <span className="filterbar__diff">
         <span className="filterbar__label">Difficulty</span>
         <span
           className="info"
-          title="Filters the selected instrument by its difficulty tier (0 = easiest, 6 = hardest). The first value is the MINIMUM, the second is the MAXIMUM — only songs whose selected instrument falls within this range are shown."
+          title={
+            anyInstrument
+              ? 'Difficulty tier 0 (easiest) to 6 (hardest). With no instrument selected, shows songs where ANY instrument falls within this range. Select instruments above to target them specifically.'
+              : 'Filters the selected instruments by their difficulty tier (0 = easiest, 6 = hardest). Only songs whose selected instruments fall within this MIN–MAX range are shown.'
+          }
         >
           <Icon name="info" size={13} />
         </span>
@@ -95,7 +101,6 @@ export function FilterBar(): JSX.Element {
           <Dropdown
             value={diffMin}
             options={LEVELS}
-            disabled={!diffActive}
             ariaLabel="Minimum difficulty"
             onChange={(v) => setDiffRange(v, diffMax)}
           />
@@ -106,14 +111,13 @@ export function FilterBar(): JSX.Element {
           <Dropdown
             value={diffMax}
             options={LEVELS}
-            disabled={!diffActive}
             ariaLabel="Maximum difficulty"
             onChange={(v) => setDiffRange(diffMin, v)}
           />
         </span>
 
         <span className="diffpick__cap diffpick__cap--or">exact</span>
-        <DifficultyDots disabled={!diffActive} />
+        <DifficultyDots disabled={false} />
       </span>
 
       <button

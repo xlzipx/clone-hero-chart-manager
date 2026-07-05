@@ -17,7 +17,7 @@ import { TitleBar } from './components/TitleBar'
 import { UpdateBanner } from './components/UpdateBanner'
 import { WhatsNew } from './components/WhatsNew'
 import { useStore } from './store'
-import { isAutoDownloadable, songKey } from './utils'
+import { INSTRUMENTS, isAutoDownloadable, songKey } from './utils'
 
 export function App(): JSX.Element {
   const results = useStore((s) => s.results)
@@ -47,15 +47,25 @@ export function App(): JSX.Element {
     const cf = charterFilter.trim().toLowerCase()
     const af = albumFilter.trim().toLowerCase()
     const yf = yearFilter.trim()
+    const diffNarrowed = diffMin > 0 || diffMax < 6
     const filtered = results.filter((song) => {
-      if (
-        instrumentFilters.length > 0 &&
-        !instrumentFilters.every((id) => {
-          const d = song.difficulties[id as keyof typeof song.difficulties]
+      if (instrumentFilters.length > 0) {
+        // Vybrané nástroje musí být nacharované a v rozsahu obtížnosti.
+        if (
+          !instrumentFilters.every((id) => {
+            const d = song.difficulties[id as keyof typeof song.difficulties]
+            return d !== undefined && d >= diffMin && d <= diffMax
+          })
+        )
+          return false
+      } else if (diffNarrowed) {
+        // Bez výběru nástroje: stačí, když JAKÝKOLI nástroj padne do rozsahu.
+        const anyIn = INSTRUMENTS.some((inst) => {
+          const d = song.difficulties[inst.id]
           return d !== undefined && d >= diffMin && d <= diffMax
         })
-      )
-        return false
+        if (!anyIn) return false
+      }
       if (cf && !(song.charter ?? '').toLowerCase().includes(cf)) return false
       if (af && !(song.album ?? '').toLowerCase().includes(af)) return false
       if (yf && !String(song.year ?? '').includes(yf)) return false
