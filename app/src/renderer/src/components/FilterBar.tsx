@@ -47,7 +47,7 @@ export function FilterBar(): JSX.Element {
     if (paths.length === 1 && singleHasExt) {
       if (!ACCEPTED_EXT.test(single.name)) {
         window.alert(
-          `Unsupported file: "${single.name}". Drop a .zip / .rar / .7z / .sng / .rb3con / CON file, multiple files, or a folder.`
+          `Unsupported file: "${single.name}". Drop a .zip / .rar / .7z / .sng / Rock Band CON file, multiple files, or a folder.`
         )
         return
       }
@@ -123,7 +123,7 @@ export function FilterBar(): JSX.Element {
       <button
         type="button"
         className={`dropzone ${dragOver ? 'dropzone--hover' : ''}`}
-        title="Drop a chart file here, or click to browse (.zip / .rar / .7z / .sng / .rb3con). Rock Band CON and DTXMania songs (in an archive) are auto-converted."
+        title="Drop a chart file here, or click to browse (.zip / .rar / .7z / .sng / CON). Rock Band CON files (also seen as .rb3con) and DTXMania songs are auto-converted."
         onClick={async () => {
           const picked = await window.api.chooseSongFile()
           if (picked) void openLocalDrop(picked.path, picked.name)
@@ -146,7 +146,7 @@ export function FilterBar(): JSX.Element {
         <Icon name="download" size={18} />
         <div className="dropzone__text">
           <strong>Drop files or a folder, or click to browse</strong>
-          <span>.zip · .rar · .7z · .sng · .rb3con · CON · DTX</span>
+          <span>.zip · .rar · .7z · .sng · CON · DTX</span>
         </div>
       </button>
     </div>

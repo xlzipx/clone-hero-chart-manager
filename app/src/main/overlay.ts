@@ -23,22 +23,31 @@ export function createOverlay(): BrowserWindow {
   const primary = screen.getPrimaryDisplay()
   const { width, height } = primary.workAreaSize
 
-  // Default velikost okna — velkorysá, ať se vejde header + filter + dost
-  // řádků výsledků pohodlně bez scrollování. Na menších monitorech to
-  // Electron sám clampuje na velikost work area.
-  // Minimum (níže) drží, aby header nepředvícoval — pod ně se okno nedá zmenšit.
-  const winW = Math.max(1500, Math.round(width * 0.7))
-  const winH = Math.max(1000, Math.round(height * 0.78))
+  // UI je vyladěné na efektivní zoom 1.15. Electron `zoomFactor` se ale NÁSOBÍ
+  // s Windows DPI scalingem, takže na 150 % by výsledek byl 1.15 × 1.5 ≈ 1.73×
+  // a layout přetéká (Reddit: „display is a little odd at 150% displayer or
+  // higher"). Proto zoom dělíme scaleFactorem → výsledná velikost je
+  // konzistentní na všech DPI (na HiDPI jen ostřejší, ne větší).
+  const scale = primary.scaleFactor || 1
+  const ZOOM = 1.15 / scale
 
-  // Zvětšení celého UI – zoom sladěný s hustším layoutem.
-  const ZOOM = 1.15
+  // Rozměry okna počítáme v „design" CSS px a přes tenhle zoom je převádíme na
+  // DIP. Díky tomu jde okno na malých HiDPI noteboocích zmenšit — dřív bylo
+  // minWidth 1180 DIP širší než 1280 DIP obrazovka (1080p @ 150 %) a okno
+  // trčelo přes okraj. (Při 100 % scalingu vyjdou čísla identicky jako dřív:
+  // 1500 / 1000 / 1180 / 760.)
+  const dip = (css: number): number => Math.round(css * ZOOM)
+  const winW = Math.min(Math.max(dip(1304), Math.round(width * 0.7)), width)
+  const winH = Math.min(Math.max(dip(870), Math.round(height * 0.78)), height)
+  const minW = Math.min(dip(1026), width)
+  const minH = Math.min(dip(661), height)
 
   const win = new BrowserWindow({
     title: 'Clone Hero Chart Manager',
     width: winW,
     height: winH,
-    minWidth: 1180,
-    minHeight: 760,
+    minWidth: minW,
+    minHeight: minH,
     center: true,
     show: false,
     frame: false,
