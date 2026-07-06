@@ -3233,11 +3233,118 @@ body {
 .dup__row:hover {
   color: var(--text);
 }
-.dup__folder {
+/* Jedna kopie = řádek + (volitelně) rozbalený detail pod ním. */
+.dup__copy {
+  border-radius: 8px;
+}
+.dup__openbtn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.dup__openbtn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.dup__openbtn--on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(124, 92, 255, 0.1);
+}
+.dup__detail {
+  display: flex;
+  gap: 12px;
+  margin: 2px 0 8px 30px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-strong);
+}
+.dup__detail--loading {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+.dup__detailart {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  object-fit: cover;
+}
+.dup__detailart--none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-faint);
+}
+.dup__detailmeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.dup__detailsub {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.dup__reveal {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+/* Levá část řádku: název složky + odznaky extras pod ním. */
+.dup__rowmain {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dup__folder {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.dup__extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.dup__extra {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+/* Nejužitečnější signály zvýrazněné barvou. */
+.dup__extra--stems {
+  color: var(--accent-tri);
+  border-color: rgba(45, 214, 192, 0.4);
+  background: rgba(45, 214, 192, 0.08);
+}
+.dup__extra--video {
+  color: #b98bff;
+  border-color: rgba(124, 92, 255, 0.4);
+  background: rgba(124, 92, 255, 0.08);
 }
 .dup__charter {
   flex-shrink: 0;
@@ -3258,6 +3365,12 @@ body {
   font-size: 12.5px;
   color: var(--text-faint);
 }
+/* Deep scan: nenápadný dovětek u počtu shod („filtered from X, scanning…"). */
+.resultsbar__scan {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
 /* Potvrzení úspěšné akce (přesun/smazání) — vždy viditelné nad patičkou, mimo scroll. */
 .dup__notice {
   margin: 10px 18px 0;

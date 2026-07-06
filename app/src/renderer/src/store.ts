@@ -72,6 +72,18 @@ interface AppState {
     suggestedTitle: string
   } | null
 
+  // ── „Deep scan" ──────────────────────────────────────────────────────
+  // Server neumí filtrovat podle nástroje/obtížnosti. Při zapnutém filtru se
+  // proto stáhnou VŠECHNY stránky dotazu (do stropu), filtruje a stránkuje se
+  // LOKÁLNĚ — shody jdou souvisle za sebou a počty stránek/výsledků sedí.
+  deep: boolean
+  deepSongs: SongResult[]
+  deepScannedPages: number
+  deepTotalPages: number
+  deepLoading: boolean
+  /** Dotaz měl víc stránek než strop — prohledán jen začátek (obří katalogy). */
+  deepCapHit: boolean
+
   setQuery: (q: string) => void
   setDatabase: (d: Database) => void
   setSystem: (s: RhythmVerseSystem) => void
@@ -91,6 +103,8 @@ interface AppState {
   /** Otevře „What's new". `since` = z jaké verze uživatel přišel (null/nezadáno = posledních N). */
   openWhatsNew: (since?: string | null) => void
   doSearch: (page?: number) => Promise<void>
+  /** Přepne stránku: v deep režimu lokálně, jinak server dotazem. */
+  goToPage: (p: number) => void
   /** „Surprise me" — náhodné seed slovo, náhodná stránka, zamíchané výsledky. */
   surprise: () => Promise<void>
   /** Spustí hledání konkrétního termínu (discovery chip). */
@@ -194,7 +208,85 @@ let ownedReloadTimer: ReturnType<typeof setTimeout> | null = null
  */
 let searchSeq = 0
 
-export const useStore = create<AppState>((set, get) => ({
+export const useStore = create<AppState>((set, get) => {
+  /** Aktivní klientské filtry, které server neumí (nástroj / obtížnost). */
+  const hasClientFilters = (): boolean => {
+    const s = get()
+    return s.instrumentFilters.length > 0 || s.diffMin > 0 || s.diffMax < 6
+  }
+
+  /** Strop deep scanu: 40 stránek (při 25/str. = 1000 písní). Chrání před
+   *  stahováním celé Encore DB (~93k) při prázdném browse dotazu. */
+  const DEEP_MAX_PAGES = 40
+
+  /**
+   * Stáhne postupně všechny stránky aktuálního dotazu (do stropu) a nabaluje
+   * je do `deepSongs`. UI pak filtruje + stránkuje lokálně, takže shody jdou
+   * souvisle za sebou (žádné poloprázdné stránky) a počty sedí.
+   */
+  const deepScan = async (): Promise<void> => {
+    const { query, database, system, records } = get()
+    if (!query.trim() && database !== 'enchor') {
+      searchSeq++
+      set({ results: [], totalFiltered: 0, error: null, loading: false })
+      return
+    }
+    const myReq = ++searchSeq
+    set({
+      deep: true,
+      deepSongs: [],
+      deepScannedPages: 0,
+      deepTotalPages: 1,
+      deepLoading: true,
+      deepCapHit: false,
+      loading: true,
+      error: null,
+      page: 1,
+      selectedIndex: 0,
+      selectedKeys: []
+    })
+    try {
+      let totalPages = 1
+      for (let p = 1; p <= Math.min(totalPages, DEEP_MAX_PAGES); p++) {
+        const res = await window.api.search(query.trim(), p, records, system, database)
+        if (myReq !== searchSeq) return // mezitím odstartovalo novější hledání
+        const total = res.totalFiltered || res.songs.length
+        totalPages = Math.max(1, Math.ceil(total / records))
+        set((s) => ({
+          deepSongs: [...s.deepSongs, ...res.songs],
+          deepScannedPages: p,
+          deepTotalPages: Math.min(totalPages, DEEP_MAX_PAGES),
+          totalFiltered: total,
+          loading: false // od první stránky ukazujeme přibývající shody živě
+        }))
+        if (res.songs.length === 0) break
+      }
+      if (myReq !== searchSeq) return
+      set({ deepLoading: false, deepCapHit: totalPages > DEEP_MAX_PAGES })
+    } catch (e) {
+      if (myReq !== searchSeq) return
+      set({
+        deepLoading: false,
+        loading: false,
+        error: e instanceof Error ? e.message : String(e)
+      })
+    }
+  }
+
+  /** Po změně filtrů zapne/vypne deep režim (a případně spustí sken). */
+  const syncDeepMode = (): void => {
+    const s = get()
+    const active = hasClientFilters()
+    const searchable = !!s.query.trim() || s.database === 'enchor'
+    if (active && !s.deep && searchable && (s.results.length > 0 || s.totalFiltered > 0)) {
+      void deepScan()
+    } else if (!active && s.deep) {
+      set({ deep: false, deepSongs: [], deepLoading: false, deepCapHit: false })
+      if (searchable) void get().doSearch(1)
+    }
+  }
+
+  return {
   query: '',
   database: 'rhythmverse',
   system: 'ch',
@@ -231,23 +323,35 @@ export const useStore = create<AppState>((set, get) => ({
   pendingLocalBatch: null,
   openRowMenu: null,
   pendingLocal: null,
+  deep: false,
+  deepSongs: [],
+  deepScannedPages: 0,
+  deepTotalPages: 1,
+  deepLoading: false,
+  deepCapHit: false,
 
   setQuery: (q) => set({ query: q }),
   setDatabase: (d) => set({ database: d }),
   setSystem: (s) => set({ system: s }),
-  toggleInstrumentFilter: (id) =>
+  toggleInstrumentFilter: (id) => {
     set((s) => ({
       instrumentFilters: s.instrumentFilters.includes(id)
         ? s.instrumentFilters.filter((x) => x !== id)
         : [...s.instrumentFilters, id],
-      selectedIndex: 0
-    })),
-  setDiffRange: (min, max) =>
-    set({
+      selectedIndex: 0,
+      page: s.deep ? 1 : s.page
+    }))
+    syncDeepMode()
+  },
+  setDiffRange: (min, max) => {
+    set((s) => ({
       diffMin: Math.max(0, Math.min(6, Math.min(min, max))),
       diffMax: Math.max(0, Math.min(6, Math.max(min, max))),
-      selectedIndex: 0
-    }),
+      selectedIndex: 0,
+      page: s.deep ? 1 : s.page
+    }))
+    syncDeepMode()
+  },
   setCharterFilter: (v) => set({ charterFilter: v, selectedIndex: 0 }),
   setAlbumFilter: (v) => set({ albumFilter: v, selectedIndex: 0 }),
   setYearFilter: (v) => set({ yearFilter: v, selectedIndex: 0 }),
@@ -261,7 +365,7 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
   setSort: (s) => set({ sort: s, selectedIndex: 0 }),
-  clearFilters: () =>
+  clearFilters: () => {
     set({
       instrumentFilters: [],
       diffMin: 0,
@@ -270,7 +374,9 @@ export const useStore = create<AppState>((set, get) => ({
       albumFilter: '',
       yearFilter: '',
       selectedIndex: 0
-    }),
+    })
+    syncDeepMode()
+  },
   setSelectedIndex: (i) => set({ selectedIndex: i }),
   setShowSettings: (v) => set({ showSettings: v }),
   setShowLibrary: (v) => set({ showLibrary: v }),
@@ -284,8 +390,13 @@ export const useStore = create<AppState>((set, get) => ({
     // díky tomu funguje i stránkování po „Surprise me" na Encore.
     if (!query.trim() && database !== 'enchor') {
       searchSeq++ // zneplatní i případné běžící hledání
-      set({ results: [], totalFiltered: 0, error: null, loading: false })
+      set({ results: [], totalFiltered: 0, error: null, loading: false, deep: false, deepSongs: [] })
       return
+    }
+    // Aktivní filtr nástroje/obtížnosti → deep scan (server filtrovat neumí,
+    // takže stáhneme všechny stránky a stránkujeme lokálně nad shodami).
+    if (hasClientFilters()) {
+      return deepScan()
     }
     const myReq = ++searchSeq
     set({ loading: true, error: null })
@@ -298,12 +409,22 @@ export const useStore = create<AppState>((set, get) => ({
         page: res.page,
         loading: false,
         selectedIndex: 0,
-        selectedKeys: [] // nový výsledek → zruš předchozí výběr
+        selectedKeys: [], // nový výsledek → zruš předchozí výběr
+        deep: false,
+        deepSongs: [],
+        deepLoading: false,
+        deepCapHit: false
       })
     } catch (e) {
       if (myReq !== searchSeq) return
       set({ loading: false, error: e instanceof Error ? e.message : String(e) })
     }
+  },
+
+  goToPage: (p) => {
+    const s = get()
+    if (s.deep) set({ page: Math.max(1, p), selectedIndex: 0 })
+    else void s.doSearch(p)
   },
 
   surprise: async () => {
@@ -314,7 +435,17 @@ export const useStore = create<AppState>((set, get) => ({
     const seed =
       database === 'enchor' ? '' : SURPRISE_SEEDS[Math.floor(Math.random() * SURPRISE_SEEDS.length)]
     const myReq = ++searchSeq
-    set({ query: seed, loading: true, error: null, selectedKeys: [] })
+    // Surprise je záměrně „mělký" (jedna náhodná stránka) — deep režim vypnout.
+    set({
+      query: seed,
+      loading: true,
+      error: null,
+      selectedKeys: [],
+      deep: false,
+      deepSongs: [],
+      deepLoading: false,
+      deepCapHit: false
+    })
     try {
       // 1) první stránka → zjisti počet výsledků a spočítej rozsah stránek.
       const first = await window.api.search(seed, 1, records, system, database)
@@ -598,8 +729,12 @@ export const useStore = create<AppState>((set, get) => ({
     set({ config, records: config.recordsPerPage })
     // Změna „Results per page" → přenačti od stránky 1, jinak pager počítá
     // totalPages z nové hodnoty nad daty načtenými se starou.
-    if (config.recordsPerPage !== prevRecords && get().results.length > 0) {
+    if (
+      config.recordsPerPage !== prevRecords &&
+      (get().results.length > 0 || get().deep)
+    ) {
       void get().doSearch(1)
     }
   }
-}))
+  }
+})

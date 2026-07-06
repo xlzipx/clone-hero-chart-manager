@@ -19,7 +19,14 @@ function pageList(current: number, total: number): (number | '…')[] {
   return out
 }
 
-export function Pager({ visibleCount }: { visibleCount: number }): JSX.Element {
+export function Pager({
+  visibleCount,
+  matchTotal
+}: {
+  visibleCount: number
+  /** Deep režim: celkový počet SHOD po filtru (stránkuje se lokálně). */
+  matchTotal?: number
+}): JSX.Element {
   const page = useStore((s) => s.page)
   const records = useStore((s) => s.records)
   const totalFiltered = useStore((s) => s.totalFiltered)
@@ -27,9 +34,14 @@ export function Pager({ visibleCount }: { visibleCount: number }): JSX.Element {
   const diffMin = useStore((s) => s.diffMin)
   const diffMax = useStore((s) => s.diffMax)
   const clearFilters = useStore((s) => s.clearFilters)
-  const doSearch = useStore((s) => s.doSearch)
+  const goToPage = useStore((s) => s.goToPage)
+  const deep = useStore((s) => s.deep)
+  const deepLoading = useStore((s) => s.deepLoading)
+  const deepScannedPages = useStore((s) => s.deepScannedPages)
+  const deepTotalPages = useStore((s) => s.deepTotalPages)
+  const deepCapHit = useStore((s) => s.deepCapHit)
 
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / records))
+  const totalPages = Math.max(1, Math.ceil((matchTotal ?? totalFiltered) / records))
   const diffActive = !(diffMin === 0 && diffMax === 6)
   const filtersActive = instrumentFilters.length > 0 || diffActive
 
@@ -64,7 +76,7 @@ export function Pager({ visibleCount }: { visibleCount: number }): JSX.Element {
       </div>
 
       <div className="pager__pages">
-        <button className="pgbtn" disabled={page <= 1} onClick={() => doSearch(page - 1)}>
+        <button className="pgbtn" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
           <Icon name="chevronLeft" size={14} />
         </button>
         {pageList(page, totalPages).map((p, i) =>
@@ -76,20 +88,33 @@ export function Pager({ visibleCount }: { visibleCount: number }): JSX.Element {
             <button
               key={p}
               className={`pgnum ${p === page ? 'pgnum--active' : ''}`}
-              onClick={() => p !== page && doSearch(p)}
+              onClick={() => p !== page && goToPage(p)}
             >
               {p}
             </button>
           )
         )}
-        <button className="pgbtn" disabled={page >= totalPages} onClick={() => doSearch(page + 1)}>
+        <button className="pgbtn" disabled={page >= totalPages} onClick={() => goToPage(page + 1)}>
           <Icon name="chevronRight" size={14} />
         </button>
       </div>
 
       <div className="pager__right">
-        Page {page} / {totalPages} · {totalFiltered} results
-        {instrumentFilters.length > 0 ? ` · ${visibleCount} shown` : ''}
+        {deep ? (
+          <>
+            Page {page} / {totalPages} · {matchTotal} matches
+            {deepLoading
+              ? ` · scanning ${deepScannedPages}/${deepTotalPages}…`
+              : deepCapHit
+                ? ` · first ${deepTotalPages * records} results scanned`
+                : ''}
+          </>
+        ) : (
+          <>
+            Page {page} / {totalPages} · {totalFiltered} results
+            {instrumentFilters.length > 0 ? ` · ${visibleCount} shown` : ''}
+          </>
+        )}
       </div>
     </div>
   )

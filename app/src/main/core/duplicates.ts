@@ -12,9 +12,35 @@ import { basename, join, relative, sep } from 'path'
 import { getConfig } from './config'
 import { readSongMeta, stripRichTags } from './songmeta'
 import { songHash } from './playlists'
-import type { DupGroup, DupSong } from '../../shared/types'
+import type { DupExtras, DupGroup, DupSong } from '../../shared/types'
 
 const SONG_MARKERS = ['song.ini', 'notes.chart', 'notes.mid']
+
+// Audio stopy, které CH pozná jako samostatné party (víc stop = lze ztlumit
+// svůj nástroj; „song.ogg" samotné je jen jeden mix). „song"/„preview"/„crowd"
+// se nepočítají jako party.
+const STEM_AUDIO = /^(guitar|guitar_1|guitar_2|bass|rhythm|drums|drums_1|drums_2|drums_3|drums_4|vocals|vocals_1|vocals_2|keys)\.(ogg|opus|mp3|wav)$/i
+
+/** Zjistí „extras" složky z už načteného výpisu (žádné další I/O). */
+function detectExtras(entries: import('fs').Dirent[]): DupExtras {
+  const ex: DupExtras = {
+    background: false,
+    highway: false,
+    video: false,
+    stems: false,
+    albumArt: false
+  }
+  for (const e of entries) {
+    if (!e.isFile()) continue
+    const n = e.name.toLowerCase()
+    if (/^background\d*\.(png|jpg|jpeg)$/.test(n) || n === 'bg.png') ex.background = true
+    else if (/^highway\.(png|jpg|jpeg)$/.test(n)) ex.highway = true
+    else if (/\.(mp4|webm|avi|m4v|mpe?g)$/.test(n)) ex.video = true
+    else if (/^album\.(png|jpg|jpeg|webp)$/.test(n)) ex.albumArt = true
+    else if (STEM_AUDIO.test(n)) ex.stems = true
+  }
+  return ex
+}
 
 function norm(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -57,7 +83,8 @@ export async function findDuplicates(): Promise<DupGroup[]> {
           name: basename(dir),
           artist: (meta.artist || fallback.artist || '').trim(),
           title,
-          charter: (meta.charter || '').trim()
+          charter: (meta.charter || '').trim(),
+          extras: detectExtras(entries)
         })
       }
       return // do podsložek písně už nelez
@@ -83,7 +110,8 @@ export async function findDuplicates(): Promise<DupGroup[]> {
     name: s.name,
     artist: s.artist,
     title: s.title,
-    charter: s.charter
+    charter: s.charter,
+    extras: s.extras
   })
 
   for (const candidates of byTitle.values()) {

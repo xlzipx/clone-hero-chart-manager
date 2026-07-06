@@ -43,13 +43,23 @@ export function App(): JSX.Element {
   const hideOwned = useStore((s) => s.hideOwned)
   const sort = useStore((s) => s.sort)
 
-  // Klientský filtr + řazení.
-  const visible = useMemo(() => {
+  // Deep režim: filtr nástroje/obtížnosti → zdrojem je celý stažený dotaz
+  // (všechny stránky) a stránkuje se lokálně nad shodami.
+  const deep = useStore((s) => s.deep)
+  const deepSongs = useStore((s) => s.deepSongs)
+  const deepLoading = useStore((s) => s.deepLoading)
+  const deepScannedPages = useStore((s) => s.deepScannedPages)
+  const deepTotalPages = useStore((s) => s.deepTotalPages)
+  const goToPage = useStore((s) => s.goToPage)
+  const source = deep ? deepSongs : results
+
+  // Klientský filtr + řazení (v deep režimu nad CELÝM dotazem).
+  const filteredAll = useMemo(() => {
     const cf = charterFilter.trim().toLowerCase()
     const af = albumFilter.trim().toLowerCase()
     const yf = yearFilter.trim()
     const diffNarrowed = diffMin > 0 || diffMax < 6
-    const filtered = results.filter((song) => {
+    const filtered = source.filter((song) => {
       if (instrumentFilters.length > 0) {
         // Vybrané nástroje musí být nacharované a v rozsahu obtížnosti.
         if (
@@ -82,7 +92,7 @@ export function App(): JSX.Element {
     else if (sort === 'length') arr.sort((a, b) => (b.lengthSeconds ?? 0) - (a.lengthSeconds ?? 0))
     return arr
   }, [
-    results,
+    source,
     instrumentFilters,
     diffMin,
     diffMax,
@@ -94,10 +104,26 @@ export function App(): JSX.Element {
     sort
   ])
 
+  // Deep režim: stránkuje se lokálně nad shodami (25/str. dle nastavení),
+  // takže počty stránek i výsledků odpovídají tomu, co je vidět.
+  const totalPages = deep
+    ? Math.max(1, Math.ceil(filteredAll.length / records))
+    : Math.max(1, Math.ceil(totalFiltered / records))
+  const pageClamped = deep ? Math.min(page, totalPages) : page
+  const visible = useMemo(
+    () =>
+      deep ? filteredAll.slice((pageClamped - 1) * records, pageClamped * records) : filteredAll,
+    [deep, filteredAll, pageClamped, records]
+  )
+
+  // Když filtr zúží počet stránek pod aktuální, vrať pager na poslední platnou.
+  useEffect(() => {
+    if (deep && page > totalPages) goToPage(totalPages)
+  }, [deep, page, totalPages, goToPage])
+
   const setSelectedIndex = useStore((s) => s.setSelectedIndex)
   const openDownload = useStore((s) => s.openDownload)
   const openMarketplace = useStore((s) => s.openMarketplace)
-  const doSearch = useStore((s) => s.doSearch)
 
   // Multi-select
   const selectedKeys = useStore((s) => s.selectedKeys)
@@ -211,8 +237,6 @@ export function App(): JSX.Element {
     }
   }, [loadConfig, applyJobUpdate])
 
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / records))
-
   // Globální klávesová navigace v overlayi.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -270,9 +294,9 @@ export function App(): JSX.Element {
           else if (!enqueuedKeys[song.key]) void openDownload(song)
         }
       } else if (e.key === 'PageDown') {
-        if (page < totalPages) void doSearch(page + 1)
+        if (page < totalPages) goToPage(page + 1)
       } else if (e.key === 'PageUp') {
-        if (page > 1) void doSearch(page - 1)
+        if (page > 1) goToPage(page - 1)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -286,7 +310,7 @@ export function App(): JSX.Element {
     setSelectedIndex,
     openDownload,
     openMarketplace,
-    doSearch
+    goToPage
   ])
 
   // Scroll vybrané položky do view.
@@ -295,6 +319,12 @@ export function App(): JSX.Element {
       .querySelector('.song--selected')
       ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [selectedIndex])
+
+  // Přepnutí stránky → seznam zpět nahoru (jinak zůstane odscrollovaný dole
+  // z předchozí stránky; selectedIndex effect nepomůže, když už byl 0).
+  useEffect(() => {
+    document.querySelector('.results')?.scrollTo({ top: 0 })
+  }, [page])
 
   return (
     <div className="app">
@@ -322,7 +352,7 @@ export function App(): JSX.Element {
         </div>
       ) : null}
 
-      {results.length > 0 && !loading && !error ? (
+      {source.length > 0 && !loading && !error ? (
         <div className="resultsbar">
           {checkableSongs.length > 0 ? (
             <label className="chk chk--selectall" title="Select all downloadable songs">
@@ -334,13 +364,32 @@ export function App(): JSX.Element {
             </label>
           ) : null}
           <span className="resultsbar__count">
-            <strong>{totalFiltered}</strong> results found
-            {query ? (
+            {deep ? (
+              // Deep režim: počítáme SHODY po filtru, ne surové výsledky serveru.
               <>
-                {' for '}
-                <strong>“{query}”</strong>
+                <strong>{filteredAll.length}</strong> matching songs
+                {query ? (
+                  <>
+                    {' for '}
+                    <strong>“{query}”</strong>
+                  </>
+                ) : null}{' '}
+                <span className="resultsbar__scan">
+                  (filtered from {totalFiltered}
+                  {deepLoading ? `, scanning ${deepScannedPages}/${deepTotalPages}…` : ''})
+                </span>
               </>
-            ) : null}
+            ) : (
+              <>
+                <strong>{totalFiltered}</strong> results found
+                {query ? (
+                  <>
+                    {' for '}
+                    <strong>“{query}”</strong>
+                  </>
+                ) : null}
+              </>
+            )}
           </span>
           <div className="resultsbar__right">
             {selectedCount > 0 ? (
@@ -365,7 +414,7 @@ export function App(): JSX.Element {
           <div className="state">Searching…</div>
         ) : error ? (
           <div className="state state--error">⚠ {error}</div>
-        ) : results.length === 0 ? (
+        ) : source.length === 0 ? (
           <div className="state state--empty">
             <img className="ch-logo" src={chLogoUrl} alt="" draggable={false} />
             <div className="state__msg">
@@ -376,7 +425,11 @@ export function App(): JSX.Element {
             <Discover />
           </div>
         ) : visible.length === 0 ? (
-          <div className="state">No song matches the instrument filter.</div>
+          <div className="state">
+            {deep && deepLoading
+              ? `No matches yet — scanning page ${deepScannedPages} of ${deepTotalPages}…`
+              : 'No song matches the instrument filter.'}
+          </div>
         ) : (
           visible.map((song, i) => (
             <SongRow
@@ -396,7 +449,9 @@ export function App(): JSX.Element {
         )}
       </div>
 
-      {results.length > 0 && !loading ? <Pager visibleCount={visible.length} /> : null}
+      {source.length > 0 && !loading ? (
+        <Pager visibleCount={visible.length} matchTotal={deep ? filteredAll.length : undefined} />
+      ) : null}
 
       <DownloadQueue />
       <Settings />

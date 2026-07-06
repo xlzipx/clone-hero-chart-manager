@@ -161,12 +161,23 @@ export interface SongMeta {
 }
 
 /** Píseň ve výsledku hledání duplicit. */
+/** Co navíc má složka kopie (pro rozhodnutí, kterou verzi si nechat). */
+export interface DupExtras {
+  background: boolean
+  highway: boolean
+  video: boolean
+  /** Vícestopé audio (guitar/bass/drums… ne jen song.ogg) — lze ztlumit svůj part. */
+  stems: boolean
+  albumArt: boolean
+}
+
 export interface DupSong {
   rel: string
   name: string
   artist: string
   title: string
   charter: string
+  extras: DupExtras
 }
 
 /** Skupina duplicit: `identical` = bajtově shodné, `same-song` = jiné verze téže písně. */

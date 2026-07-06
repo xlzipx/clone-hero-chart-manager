@@ -1,10 +1,89 @@
 import { useEffect, useState } from 'react'
-import type { DupGroup } from '../../../shared/types'
+import type { DupExtras, DupGroup, SongDetail } from '../../../shared/types'
 import { useStore } from '../store'
+import { formatLength, stripTags } from '../utils'
 import { Icon } from './Icon'
+import { InstrumentDifficulty } from './InstrumentDifficulty'
 import { RichText } from './RichText'
 
-/** Najde a nabídne smazání duplicit v knihovně. `onChanged` = po smazání obnovit. */
+// Odznaky „co má složka navíc" — pomáhá rozhodnout, kterou kopii si nechat.
+// Zobrazí se jen to, co je reálně přítomné.
+const EXTRA_META: { key: keyof DupExtras; label: string; title: string }[] = [
+  { key: 'stems', label: 'Stems', title: 'Separate instrument audio tracks (you can mute your own part)' },
+  { key: 'video', label: 'Video', title: 'Background video' },
+  { key: 'background', label: 'BG', title: 'Custom background image' },
+  { key: 'highway', label: 'Highway', title: 'Custom highway texture' },
+  { key: 'albumArt', label: 'Art', title: 'Album artwork' }
+]
+
+function Extras({ extras }: { extras: DupExtras }): JSX.Element | null {
+  const present = EXTRA_META.filter((m) => extras[m.key])
+  if (present.length === 0) return null
+  return (
+    <span className="dup__extras">
+      {present.map((m) => (
+        <span key={m.key} className={`dup__extra dup__extra--${m.key}`} title={m.title}>
+          {m.label}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/** Rozbalovací detail jedné kopie PŘÍMO v okně duplicit (bez odchodu do
+ *  manageru) — album, obtížnosti nástrojů, délka, „Show in Explorer". Slouží
+ *  k rozhodnutí, kterou verzi si nechat. */
+function CopyDetail({ rel }: { rel: string }): JSX.Element {
+  const [detail, setDetail] = useState<SongDetail | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    setDetail(null)
+    void window.api
+      .libSongDetail(rel)
+      .then((d) => {
+        if (!cancelled) setDetail(d)
+      })
+      .catch(() => {
+        /* nevadí — panel zůstane prázdný */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [rel])
+
+  if (!detail) return <div className="dup__detail dup__detail--loading">Loading details…</div>
+  const info = detail.info
+  const line1 = [info && stripTags(info.album), info?.year || null, info && stripTags(info.genre)]
+    .filter(Boolean)
+    .join(' · ')
+  const line2 = [
+    info?.charter ? `by ${stripTags(info.charter)}` : null,
+    info?.lengthSeconds ? formatLength(info.lengthSeconds) : null
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <div className="dup__detail">
+      {detail.albumArt ? (
+        <img className="dup__detailart" src={detail.albumArt} alt="" />
+      ) : (
+        <div className="dup__detailart dup__detailart--none">
+          <Icon name="note" size={20} />
+        </div>
+      )}
+      <div className="dup__detailmeta">
+        {line1 ? <div className="dup__detailsub">{line1}</div> : null}
+        {line2 ? <div className="dup__detailsub">{line2}</div> : null}
+        {info ? <InstrumentDifficulty difficulties={info.difficulties} /> : null}
+        <button className="linkbtn dup__reveal" onClick={() => window.api.libReveal(rel)}>
+          <Icon name="external" size={12} /> Show in Explorer
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** Najde a nabídne smazání/přesun duplicit v knihovně. `onChanged` = po akci obnovit. */
 export function DuplicatesModal({
   onClose,
   onChanged
@@ -16,6 +95,8 @@ export function DuplicatesModal({
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Rel kopie, jejíž detail je právě rozbalený (jen jeden naráz).
+  const [detailFor, setDetailFor] = useState<string | null>(null)
   // Potvrzení poslední akce („Moved N to …") — zobrazuje se NAD patičkou, mimo
   // scroll, stejně jako chyba. U 92 skupin by hláška na konci seznamu nebyla vidět.
   const [notice, setNotice] = useState<string | null>(null)
@@ -108,15 +189,38 @@ export function DuplicatesModal({
         <span className="dup__count">{g.songs.length} copies</span>
       </div>
       {g.songs.map((s) => (
-        <label key={s.rel} className="dup__row">
-          <input type="checkbox" checked={checked.has(s.rel)} onChange={() => toggle(s.rel)} />
-          <span className="dup__folder">{s.name}</span>
-          {s.charter ? (
-            <span className="dup__charter">
-              <RichText text={s.charter} />
+        <div key={s.rel} className="dup__copy">
+          <label className="dup__row">
+            <input type="checkbox" checked={checked.has(s.rel)} onChange={() => toggle(s.rel)} />
+            <span className="dup__rowmain">
+              {/* RichText i na názvu složky — na Linuxu smí složka obsahovat
+                  <color=…> tagy v názvu (na Windows ne), jinak by se ukázaly syrově. */}
+              <span className="dup__folder">
+                <RichText text={s.name} />
+              </span>
+              <Extras extras={s.extras} />
             </span>
-          ) : null}
-        </label>
+            {s.charter ? (
+              <span className="dup__charter">
+                <RichText text={s.charter} />
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className={`dup__openbtn ${detailFor === s.rel ? 'dup__openbtn--on' : ''}`}
+              title="Show this copy's details to compare (album, difficulties, length)"
+              onClick={(e) => {
+                // Řádek je <label> — bez preventDefault by klik zaškrtl checkbox.
+                e.preventDefault()
+                e.stopPropagation()
+                setDetailFor((cur) => (cur === s.rel ? null : s.rel))
+              }}
+            >
+              <Icon name="info" size={15} />
+            </button>
+          </label>
+          {detailFor === s.rel ? <CopyDetail rel={s.rel} /> : null}
+        </div>
       ))}
     </div>
   )
