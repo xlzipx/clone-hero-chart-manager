@@ -127,6 +127,45 @@ export interface LibListing {
   entries: LibEntry[]
 }
 
+/** Editovatelná metadata písně (song.ini). */
+export interface SongMeta {
+  name?: string
+  artist?: string
+  album?: string
+  genre?: string
+  year?: string
+  charter?: string
+}
+
+/** Píseň ve výsledku hledání duplicit. */
+export interface DupSong {
+  rel: string
+  name: string
+  artist: string
+  title: string
+  charter: string
+}
+
+/** Skupina duplicit: `identical` = bajtově shodné, `same-song` = jiné verze téže písně. */
+export interface DupGroup {
+  reason: 'identical' | 'same-song'
+  songs: DupSong[]
+}
+
+/** Playlist (.setlist) — název + počet písní. */
+export interface PlaylistInfo {
+  name: string
+  count: number
+}
+
+/** Výsledek přidání písní do playlistu. */
+export interface PlaylistAddResult {
+  added: number
+  skipped: number
+  missingHash: number
+  total: number
+}
+
 export interface UpdateInfo {
   current: string
   latest: string
@@ -194,6 +233,18 @@ export interface RendererApi {
   libCopy(src: string, destDir: string): Promise<void>
   libOpen(rel: string): void
   libReveal(relItem: string): void
+  /** Přečte metadata (song.ini) písně. */
+  libReadMeta(relItem: string): Promise<SongMeta>
+  /** Zapíše zadaná metadata do song.ini. */
+  libWriteMeta(relItem: string, fields: SongMeta): Promise<void>
+  /** Najde duplicity v knihovně (identické + varianty téže písně). */
+  libFindDuplicates(): Promise<DupGroup[]>
+  /** Vypíše Clone Hero playlisty (.setlist). */
+  libListPlaylists(): Promise<PlaylistInfo[]>
+  /** Přidá písně do playlistu (vytvoří / doplní existující). */
+  libAddToPlaylist(name: string, relItems: string[]): Promise<PlaylistAddResult>
+  /** Smaže celý playlist. */
+  libDeletePlaylist(name: string): Promise<void>
   getJobs(): Promise<DownloadJob[]>
   clearFinishedJobs(): Promise<void>
   onJobUpdate(cb: (job: DownloadJob) => void): () => void

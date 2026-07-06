@@ -16,15 +16,22 @@ import { hideReminder, showReminder } from './reminder'
 import { jobManager } from './core/jobs'
 import { listSongFolders, ownedSongKeys } from './core/library'
 import {
+  libAddToPlaylist,
   libCopy,
   libCreateFolder,
+  libDeletePlaylist,
+  libFindDuplicates,
   libList,
+  libListPlaylists,
   libMove,
   libOpen,
+  libReadMeta,
   libRename,
   libReveal,
-  libTrash
+  libTrash,
+  libWriteMeta
 } from './core/librarymgr'
+import type { SongMeta } from '../shared/types'
 import { search as searchRhythmverse } from './core/rhythmverse'
 import { getReleaseNotes, getReleaseNotesSince } from './core/update'
 import { registerHotkeys, unregisterHotkeys } from './hotkeys'
@@ -111,6 +118,16 @@ export function registerIpc(): void {
   ipcMain.handle('lib:copy', (_e, src: string, destDir: string) => libCopy(src, destDir))
   ipcMain.on('lib:open', (_e, rel: string) => libOpen(rel))
   ipcMain.on('lib:reveal', (_e, relItem: string) => libReveal(relItem))
+  ipcMain.handle('lib:readMeta', (_e, relItem: string) => libReadMeta(relItem))
+  ipcMain.handle('lib:writeMeta', (_e, relItem: string, fields: SongMeta) =>
+    libWriteMeta(relItem, fields)
+  )
+  ipcMain.handle('lib:findDuplicates', () => libFindDuplicates())
+  ipcMain.handle('lib:listPlaylists', () => libListPlaylists())
+  ipcMain.handle('lib:addToPlaylist', (_e, name: string, relItems: string[]) =>
+    libAddToPlaylist(name, relItems)
+  )
+  ipcMain.handle('lib:deletePlaylist', (_e, name: string) => libDeletePlaylist(name))
 
   ipcMain.handle('config:get', () => getConfig())
   ipcMain.handle('config:songsDirExists', () => existsSync(getConfig().songsDir))

@@ -5,10 +5,14 @@ import type {
   AppConfig,
   Database,
   DownloadJob,
+  DupGroup,
   LibListing,
+  PlaylistAddResult,
+  PlaylistInfo,
   ReleaseNotes,
   RhythmVerseSystem,
   SearchResponse,
+  SongMeta,
   SongResult,
   UpdateAvailable,
   UpdateCheckResult
@@ -48,6 +52,16 @@ const api = {
     ipcRenderer.invoke('lib:copy', src, destDir) as Promise<void>,
   libOpen: (rel: string) => ipcRenderer.send('lib:open', rel),
   libReveal: (relItem: string) => ipcRenderer.send('lib:reveal', relItem),
+  libReadMeta: (relItem: string) =>
+    ipcRenderer.invoke('lib:readMeta', relItem) as Promise<SongMeta>,
+  libWriteMeta: (relItem: string, fields: SongMeta) =>
+    ipcRenderer.invoke('lib:writeMeta', relItem, fields) as Promise<void>,
+  libFindDuplicates: () => ipcRenderer.invoke('lib:findDuplicates') as Promise<DupGroup[]>,
+  libListPlaylists: () => ipcRenderer.invoke('lib:listPlaylists') as Promise<PlaylistInfo[]>,
+  libAddToPlaylist: (name: string, relItems: string[]) =>
+    ipcRenderer.invoke('lib:addToPlaylist', name, relItems) as Promise<PlaylistAddResult>,
+  libDeletePlaylist: (name: string) =>
+    ipcRenderer.invoke('lib:deletePlaylist', name) as Promise<void>,
 
   getJobs: () => ipcRenderer.invoke('jobs:getAll') as Promise<DownloadJob[]>,
   clearFinishedJobs: () => ipcRenderer.invoke('jobs:clearFinished') as Promise<void>,

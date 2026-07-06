@@ -5,6 +5,15 @@ import { shell } from 'electron'
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'fs'
 import { basename, extname, join, resolve, sep } from 'path'
 import { getConfig } from './config'
+import { readSongMeta, writeSongMeta } from './songmeta'
+import { addSongsToPlaylist, deletePlaylist, listPlaylists } from './playlists'
+import { findDuplicates } from './duplicates'
+import type {
+  DupGroup,
+  PlaylistAddResult,
+  PlaylistInfo,
+  SongMeta
+} from '../../shared/types'
 
 const SONG_MARKERS = ['song.ini', 'notes.chart', 'notes.mid']
 
@@ -89,7 +98,10 @@ export function libCreateFolder(rel: string, name: string): void {
 
 export function libRename(relItem: string, newName: string): void {
   const src = safeAbs(relItem)
-  const dest = join(safeAbs(''), relItem.split(/[\\/]/).slice(0, -1).join(sep), sanitizeName(newName))
+  // Cíl skládáme z rodiče relItem + nový (sanitizovaný) název a CELÝ ho ověříme
+  // přes safeAbs (jinak by rodičovská část nebyla kontrolovaná na traversal).
+  const parentRel = relItem.split(/[\\/]/).slice(0, -1).join('/')
+  const dest = safeAbs(join(parentRel, sanitizeName(newName)))
   if (existsSync(dest)) throw new Error('An item with that name already exists')
   renameSync(src, dest)
 }
@@ -129,4 +141,34 @@ export function libOpen(rel: string): void {
 
 export function libReveal(relItem: string): void {
   shell.showItemInFolder(safeAbs(relItem))
+}
+
+// ── Metadata (song.ini) ───────────────────────────────────────────────
+export function libReadMeta(relItem: string): Promise<SongMeta> {
+  return readSongMeta(safeAbs(relItem))
+}
+export function libWriteMeta(relItem: string, fields: SongMeta): Promise<void> {
+  return writeSongMeta(safeAbs(relItem), fields)
+}
+
+// ── Playlisty (.setlist) ──────────────────────────────────────────────
+export function libListPlaylists(): Promise<PlaylistInfo[]> {
+  return listPlaylists()
+}
+export function libAddToPlaylist(
+  name: string,
+  relItems: string[]
+): Promise<PlaylistAddResult> {
+  return addSongsToPlaylist(
+    name,
+    relItems.map((r) => safeAbs(r))
+  )
+}
+export function libDeletePlaylist(name: string): Promise<void> {
+  return deletePlaylist(name)
+}
+
+// ── Duplicity ─────────────────────────────────────────────────────────
+export function libFindDuplicates(): Promise<DupGroup[]> {
+  return findDuplicates()
 }

@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { LibEntry } from '../../../shared/types'
 import { useStore } from '../store'
+import { DuplicatesModal } from './DuplicatesModal'
 import { Icon } from './Icon'
+import { PlaylistDialog } from './PlaylistDialog'
+import { SongMetaDialog } from './SongMetaDialog'
 
 type Dialog =
   | { type: 'new' }
@@ -25,6 +28,10 @@ export function LibraryManager(): JSX.Element | null {
   const [ctx, setCtx] = useState<Ctx>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  // Nové akce: editace metadat / přidání do playlistu / hledání duplicit.
+  const [metaFor, setMetaFor] = useState<{ rel: string; title: string } | null>(null)
+  const [playlistFor, setPlaylistFor] = useState<string[] | null>(null)
+  const [dupOpen, setDupOpen] = useState(false)
   const dialogOpenRef = useRef(false)
   dialogOpenRef.current = dialog !== null
 
@@ -164,7 +171,13 @@ export function LibraryManager(): JSX.Element | null {
   const selCount = selected.size
   const single = selCount === 1
   const singleName = single ? selArr()[0] : null
-  const singleIsDir = single && entries.find((e) => e.name === singleName)?.type === 'dir'
+  const singleEntry = single ? entries.find((e) => e.name === singleName) : undefined
+  const singleIsDir = singleEntry?.type === 'dir'
+  const singleIsSong = !!singleEntry?.isSong
+  // Vybrané složky písní (pro playlist / metadata).
+  const selSongRels = (): string[] =>
+    entries.filter((e) => selected.has(e.name) && e.isSong).map((e) => relOf(e.name))
+  const selSongCount = entries.filter((e) => selected.has(e.name) && e.isSong).length
 
   return (
     <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && close(false)}>
@@ -196,6 +209,9 @@ export function LibraryManager(): JSX.Element | null {
           <div className="lib__spacer" />
           <button className="lib__btn" onClick={() => { setDialog({ type: 'new' }); setDialogValue('') }}>
             <Icon name="folderPlus" size={15} /> New folder
+          </button>
+          <button className="lib__btn" onClick={() => setDupOpen(true)} title="Find duplicate charts">
+            <Icon name="copy" size={15} /> Duplicates
           </button>
           {clip ? (
             <button className="lib__btn lib__btn--accent" onClick={doPaste}>
@@ -288,8 +304,25 @@ export function LibraryManager(): JSX.Element | null {
                 <Icon name="charter" size={14} /> Rename
               </button>
             ) : null}
+            {single && singleIsSong ? (
+              <button
+                className="ctxmenu__item"
+                onClick={() => { setMetaFor({ rel: relOf(singleName!), title: singleName! }); setCtx(null) }}
+              >
+                <Icon name="file" size={14} /> Edit metadata
+              </button>
+            ) : null}
+            {selSongCount > 0 ? (
+              <button
+                className="ctxmenu__item"
+                onClick={() => { setPlaylistFor(selSongRels()); setCtx(null) }}
+              >
+                <Icon name="note" size={14} /> Add to playlist ({selSongCount})
+              </button>
+            ) : null}
             {selCount ? (
               <>
+                <div className="ctxmenu__sep" />
                 <button className="ctxmenu__item" onClick={() => { doCopy(); setCtx(null) }}>
                   <Icon name="copy" size={14} /> Copy
                 </button>
@@ -348,6 +381,21 @@ export function LibraryManager(): JSX.Element | null {
               )}
             </div>
           </div>
+        ) : null}
+
+        {metaFor ? (
+          <SongMetaDialog
+            rel={metaFor.rel}
+            title={metaFor.title}
+            onClose={() => setMetaFor(null)}
+            onSaved={() => void load(cwd)}
+          />
+        ) : null}
+        {playlistFor ? (
+          <PlaylistDialog rels={playlistFor} onClose={() => setPlaylistFor(null)} />
+        ) : null}
+        {dupOpen ? (
+          <DuplicatesModal onClose={() => setDupOpen(false)} onChanged={() => void load(cwd)} />
         ) : null}
       </div>
     </div>
