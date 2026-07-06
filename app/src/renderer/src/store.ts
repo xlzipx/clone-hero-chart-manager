@@ -330,7 +330,15 @@ export const useStore = create<AppState>((set, get) => {
   deepLoading: false,
   deepCapHit: false,
 
-  setQuery: (q) => set({ query: q }),
+  setQuery: (q) => {
+    set({ query: q })
+    // Vyprázdnění dotazu ukončí deep režim — jinak by nad prázdným polem
+    // zůstaly viset zfiltrované výsledky z předchozího dotazu (a další změna
+    // filtru by pak deep-skenovala prázdný dotaz s prázdným výsledkem).
+    if (!q.trim() && get().deep) {
+      set({ deep: false, deepSongs: [], deepLoading: false, deepCapHit: false })
+    }
+  },
   setDatabase: (d) => set({ database: d }),
   setSystem: (s) => set({ system: s }),
   toggleInstrumentFilter: (id) => {

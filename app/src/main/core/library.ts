@@ -1,7 +1,7 @@
 // Instalace stažených/zkonvertovaných písní do knihovny Clone Hero (Songs).
 
 import { existsSync, promises as fsp, readdirSync, statSync } from 'fs'
-import { basename, join } from 'path'
+import { basename, join, resolve, sep } from 'path'
 import { getConfig } from './config'
 import { invalidateLibraryIndex } from './playlists'
 import type { SongResult } from '../../shared/types'
@@ -237,13 +237,21 @@ export async function install(
   // Sanitizace případné podsložky (může obsahovat i vnořenou cestu od uživatele).
   // POZOR: prázdné segmenty musí pryč PŘED sanitizací — `sanitize('')` vrací
   // 'Unknown', takže Root ('') by jinak vytvořil složku „Unknown".
+  // BEZPEČNOST: `sanitize` NEodstraňuje tečky, takže `..`/`.` by jako segment
+  // prošly a `join` by utekl z knihovny (path traversal přes IPC z rendereru).
+  // Proto je explicitně vyfiltrujeme a výslednou cestu ještě ověříme uvnitř base.
   const cleanSub = (subfolder ?? '')
     .split(/[\\/]/)
     .filter(Boolean)
     .map((p) => sanitize(p))
-    .filter(Boolean)
+    .filter((p) => p && p !== '.' && p !== '..')
     .join('\\')
   const songsDir = cleanSub ? join(baseSongsDir, cleanSub) : baseSongsDir
+  const baseAbs = resolve(baseSongsDir)
+  const targetAbs = resolve(songsDir)
+  if (targetAbs !== baseAbs && !targetAbs.startsWith(baseAbs + sep)) {
+    throw new Error('Invalid target subfolder (must stay inside the Songs library).')
+  }
   if (!existsSync(songsDir)) await fsp.mkdir(songsDir, { recursive: true })
 
   const installed: string[] = []

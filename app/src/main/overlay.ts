@@ -80,9 +80,11 @@ export function createOverlay(): BrowserWindow {
     win.webContents.setZoomFactor(ZOOM)
   })
 
-  // Externí odkazy otevírat v prohlížeči, ne v okně.
+  // Externí odkazy otevírat v prohlížeči, ne v okně. Validace schématu (jako
+  // v IPC shell:openExternal) — data v odkazech pochází z RV/Encore API, takže
+  // `file:`/jiné schéma by nemělo dostat šanci spustit lokální handler.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
 

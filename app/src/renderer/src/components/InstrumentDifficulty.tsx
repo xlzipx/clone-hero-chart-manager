@@ -12,7 +12,10 @@ export function InstrumentDifficulty({ difficulties }: Props): JSX.Element {
     <div className="instruments">
       {INSTRUMENTS.map((inst) => {
         const value = difficulties[inst.id]
-        const charted = value !== undefined && value > 0
+        // charted = jakákoli definovaná hodnota (Encore posílá i tier 0 jako
+        // platnou nacharovanou obtížnost; RV/song.ini 0 už mapují na undefined).
+        // Musí sedět s filtrem ve výsledcích, který bere `d !== undefined`.
+        const charted = value !== undefined
         return (
           <div
             className={`instrument ${charted ? '' : 'instrument--absent'}`}

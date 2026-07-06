@@ -164,7 +164,11 @@ export function libMoveOut(relItems: string[], destAbsDir: string): void {
   if (!st.isDirectory()) throw new Error('Destination is not a folder')
   const base = rootDir()
   // Uvnitř knihovny karanténa být nesmí — CH by ji při dalším skenu zase načetl.
-  if (destDir === base || destDir.startsWith(base + sep)) {
+  // Porovnání case-INSENSITIVE: NTFS nerozlišuje velikost, takže „g:\…\songs\q"
+  // je reálně uvnitř base „G:\…\Songs", i když se řetězce liší velikostí písmen.
+  const baseLC = base.toLowerCase()
+  const destLC = destDir.toLowerCase()
+  if (destLC === baseLC || destLC.startsWith(baseLC + sep)) {
     throw new Error('Pick a folder outside the Songs library, otherwise Clone Hero will scan the duplicates again')
   }
   for (const rel of relItems) {
@@ -178,7 +182,15 @@ export function libMoveOut(relItems: string[], destAbsDir: string): void {
       // NE koš — celá pointa téhle funkce je fungovat i bez Windows shellu.
       if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
       cpSync(src, dest, { recursive: true })
-      rmSync(src, { recursive: true, force: true })
+      try {
+        rmSync(src, { recursive: true, force: true })
+      } catch {
+        // Kopie prošla, ale originál nejde smazat (např. otevřený ve hře) —
+        // radši srozumitelně, ať uživatel neskončí s tichým duplikátem.
+        throw new Error(
+          `Copied "${basename(src)}" to the destination, but could not remove the original (is it open in the game?). Remove it manually.`
+        )
+      }
     }
   }
   invalidateLibraryIndex()

@@ -67,8 +67,11 @@ export async function getReleaseNotesSince(
           date: r.published_at
         }
       })
-    // Pro jistotu seřaď podle verze (nejnovější první) — verze jsou unikátní.
-    notes.sort((a, b) => (isNewer(a.version, b.version) ? -1 : 1))
+    // Pro jistotu seřaď podle verze (nejnovější první). Validní komparátor
+    // (vrací i 0 při shodě), ať je řazení stabilní.
+    notes.sort((a, b) =>
+      isNewer(a.version, b.version) ? -1 : isNewer(b.version, a.version) ? 1 : 0
+    )
     const filtered = sinceVersion ? notes.filter((n) => isNewer(n.version, sinceVersion)) : notes
     return filtered.slice(0, max)
   } catch {
