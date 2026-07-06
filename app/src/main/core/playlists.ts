@@ -22,7 +22,7 @@ import { createHash } from 'crypto'
 import { existsSync, promises as fsp } from 'fs'
 import { basename, join } from 'path'
 import { getConfig } from './config'
-import { readSongMeta } from './songmeta'
+import { readSongMeta, stripRichTags } from './songmeta'
 import type { PlaylistAddResult, PlaylistInfo, PlaylistSong } from '../../shared/types'
 
 const SONG_MARKERS = ['song.ini', 'notes.chart', 'notes.mid']
@@ -239,9 +239,10 @@ async function libraryHashIndex(): Promise<Map<string, { artist: string; title: 
         const meta = await readSongMeta(dir)
         const fb = basename(dir)
         const dash = fb.indexOf(' - ')
+        // stripRichTags: CH barevné tagy nepatří do zobrazovaných názvů.
         map.set(h, {
-          artist: (meta.artist || (dash > 0 ? fb.slice(0, dash).trim() : '')).trim(),
-          title: (meta.name || (dash > 0 ? fb.slice(dash + 3).trim() : fb)).trim()
+          artist: stripRichTags(meta.artist || (dash > 0 ? fb.slice(0, dash) : '')),
+          title: stripRichTags(meta.name || (dash > 0 ? fb.slice(dash + 3) : fb))
         })
       }
       return

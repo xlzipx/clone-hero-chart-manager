@@ -5,6 +5,16 @@ import { promises as fsp } from 'fs'
 import { join } from 'path'
 import type { InstrumentDifficulties, SongMeta } from '../../shared/types'
 
+/**
+ * Odstraní Clone Hero / Unity rich-text tagy pro ZOBRAZENÍ v UI
+ * (`<color=orange>Neversoft</color>`, <b>, <i>, <size=...>…). Hra je vykresluje
+ * barevně, my bychom ukazovali syrové značky. V song.ini zůstávají netknuté —
+ * stripovat jen pro display, NE při editaci metadat.
+ */
+export function stripRichTags(s: string): string {
+  return s.replace(/<\/?(?:color|b|i|u|s|size|material|quad|sprite|alpha|mark|noparse)\b[^>]*>/gi, '').trim()
+}
+
 /** Pole, která editor nabízí (a v tomto pořadí). */
 export const META_FIELDS: (keyof SongMeta)[] = [
   'name',
@@ -125,12 +135,13 @@ export async function readSongInfo(
     vocals: diff('diff_vocals'),
     keys: diff('diff_keys') ?? diff('diff_keys_real')
   }
+  // Display-only data → tagy pryč (editor čte syrově přes readSongMeta).
   return {
-    title: g('name') ?? '',
-    artist: g('artist') ?? '',
-    charter: g('charter') ?? g('frets') ?? '',
-    album: g('album') ?? '',
-    genre: g('genre') ?? '',
+    title: stripRichTags(g('name') ?? ''),
+    artist: stripRichTags(g('artist') ?? ''),
+    charter: stripRichTags(g('charter') ?? g('frets') ?? ''),
+    album: stripRichTags(g('album') ?? ''),
+    genre: stripRichTags(g('genre') ?? ''),
     year: Number.isFinite(yr) ? yr : null,
     lengthSeconds: Number.isFinite(lenMs) ? Math.round(lenMs / 1000) : null,
     difficulties

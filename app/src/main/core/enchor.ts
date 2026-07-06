@@ -14,6 +14,7 @@
 // Obtížnosti: -1 = part nezahrán; 0..6 = tier.
 
 import type { InstrumentDifficulties, SearchResponse, SongResult } from '../../shared/types'
+import { stripRichTags } from './songmeta'
 
 const API = 'https://api.enchor.us'
 const FILES = 'https://files.enchor.us'
@@ -90,7 +91,7 @@ function normalize(c: EnchorChart): SongResult {
     difficulties: mapDifficulties(c),
     // Chorus Encore nehlásí spolehlivě dostupné obtížnosti → neznámé.
     expertOnly: null,
-    charter: c.charter ?? null,
+    charter: c.charter ? stripRichTags(c.charter) : null, // CH barevné tagy pryč
     source: 'Chorus Encore',
     gameFormat: 'sng',
     gameFormats: ['sng'],

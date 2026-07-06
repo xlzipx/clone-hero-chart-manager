@@ -10,7 +10,7 @@
 import { promises as fsp } from 'fs'
 import { basename, join, relative, sep } from 'path'
 import { getConfig } from './config'
-import { readSongMeta } from './songmeta'
+import { readSongMeta, stripRichTags } from './songmeta'
 import { songHash } from './playlists'
 import type { DupGroup, DupSong } from '../../shared/types'
 
@@ -46,15 +46,17 @@ export async function findDuplicates(): Promise<DupGroup[]> {
     if (entries.some((e) => e.isFile() && SONG_MARKERS.includes(e.name.toLowerCase()))) {
       const meta = await readSongMeta(dir)
       const fallback = splitFolderName(basename(dir))
-      const title = (meta.name || fallback.title || '').trim()
+      // stripRichTags: CH barevné tagy (<color=…>) by (1) v UI ukazovaly syrové
+      // značky a (2) rozbily porovnání názvů — norm() by nechal „colororange…".
+      const title = stripRichTags(meta.name || fallback.title || '')
       if (title) {
         all.push({
           abs: dir,
           rel: relative(songsDir, dir).split(sep).join('/'),
           name: basename(dir),
-          artist: (meta.artist || fallback.artist || '').trim(),
+          artist: stripRichTags(meta.artist || fallback.artist || ''),
           title,
-          charter: (meta.charter || '').trim()
+          charter: stripRichTags(meta.charter || '')
         })
       }
       return // do podsložek písně už nelez
