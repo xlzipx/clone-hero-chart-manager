@@ -55,19 +55,26 @@ export async function writeSongMeta(folderAbs: string, fields: SongMeta): Promis
   }
 
   for (const key of META_FIELDS) {
-    const val = fields[key]
-    if (val === undefined) continue
+    const raw = fields[key]
+    if (raw === undefined) continue
+    // Sanitizace: hodnota s \n by rozbila strukturu INI (vložila by nový řádek).
+    const val = String(raw).replace(/[\r\n]+/g, ' ').trim()
     const re = new RegExp(`^(\\s*${key}\\s*=).*$`, 'i')
     const idx = lines.findIndex((l) => re.test(l))
     if (idx >= 0) {
-      lines[idx] = lines[idx].replace(re, `$1 ${val}`)
+      // POZOR: replacement musí být funkce — v řetězci by se `$` uvnitř hodnoty
+      // interpretoval jako replacement pattern ($1, $&, …) a hodnotu zkorumpoval.
+      lines[idx] = lines[idx].replace(re, (_m, g1: string) => `${g1} ${val}`)
     } else {
       // Vlož hned za hlavičku [Song].
       lines.splice(headerIdx + 1, 0, `${key} = ${val}`)
     }
   }
 
-  await fsp.writeFile(iniPath, lines.join(eol), 'utf-8')
+  // Atomický zápis (tmp + rename), ať pád uprostřed zápisu nezanechá useknutý soubor.
+  const tmp = iniPath + '.tmp'
+  await fsp.writeFile(tmp, lines.join(eol), 'utf-8')
+  await fsp.rename(tmp, iniPath)
 }
 
 /** Obal alba jako data URI (album.png/jpg/jpeg/webp), nebo null. */

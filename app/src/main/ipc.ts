@@ -37,6 +37,7 @@ import {
   libWriteMeta
 } from './core/librarymgr'
 import type { SongMeta } from '../shared/types'
+import { invalidateLibraryIndex } from './core/playlists'
 import { search as searchRhythmverse } from './core/rhythmverse'
 import { getReleaseNotes, getReleaseNotesSince } from './core/update'
 import { registerHotkeys, unregisterHotkeys } from './hotkeys'
@@ -146,9 +147,11 @@ export function registerIpc(): void {
   ipcMain.handle('config:get', () => getConfig())
   ipcMain.handle('config:songsDirExists', () => existsSync(getConfig().songsDir))
   ipcMain.handle('config:set', (_e, patch) => {
+    const prevSongsDir = getConfig().songsDir
     const next = setConfig(patch)
     registerHotkeys() // hotkeys se mohly změnit
     applyUiScale(next.uiScale) // sjednoť zoom s uloženou hodnotou
+    if (next.songsDir !== prevSongsDir) invalidateLibraryIndex() // jiná knihovna → starý index neplatí
     return next
   })
   // Živý náhled UI scale (bez zápisu na disk) — Nastavení volá při posouvání.

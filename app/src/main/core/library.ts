@@ -3,6 +3,7 @@
 import { existsSync, promises as fsp, readdirSync, statSync } from 'fs'
 import { basename, join } from 'path'
 import { getConfig } from './config'
+import { invalidateLibraryIndex } from './playlists'
 import type { SongResult } from '../../shared/types'
 
 const SONG_MARKERS = ['song.ini', 'notes.chart', 'notes.mid']
@@ -261,6 +262,7 @@ export async function install(
       await fsp.cp(folder, dest, { recursive: true })
       installed.push(dest)
     }
+    invalidateLibraryIndex() // nové písně musí být vidět v setlist manageru hned
     return { installedPaths: installed }
   }
 
@@ -294,5 +296,6 @@ export async function install(
     await fsp.copyFile(sng, dest)
     installed.push(dest)
   }
+  invalidateLibraryIndex()
   return { installedPaths: installed }
 }

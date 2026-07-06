@@ -73,6 +73,7 @@ export function HotkeyInput({ value, onChange }: Props): JSX.Element {
           e.preventDefault()
           if (e.key === 'Escape') {
             // Escape = zrušit zachytávání (neměnit hodnotu)
+            e.stopPropagation() // nesmí propadnout na window handler (zavřel by celá Nastavení)
             ;(e.currentTarget as HTMLInputElement).blur()
             return
           }

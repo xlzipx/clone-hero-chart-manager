@@ -10,6 +10,7 @@ import {
   addSongsToPlaylist,
   deletePlaylist,
   getPlaylistSongs,
+  invalidateLibraryIndex,
   listPlaylists,
   removeSongsFromPlaylist,
   renamePlaylist
@@ -75,7 +76,12 @@ function uniqueDest(dir: string, name: string): string {
 
 export function libList(rel: string): { path: string; entries: LibEntry[] } {
   const abs = safeAbs(rel)
-  if (!existsSync(abs)) mkdirSync(abs, { recursive: true })
+  // Kořen vytvoříme (první spuštění), ale neexistující PODcesty ne — listování
+  // je čtecí operace a nemá zakládat adresáře podle libovolného vstupu.
+  if (!existsSync(abs)) {
+    if (abs === rootDir()) mkdirSync(abs, { recursive: true })
+    else return { path: rel, entries: [] }
+  }
   let names: string[] = []
   try {
     names = readdirSync(abs)
@@ -120,6 +126,7 @@ export async function libTrash(relItem: string): Promise<void> {
   const abs = safeAbs(relItem)
   if (abs === rootDir()) throw new Error('Cannot delete the Songs root')
   await shell.trashItem(abs)
+  invalidateLibraryIndex()
 }
 
 export function libMove(srcRelItem: string, destRelDir: string): void {
@@ -131,11 +138,14 @@ export function libMove(srcRelItem: string, destRelDir: string): void {
   }
   try {
     renameSync(src, dest)
-  } catch {
-    // jiný disk → kopie + smazání originálu
+  } catch (err) {
+    // Fallback kopie+koš JEN u skutečného cross-device (EXDEV). Přechodné chyby
+    // (EBUSY/EPERM — píseň otevřená ve hře) musí selhat čistě, ne polovičatě.
+    if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
     cpSync(src, dest, { recursive: true })
     void shell.trashItem(src)
   }
+  invalidateLibraryIndex()
 }
 
 export function libCopy(srcRelItem: string, destRelDir: string): void {
@@ -143,6 +153,7 @@ export function libCopy(srcRelItem: string, destRelDir: string): void {
   const destDir = safeAbs(destRelDir)
   const dest = uniqueDest(destDir, basename(src))
   cpSync(src, dest, { recursive: true })
+  invalidateLibraryIndex()
 }
 
 export function libOpen(rel: string): void {

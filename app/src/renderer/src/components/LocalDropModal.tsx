@@ -51,8 +51,10 @@ export function LocalDropModal(): JSX.Element | null {
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'INPUT') {
             e.preventDefault()
-            submit()
+            e.stopPropagation() // nesmí propadnout na window handler
+            if (!e.repeat) submit()
           } else if (e.key === 'Escape') {
+            e.stopPropagation() // jinak window handler schová celé okno aplikace
             cancel()
           }
         }}

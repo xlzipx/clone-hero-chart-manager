@@ -68,8 +68,10 @@ export function TargetFolderModal(): JSX.Element | null {
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault()
-            confirm()
+            e.stopPropagation() // nesmí propadnout na window handler (stáhl by vybraný řádek)
+            if (!e.repeat) confirm() // držení Enteru nesmí potvrdit vícekrát
           } else if (e.key === 'Escape') {
+            e.stopPropagation() // jinak window handler schová celé okno aplikace
             cancel()
           }
         }}

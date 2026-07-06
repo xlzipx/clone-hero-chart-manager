@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PlaylistInfo, PlaylistSong } from '../../../shared/types'
 import { Icon } from './Icon'
 
@@ -15,6 +15,10 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  // Token proti závodu: rychlé klikání mezi playlisty nesmí nechat pomalejší
+  // (starší) odpověď zobrazit písně pod hlavičkou jiného playlistu.
+  const openSeq = useRef(0)
+
   const loadLists = async (keepSel?: string): Promise<void> => {
     setError(null)
     try {
@@ -28,6 +32,8 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setLists([])
+      setSel(null)
+      setSongs(null)
     }
   }
   useEffect(() => {
@@ -36,17 +42,21 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
   }, [])
 
   const openSetlist = async (name: string): Promise<void> => {
+    const my = ++openSeq.current
     setSel(name)
     setChecked(new Set())
     setSongs(null)
     setSongsLoading(true)
     try {
-      setSongs(await window.api.libPlaylistSongs(name))
+      const s = await window.api.libPlaylistSongs(name)
+      if (my !== openSeq.current) return // mezitím kliknul na jiný playlist
+      setSongs(s)
     } catch (e) {
+      if (my !== openSeq.current) return
       setError(e instanceof Error ? e.message : String(e))
       setSongs([])
     } finally {
-      setSongsLoading(false)
+      if (my === openSeq.current) setSongsLoading(false)
     }
   }
 
@@ -63,16 +73,24 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
     }
   }
 
+  // Ref guard: Enter spustí rename a následný blur (input se odmountuje) by ho
+  // spustil PODRUHÉ se starým názvem → chybová hláška. State `busy` nestačí
+  // (update je async), ref je okamžitý.
+  const renameBusyRef = useRef(false)
   const doRename = (name: string): void => {
+    if (renameBusyRef.current) return
     const v = renameVal.trim()
     if (!v || v === name) {
       setRenaming(null)
       return
     }
+    renameBusyRef.current = true
+    setRenaming(null)
     void run(async () => {
       await window.api.libRenamePlaylist(name, v)
-      setRenaming(null)
-    }, v)
+    }, v).finally(() => {
+      renameBusyRef.current = false
+    })
   }
 
   const removeChecked = (): void => {
@@ -122,8 +140,14 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
                       onClick={(e) => e.stopPropagation()}
                       onChange={(e) => setRenameVal(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') doRename(p.name)
-                        if (e.key === 'Escape') setRenaming(null)
+                        if (e.key === 'Enter') {
+                          e.stopPropagation()
+                          doRename(p.name)
+                        }
+                        if (e.key === 'Escape') {
+                          e.stopPropagation() // jinak window handler zavře celý Library manager
+                          setRenaming(null)
+                        }
                       }}
                       onBlur={() => doRename(p.name)}
                     />

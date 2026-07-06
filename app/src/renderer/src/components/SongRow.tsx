@@ -33,10 +33,14 @@ interface Props {
   checked?: boolean
   /** Multi-select: lze řádek zaškrtnout (auto-stažitelný, nezařazený)? */
   checkable?: boolean
-  onToggleCheck?: () => void
-  onSelect: () => void
-  onDownload: () => void
-  onMarketplace: () => void
+  // Callbacky dostávají klíč písně a rodič si aktuální index/píseň dohledá sám.
+  // NESMÍ to být closury nad indexem: memo komparátor callbacky neporovnává,
+  // takže po přeřazení výsledků (sort/filtr) by řádek držel starý index a klik
+  // by označil/stáhl jinou píseň.
+  onToggleCheck?: (key: string) => void
+  onSelect: (key: string) => void
+  onDownload: (key: string) => void
+  onMarketplace: (key: string) => void
 }
 
 const STAGE_LABEL: Record<string, string> = {
@@ -114,8 +118,8 @@ function SongRowBase({
   return (
     <div
       className={`song ${selected ? 'song--selected' : ''} ${checked ? 'song--checked' : ''}`}
-      onClick={onSelect}
-      onDoubleClick={onDownload}
+      onClick={() => onSelect(song.key)}
+      onDoubleClick={() => onDownload(song.key)}
     >
       <div className="song__check">
         {checkable ? (
@@ -123,7 +127,7 @@ function SongRowBase({
             <input
               type="checkbox"
               checked={checked}
-              onChange={() => onToggleCheck?.()}
+              onChange={() => onToggleCheck?.(song.key)}
               aria-label={`Select ${song.artist} - ${song.title}`}
             />
             <span className="chk__box">
@@ -206,7 +210,7 @@ function SongRowBase({
             title="Official DLC — open the store page in your browser"
             onClick={(e) => {
               e.stopPropagation()
-              onMarketplace()
+              onMarketplace(song.key)
             }}
           >
             <Icon name="external" size={14} /> Open store
@@ -232,7 +236,7 @@ function SongRowBase({
               className="dl-btn"
               onClick={(e) => {
                 e.stopPropagation()
-                onDownload()
+                onDownload(song.key)
               }}
             >
               <Icon name="download" size={14} /> Download

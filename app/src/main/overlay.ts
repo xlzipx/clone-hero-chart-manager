@@ -25,7 +25,8 @@ export function getOverlay(): BrowserWindow | null {
 
 /** Živě aplikuje UI scale na hlavní okno (náhled z Nastavení). */
 export function applyUiScale(scale: number): void {
-  const s = Number.isFinite(scale) && scale > 0 ? scale : 1
+  // Clamp z obou stran — extrémní hodnota z IPC by udělala UI neovladatelné.
+  const s = Number.isFinite(scale) && scale > 0 ? Math.min(scale, 3) : 1
   mainWindow?.webContents.setZoomFactor(BASE_ZOOM * s)
 }
 

@@ -72,8 +72,14 @@ export function PlaylistDialog({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') void add(name)
-                    if (e.key === 'Escape') onClose()
+                    if (e.key === 'Enter') {
+                      e.stopPropagation()
+                      if (!busy) void add(name)
+                    }
+                    if (e.key === 'Escape') {
+                      e.stopPropagation() // jinak window handler zavře celý Library manager
+                      onClose()
+                    }
                   }}
                 />
                 <button disabled={!name.trim() || busy} onClick={() => void add(name)}>

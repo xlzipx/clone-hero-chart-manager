@@ -43,11 +43,18 @@ export function UpdateBanner(): JSX.Element | null {
   const download = async (): Promise<void> => {
     setBusy(true)
     setPercent(0)
-    const res = await window.api.downloadUpdate()
-    if (!res.ok) {
+    try {
+      const res = await window.api.downloadUpdate()
+      if (!res.ok) {
+        setBusy(false)
+        setPercent(null)
+        window.alert(`Update download failed: ${res.error}`)
+      }
+    } catch (e) {
+      // Reject IPC nesmí nechat banner navěky na „Downloading… 0 %".
       setBusy(false)
       setPercent(null)
-      window.alert(`Update download failed: ${res.error}`)
+      window.alert(`Update download failed: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
 

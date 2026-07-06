@@ -40,18 +40,23 @@ export function DuplicatesModal({
   const variants = (groups ?? []).filter((g) => g.reason === 'same-song')
 
   const deleteChecked = async (): Promise<void> => {
-    if (checked.size === 0) return
+    if (checked.size === 0 || busy) return
     setBusy(true)
     setError(null)
-    try {
-      for (const rel of checked) await window.api.libTrash(rel)
-      onChanged()
-      await scan()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
+    // Jednotlivé selhání nezastaví zbytek a hlavně: i po chybě se MUSÍ rescan,
+    // jinak seznam dál ukazuje už smazané položky a opakované Delete zase hází chybu.
+    let failed: string | null = null
+    for (const rel of checked) {
+      try {
+        await window.api.libTrash(rel)
+      } catch (e) {
+        failed = e instanceof Error ? e.message : String(e)
+      }
     }
+    onChanged()
+    await scan()
+    if (failed) setError(failed)
+    setBusy(false)
   }
 
   const renderGroup = (g: DupGroup, gi: number): JSX.Element => (

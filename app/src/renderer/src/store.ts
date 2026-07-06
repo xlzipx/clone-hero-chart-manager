@@ -186,6 +186,14 @@ function humanize(s: string): string {
 /** Debounce pro znovunačtení „In library" indexu po dávce instalací. */
 let ownedReloadTimer: ReturnType<typeof setTimeout> | null = null
 
+/**
+ * Sekvenční token hledání — ochrana proti závodu odpovědí. Pomalá odpověď ze
+ * staršího požadavku (stránka 1) nesmí přepsat novější (stránka 2, jiný dotaz,
+ * jiná databáze). Sdílený pro doSearch i surprise, aby se invalidovaly navzájem.
+ * (Stejný vzor jako typeahead v SearchBar.)
+ */
+let searchSeq = 0
+
 export const useStore = create<AppState>((set, get) => ({
   query: '',
   database: 'rhythmverse',
@@ -275,12 +283,15 @@ export const useStore = create<AppState>((set, get) => ({
     // (prázdný dotaz vrátí celou databázi), takže u něj prázdné hledání pustíme —
     // díky tomu funguje i stránkování po „Surprise me" na Encore.
     if (!query.trim() && database !== 'enchor') {
-      set({ results: [], totalFiltered: 0, error: null })
+      searchSeq++ // zneplatní i případné běžící hledání
+      set({ results: [], totalFiltered: 0, error: null, loading: false })
       return
     }
+    const myReq = ++searchSeq
     set({ loading: true, error: null })
     try {
       const res = await window.api.search(query.trim(), page, records, system, database)
+      if (myReq !== searchSeq) return // mezitím odstartovalo novější hledání
       set({
         results: res.songs,
         totalFiltered: res.totalFiltered,
@@ -290,6 +301,7 @@ export const useStore = create<AppState>((set, get) => ({
         selectedKeys: [] // nový výsledek → zruš předchozí výběr
       })
     } catch (e) {
+      if (myReq !== searchSeq) return
       set({ loading: false, error: e instanceof Error ? e.message : String(e) })
     }
   },
@@ -301,10 +313,12 @@ export const useStore = create<AppState>((set, get) => ({
     // vypadla, proto tam použijeme náhodné seed slovo z poolu.
     const seed =
       database === 'enchor' ? '' : SURPRISE_SEEDS[Math.floor(Math.random() * SURPRISE_SEEDS.length)]
+    const myReq = ++searchSeq
     set({ query: seed, loading: true, error: null, selectedKeys: [] })
     try {
       // 1) první stránka → zjisti počet výsledků a spočítej rozsah stránek.
       const first = await window.api.search(seed, 1, records, system, database)
+      if (myReq !== searchSeq) return // mezitím odstartovalo novější hledání
       const total = first.totalFiltered || first.songs.length
       const totalPages = Math.max(1, Math.ceil(total / records))
       // 2) náhodná stránka (cap ať offset není extrémní ani u velkých katalogů),
@@ -312,6 +326,7 @@ export const useStore = create<AppState>((set, get) => ({
       const rndPage = 1 + Math.floor(Math.random() * Math.min(totalPages, 400))
       let res =
         rndPage === 1 ? first : await window.api.search(seed, rndPage, records, system, database)
+      if (myReq !== searchSeq) return
       if (res.songs.length === 0) res = first
       const shuffled = [...res.songs]
       for (let i = shuffled.length - 1; i > 0; i--) {
@@ -327,6 +342,7 @@ export const useStore = create<AppState>((set, get) => ({
         selectedKeys: []
       })
     } catch (e) {
+      if (myReq !== searchSeq) return
       set({ loading: false, error: e instanceof Error ? e.message : String(e) })
     }
   },
@@ -349,12 +365,15 @@ export const useStore = create<AppState>((set, get) => ({
   confirmDownload: async (subfolder) => {
     const song = get().pendingSong
     if (!song) return
-    const jobId = await window.api.enqueueDownload(song, subfolder || undefined)
-    set((s) => ({
-      enqueuedKeys: { ...s.enqueuedKeys, [song.key]: jobId },
-      pendingSong: null,
-      lastSubfolder: subfolder
-    }))
+    // Pending nulujeme HNED — držení Enteru / dvojklik by jinak zařadily
+    // tutéž píseň vícekrát (guard proti opakovanému confirmu během await).
+    set({ pendingSong: null, lastSubfolder: subfolder })
+    try {
+      const jobId = await window.api.enqueueDownload(song, subfolder || undefined)
+      set((s) => ({ enqueuedKeys: { ...s.enqueuedKeys, [song.key]: jobId } }))
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) })
+    }
   },
 
   cancelDownload: () => set({ pendingSong: null }),
@@ -385,6 +404,9 @@ export const useStore = create<AppState>((set, get) => ({
   confirmBatchDownload: async (subfolder) => {
     const batch = get().pendingBatch
     if (!batch) return
+    // Guard proti dvojímu confirmu (držení Enteru) — jinak by se celá dávka
+    // zařadila dvakrát.
+    set({ pendingBatch: null, selectedKeys: [], lastSubfolder: subfolder })
     const newEntries: Record<string, string> = {}
     for (const song of batch) {
       try {
@@ -394,12 +416,7 @@ export const useStore = create<AppState>((set, get) => ({
         /* jednotlivé selhání nezastaví dávku */
       }
     }
-    set((s) => ({
-      enqueuedKeys: { ...s.enqueuedKeys, ...newEntries },
-      pendingBatch: null,
-      selectedKeys: [],
-      lastSubfolder: subfolder
-    }))
+    set((s) => ({ enqueuedKeys: { ...s.enqueuedKeys, ...newEntries } }))
   },
   cancelBatchDownload: () => set({ pendingBatch: null }),
 
@@ -417,14 +434,19 @@ export const useStore = create<AppState>((set, get) => ({
   confirmLocalBatch: async (subfolder) => {
     const paths = get().pendingLocalBatch
     if (!paths) return
-    const ids = await window.api.enqueueLocalBatch(paths, subfolder || undefined)
-    set((s) => {
-      const enqueuedKeys = { ...s.enqueuedKeys }
-      ids.forEach((id, i) => {
-        enqueuedKeys[`localbatch:${id}:${i}`] = id
+    set({ pendingLocalBatch: null, lastSubfolder: subfolder }) // guard proti dvojímu confirmu
+    try {
+      const ids = await window.api.enqueueLocalBatch(paths, subfolder || undefined)
+      set((s) => {
+        const enqueuedKeys = { ...s.enqueuedKeys }
+        ids.forEach((id, i) => {
+          enqueuedKeys[`localbatch:${id}:${i}`] = id
+        })
+        return { enqueuedKeys }
       })
-      return { enqueuedKeys, pendingLocalBatch: null, lastSubfolder: subfolder }
-    })
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) })
+    }
   },
   cancelLocalBatch: () => set({ pendingLocalBatch: null }),
 
@@ -507,16 +529,17 @@ export const useStore = create<AppState>((set, get) => ({
       externalUrl: null,
       sizeBytes: null
     }
-    const jobId = await window.api.enqueueLocalFile(
-      pending.path,
-      localSong,
-      subfolder || undefined
-    )
-    set((s) => ({
-      enqueuedKeys: { ...s.enqueuedKeys, [localSong.key]: jobId },
-      pendingLocal: null,
-      lastSubfolder: subfolder
-    }))
+    set({ pendingLocal: null, lastSubfolder: subfolder }) // guard proti dvojímu confirmu
+    try {
+      const jobId = await window.api.enqueueLocalFile(
+        pending.path,
+        localSong,
+        subfolder || undefined
+      )
+      set((s) => ({ enqueuedKeys: { ...s.enqueuedKeys, [localSong.key]: jobId } }))
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) })
+    }
   },
 
   applyJobUpdate: (job) => {
@@ -570,7 +593,13 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   saveConfig: async (patch) => {
+    const prevRecords = get().records
     const config = await window.api.setConfig(patch)
     set({ config, records: config.recordsPerPage })
+    // Změna „Results per page" → přenačti od stránky 1, jinak pager počítá
+    // totalPages z nové hodnoty nad daty načtenými se starou.
+    if (config.recordsPerPage !== prevRecords && get().results.length > 0) {
+      void get().doSearch(1)
+    }
   }
 }))

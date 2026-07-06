@@ -41,6 +41,30 @@ function sanitizeSetlistName(name: string): string {
   return clean.slice(0, 100)
 }
 
+// ── Serializace zápisů ──────────────────────────────────────────────────
+// Operace nad setlistem jsou read-modify-write; dvě souběžná IPC volání by se
+// navzájem přepsala (poslední writeFile vyhraje). Per-soubor promise řetěz je
+// serializuje. Chyba jedné operace nesmí rozbít řetěz (proto .catch).
+const fileLocks = new Map<string, Promise<unknown>>()
+
+function withFileLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prev = fileLocks.get(key) ?? Promise.resolve()
+  const next = prev.catch(() => {}).then(fn)
+  fileLocks.set(key, next)
+  // Úklid, ať mapa neroste donekonečna.
+  void next.catch(() => {}).finally(() => {
+    if (fileLocks.get(key) === next) fileLocks.delete(key)
+  })
+  return next
+}
+
+/** Atomický zápis (tmp + rename) — pád uprostřed nezanechá useknutý .setlist. */
+async function writeSetlistAtomic(file: string, buf: Buffer): Promise<void> {
+  const tmp = file + '.tmp'
+  await fsp.writeFile(tmp, buf)
+  await fsp.rename(tmp, file)
+}
+
 /** MD5 hex (uppercase) písně z `notes.chart` (preferováno) / `notes.mid`. */
 export async function songHash(folderAbs: string): Promise<string | null> {
   for (const f of ['notes.chart', 'notes.mid']) {
@@ -121,37 +145,39 @@ export async function addSongsToPlaylist(
   await fsp.mkdir(dir, { recursive: true })
   const file = join(dir, `${safe}.setlist`)
 
-  // Načti existující hashe (když setlist už je), ať doplňujeme a nezahazujeme.
-  let existing: string[] = []
-  if (existsSync(file)) {
-    try {
-      existing = decodeSetlist(await fsp.readFile(file))
-    } catch {
-      existing = []
+  return withFileLock(file, async () => {
+    // Načti existující hashe (když setlist už je), ať doplňujeme a nezahazujeme.
+    let existing: string[] = []
+    if (existsSync(file)) {
+      try {
+        existing = decodeSetlist(await fsp.readFile(file))
+      } catch {
+        existing = []
+      }
     }
-  }
-  const seen = new Set(existing)
+    const seen = new Set(existing)
 
-  let added = 0
-  let skipped = 0
-  let missingHash = 0
-  for (const folder of folderAbsList) {
-    const h = await songHash(folder)
-    if (!h) {
-      missingHash++
-      continue
+    let added = 0
+    let skipped = 0
+    let missingHash = 0
+    for (const folder of folderAbsList) {
+      const h = await songHash(folder)
+      if (!h) {
+        missingHash++
+        continue
+      }
+      if (seen.has(h)) {
+        skipped++
+        continue
+      }
+      seen.add(h)
+      existing.push(h)
+      added++
     }
-    if (seen.has(h)) {
-      skipped++
-      continue
-    }
-    seen.add(h)
-    existing.push(h)
-    added++
-  }
 
-  await fsp.writeFile(file, encodeSetlist(existing))
-  return { added, skipped, missingHash, total: existing.length }
+    await writeSetlistAtomic(file, encodeSetlist(existing))
+    return { added, skipped, missingHash, total: existing.length }
+  })
 }
 
 /** Smaže celý setlist. */
@@ -173,9 +199,11 @@ export async function renamePlaylist(oldName: string, newName: string): Promise<
 /** Odebere ze setlistu písně podle hashů (přepíše soubor). */
 export async function removeSongsFromPlaylist(name: string, hashes: string[]): Promise<void> {
   const file = join(setlistsDir(), `${sanitizeSetlistName(name)}.setlist`)
-  const remove = new Set(hashes)
-  const remaining = decodeSetlist(await fsp.readFile(file)).filter((h) => !remove.has(h))
-  await fsp.writeFile(file, encodeSetlist(remaining))
+  return withFileLock(file, async () => {
+    const remove = new Set(hashes)
+    const remaining = decodeSetlist(await fsp.readFile(file)).filter((h) => !remove.has(h))
+    await writeSetlistAtomic(file, encodeSetlist(remaining))
+  })
 }
 
 // ── Rozřešení hash → píseň (pro zobrazení obsahu setlistu) ─────────────
@@ -183,6 +211,15 @@ export async function removeSongsFromPlaylist(name: string, hashes: string[]): P
 // se krátce cacheuje. Metadata (song.ini) hash NEMĚNÍ (ten je jen z notes.chart/
 // mid), takže editace metadat cache neznehodnocuje; mění ji přidání/smazání písní.
 let indexCache: { at: number; map: Map<string, { artist: string; title: string }> } | null = null
+
+/**
+ * Zneplatní cache indexu. Volat po každé změně obsahu knihovny (instalace,
+ * smazání, přesun písně) a po změně `songsDir` — jinak by setlisty až 5 minut
+ * neviděly nové/přesunuté písně.
+ */
+export function invalidateLibraryIndex(): void {
+  indexCache = null
+}
 
 async function libraryHashIndex(): Promise<Map<string, { artist: string; title: string }>> {
   if (indexCache && Date.now() - indexCache.at < 5 * 60 * 1000) return indexCache.map

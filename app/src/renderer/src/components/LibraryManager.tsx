@@ -37,7 +37,10 @@ export function LibraryManager(): JSX.Element | null {
   const [dupOpen, setDupOpen] = useState(false)
   const [plmOpen, setPlmOpen] = useState(false)
   const dialogOpenRef = useRef(false)
-  dialogOpenRef.current = dialog !== null
+  // Zkratky (Delete, Ctrl+V, Ctrl+A…) musí mlčet pod VŠEMI sub-modály — jinak
+  // jde omylem smazat výběr schovaný pod otevřeným oknem Duplicates/Playlists.
+  dialogOpenRef.current =
+    dialog !== null || metaFor !== null || playlistFor !== null || dupOpen || plmOpen
   const ctxRef = useRef<HTMLDivElement>(null)
   // Detail otevřené písničky (když je aktuální složka píseň) — panel s obalem,
   // metadaty a obtížnostmi nad výpisem souborů.
@@ -62,11 +65,18 @@ export function LibraryManager(): JSX.Element | null {
   const segments = cwd.split(/[\\/]/).filter(Boolean)
   const selArr = (): string[] => entries.filter((e) => selected.has(e.name)).map((e) => e.name)
 
+  // Token proti závodu: při rychlé navigaci vyhrává POSLEDNÍ vyžádaná složka,
+  // ne ta, jejíž odpověď náhodou doběhne později. Stejný token kryje i detail
+  // písně (pomalé čtení obalu nesmí zobrazit detail písně A nad složkou B).
+  const loadSeq = useRef(0)
+
   const load = async (rel: string): Promise<void> => {
+    const my = ++loadSeq.current
     setLoading(true)
     setError(null)
     try {
       const res = await window.api.libList(rel)
+      if (my !== loadSeq.current) return // mezitím proběhla novější navigace
       setCwd(res.path)
       setEntries(res.entries)
       setSelected(new Set())
@@ -79,14 +89,22 @@ export function LibraryManager(): JSX.Element | null {
       )
       if (isSong) {
         setDetail(null)
-        void window.api.libSongDetail(res.path).then((d) => setDetail(d))
+        void window.api
+          .libSongDetail(res.path)
+          .then((d) => {
+            if (my === loadSeq.current) setDetail(d)
+          })
+          .catch(() => {
+            /* panel prostě nebude */
+          })
       } else {
         setDetail(null)
       }
     } catch (e) {
+      if (my !== loadSeq.current) return
       setError(e instanceof Error ? e.message : String(e))
     } finally {
-      setLoading(false)
+      if (my === loadSeq.current) setLoading(false)
     }
   }
 
@@ -326,7 +344,9 @@ export function LibraryManager(): JSX.Element | null {
               <div
                 key={en.name}
                 className={`lib__item ${selected.has(en.name) ? 'lib__item--sel' : ''} ${
-                  clip && clip.op === 'cut' && clip.names.includes(en.name) ? 'lib__item--cut' : ''
+                  clip && clip.op === 'cut' && clip.items.includes(relOf(en.name))
+                    ? 'lib__item--cut'
+                    : ''
                 }`}
                 onClick={(e) => onItemClick(en.name, e)}
                 onDoubleClick={() => en.type === 'dir' && void load(relOf(en.name))}
@@ -452,8 +472,14 @@ export function LibraryManager(): JSX.Element | null {
                     value={dialogValue}
                     onChange={(e) => setDialogValue(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') void confirmDialog()
-                      if (e.key === 'Escape') setDialog(null)
+                      if (e.key === 'Enter') {
+                        e.stopPropagation()
+                        void confirmDialog()
+                      }
+                      if (e.key === 'Escape') {
+                        e.stopPropagation() // jinak window handler zavře celý Library manager
+                        setDialog(null)
+                      }
                     }}
                   />
                   <div className="lib__dialog-foot">

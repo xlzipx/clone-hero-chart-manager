@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import chLogoUrl from './assets/CHM_logo.png'
 import { DownloadQueue } from './components/DownloadQueue'
 import { FilterBar } from './components/FilterBar'
@@ -100,7 +100,6 @@ export function App(): JSX.Element {
 
   // Multi-select
   const selectedKeys = useStore((s) => s.selectedKeys)
-  const toggleSelected = useStore((s) => s.toggleSelected)
   const setSelection = useStore((s) => s.setSelection)
   const clearSelection = useStore((s) => s.clearSelection)
   const openBatchDownload = useStore((s) => s.openBatchDownload)
@@ -132,18 +131,55 @@ export function App(): JSX.Element {
     if (song.official) openMarketplace(song)
     else if (!enqueuedKeys[song.key]) void openDownload(song)
   }
+
+  // Stabilní callbacky pro memoizované SongRow — memo komparátor callbacky
+  // neporovnává, takže NESMÍ zachytávat index/píseň v closure (po přeřazení by
+  // řádek držel starou hodnotu a klik by označil/stáhl jinou píseň). Řádek pošle
+  // svůj klíč a tady si dohledáme AKTUÁLNÍ index/píseň přes ref.
+  const visibleRef = useRef(visible)
+  useEffect(() => {
+    visibleRef.current = visible
+  }, [visible])
+  const handleRowSelect = useCallback((key: string) => {
+    const idx = visibleRef.current.findIndex((s) => s.key === key)
+    if (idx >= 0) useStore.getState().setSelectedIndex(idx)
+  }, [])
+  const handleRowDownload = useCallback((key: string) => {
+    const song = visibleRef.current.find((s) => s.key === key)
+    if (!song) return
+    const st = useStore.getState()
+    if (song.official) st.openMarketplace(song)
+    else if (!st.enqueuedKeys[song.key]) void st.openDownload(song)
+  }, [])
+  const handleRowMarketplace = useCallback((key: string) => {
+    const song = visibleRef.current.find((s) => s.key === key)
+    if (song) useStore.getState().openMarketplace(song)
+  }, [])
+  const handleRowToggleCheck = useCallback((key: string) => {
+    useStore.getState().toggleSelected(key)
+  }, [])
   const applyJobUpdate = useStore((s) => s.applyJobUpdate)
   const loadConfig = useStore((s) => s.loadConfig)
 
   // Načtení configu + odběr událostí (úlohy, hotkeys).
   useEffect(() => {
     void (async () => {
-      await loadConfig()
+      // try/catch: selhání loadConfig nesmí přerušit zbytek inicializace
+      // (detekce Songs složky, „What's new").
+      try {
+        await loadConfig()
+      } catch {
+        /* config se načte znovu při otevření Nastavení */
+      }
       // Index „už mám v knihovně" (nápověda ve výsledcích).
       void useStore.getState().loadOwnedKeys()
       // První spuštění mimo složku hry: pokud Songs neexistuje, otevři Nastavení.
-      const exists = await window.api.songsDirExists()
-      if (!exists) useStore.getState().setShowSettings(true)
+      try {
+        const exists = await window.api.songsDirExists()
+        if (!exists) useStore.getState().setShowSettings(true)
+      } catch {
+        /* nevadí */
+      }
       // Po aktualizaci (změna verze oproti minule) ukaž „What's new".
       try {
         const v = await window.api.appVersion()
@@ -197,8 +233,12 @@ export function App(): JSX.Element {
         const st = useStore.getState()
         if (st.showWhatsNew) st.setShowWhatsNew(false)
         else if (st.showLibrary) st.setShowLibrary(false)
-        else if (st.showSettings) st.setShowSettings(false)
-        else window.api.hideOverlay()
+        else if (st.showSettings) {
+          // Escape = Cancel: zahoď živý náhled UI scale (jinak by neuložená
+          // škála zůstala aplikovaná až do restartu).
+          void window.api.setUiScale(st.config?.uiScale ?? 1)
+          st.setShowSettings(false)
+        } else window.api.hideOverlay()
         return
       }
       // Otevřené Nastavení/Správce/What's new: nech projít jen Escape (výše), nenaviguj.
@@ -345,11 +385,11 @@ export function App(): JSX.Element {
               owned={ownedKeys.has(songKey(song.artist, song.title))}
               checked={selectedSet.has(song.key)}
               checkable={isAutoDownloadable(song) && !enqueuedKeys[song.key]}
-              onToggleCheck={() => toggleSelected(song.key)}
+              onToggleCheck={handleRowToggleCheck}
               job={enqueuedKeys[song.key] ? jobs[enqueuedKeys[song.key]] : undefined}
-              onSelect={() => setSelectedIndex(i)}
-              onDownload={() => triggerDownload(song)}
-              onMarketplace={() => openMarketplace(song)}
+              onSelect={handleRowSelect}
+              onDownload={handleRowDownload}
+              onMarketplace={handleRowMarketplace}
             />
           ))
         )}

@@ -95,6 +95,9 @@ export function WhatsNew(): JSX.Element | null {
       .then((list) => {
         if (!cancelled) setReleases(list)
       })
+      .catch(() => {
+        /* offline → zůstane fallback text */
+      })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })

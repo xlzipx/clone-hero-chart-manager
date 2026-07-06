@@ -139,6 +139,9 @@ export function SearchBar(): JSX.Element {
       return
     }
     if (e.key === 'Escape') {
+      // Když je otevřený našeptávač, Escape zavírá JEN jeho — nesmí propadnout
+      // na window handler (ten by schoval celé okno aplikace).
+      if (suggestOpen) e.stopPropagation()
       setSuggestOpen(false)
       setHoverIdx(-1)
       return
@@ -168,7 +171,10 @@ export function SearchBar(): JSX.Element {
           value={database}
           onChange={(id) => {
             setDatabase(id)
-            if (query.trim()) doSearch(1)
+            // Vždy re-search: s prázdným dotazem doSearch výsledky buď vyčistí
+            // (RV/Both), nebo přepne na browse-all (Encore) — nikdy nenechá
+            // zatuchlé výsledky z předchozí databáze.
+            void doSearch(1)
           }}
         />
         {showSystems ? (
@@ -180,7 +186,7 @@ export function SearchBar(): JSX.Element {
               value={system}
               onChange={(id) => {
                 setSystem(id)
-                if (query.trim()) doSearch(1)
+                if (query.trim()) void doSearch(1)
               }}
             />
           </>

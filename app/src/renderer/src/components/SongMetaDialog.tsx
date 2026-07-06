@@ -68,8 +68,14 @@ export function SongMetaDialog({
                   value={fields[key] ?? ''}
                   onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') void save()
-                    if (e.key === 'Escape') onClose()
+                    if (e.key === 'Enter') {
+                      e.stopPropagation()
+                      if (!saving) void save()
+                    }
+                    if (e.key === 'Escape') {
+                      e.stopPropagation() // jinak window handler zavře celý Library manager (a zahodí úpravy)
+                      onClose()
+                    }
                   }}
                 />
               </label>

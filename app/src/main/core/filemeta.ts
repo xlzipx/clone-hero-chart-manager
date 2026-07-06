@@ -25,10 +25,15 @@ async function readSngMeta(path: string): Promise<FileMeta | null> {
       const finish = (result: FileMeta | null): void => {
         if (done) return
         done = true
+        clearTimeout(timer)
         // Stream už nepotřebujeme — zrušíme ho, ať se Node nevyplýtvá čtením celého souboru.
         nodeStream.destroy()
         resolve(result)
       }
+      // Pojistka: useknutý/vadný .sng nemusí vyslat ani `header`, ani `error`
+      // (stream jen skončí) — bez timeoutu by `invoke` v rendereru visel navždy.
+      const timer = setTimeout(() => finish(null), 10_000)
+      nodeStream.on('close', () => finish(null))
       sng.on('error', () => finish(null))
       sng.on('header', (header) => {
         const m = header.metadata || {}
