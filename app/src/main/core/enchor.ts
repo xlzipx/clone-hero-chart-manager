@@ -27,7 +27,6 @@ interface EnchorChart {
   charter?: string | null
   song_length?: number | null // ms
   chartId?: number
-  chartHash?: string | null
   md5?: string | null
   albumArtMd5?: string | null
   diff_guitar?: number
@@ -96,9 +95,11 @@ function normalize(c: EnchorChart): SongResult {
     needsConversion: false,
     official: false,
     downloadUrl: md5 ? `${FILES}/${md5}.sng` : null,
-    // Web Encore směruje na chart přes route `chart/:hash` s `chartHash` (ne
-    // chartId — ten route nematchne a spadne na prázdné hledání „No results").
-    downloadPageUrl: c.chartHash ? `https://www.enchor.us/chart/${c.chartHash}` : null,
+    // Web Encore směruje na chart přes route `chart/:hash`, kde ten „hash" je
+    // ve skutečnosti **md5** (ne chartId ani chartHash). Stránka pak volá
+    // `/search/advanced { hash: md5 }` a chart najde. (Ověřeno proti live API +
+    // JS bundlu: `copyLink(i.md5)` → `enchor.us/chart/${md5}`.)
+    downloadPageUrl: md5 ? `https://www.enchor.us/chart/${md5}` : null,
     externalUrl: null,
     sizeBytes: null // API ji nevrací; .sng je obvykle 5–50 MB
   }
