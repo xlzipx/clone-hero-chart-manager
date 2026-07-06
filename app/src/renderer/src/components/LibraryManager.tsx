@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { LibEntry, LibSongInfo } from '../../../shared/types'
+import type { LibEntry, SongDetail } from '../../../shared/types'
 import { useStore } from '../store'
 import { formatLength } from '../utils'
 import { DuplicatesModal } from './DuplicatesModal'
 import { Icon } from './Icon'
-import { LibDiffStrip } from './LibDiffStrip'
+import { InstrumentDifficulty } from './InstrumentDifficulty'
 import { PlaylistDialog } from './PlaylistDialog'
 import { PlaylistManagerModal } from './PlaylistManagerModal'
 import { SongMetaDialog } from './SongMetaDialog'
@@ -39,28 +39,9 @@ export function LibraryManager(): JSX.Element | null {
   const dialogOpenRef = useRef(false)
   dialogOpenRef.current = dialog !== null
   const ctxRef = useRef<HTMLDivElement>(null)
-  // Bohaté řádky: detailní info o písních, líně (jen viditelné řádky) přes
-  // IntersectionObserver, dávkově a s cache. Držíme mimo hlavní render jako Map.
-  const listRef = useRef<HTMLDivElement>(null)
-  const [songInfo, setSongInfo] = useState<Map<string, LibSongInfo>>(new Map())
-  const requestedRef = useRef<Set<string>>(new Set())
-  const queueRef = useRef<Set<string>>(new Set())
-  const flushTimer = useRef<number>()
-
-  const flushQueue = (): void => {
-    const rels = [...queueRef.current].filter((r) => !requestedRef.current.has(r))
-    queueRef.current.clear()
-    if (rels.length === 0) return
-    rels.forEach((r) => requestedRef.current.add(r))
-    void window.api.libSongInfo(rels).then((infos) => {
-      if (infos.length === 0) return
-      setSongInfo((prev) => {
-        const next = new Map(prev)
-        for (const i of infos) next.set(i.rel, i)
-        return next
-      })
-    })
-  }
+  // Detail otevřené písničky (když je aktuální složka píseň) — panel s obalem,
+  // metadaty a obtížnostmi nad výpisem souborů.
+  const [detail, setDetail] = useState<SongDetail | null>(null)
 
   // Kontextové menu je position:fixed na souřadnicích kliknutí — u položek dole
   // by přeteklo přes okraj obrazovky a useklo se. Po vykreslení ho změříme a
@@ -90,10 +71,18 @@ export function LibraryManager(): JSX.Element | null {
       setEntries(res.entries)
       setSelected(new Set())
       setAnchor(null)
-      // Nová složka → zahoď cache detailů (líně se doplní pro viditelné řádky).
-      setSongInfo(new Map())
-      requestedRef.current.clear()
-      queueRef.current.clear()
+      // Je aktuální složka píseň? (obsahuje song.ini / notes.chart / notes.mid) →
+      // dotáhni detail (metadata + obal) pro panel nad výpisem souborů.
+      const markers = ['song.ini', 'notes.chart', 'notes.mid']
+      const isSong = res.entries.some(
+        (e) => e.type === 'file' && markers.includes(e.name.toLowerCase())
+      )
+      if (isSong) {
+        setDetail(null)
+        void window.api.libSongDetail(res.path).then((d) => setDetail(d))
+      } else {
+        setDetail(null)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -105,33 +94,6 @@ export function LibraryManager(): JSX.Element | null {
     if (show) void load('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show])
-
-  // Líné načítání detailů: sleduj viditelné řádky písní a dávkově dotáhni info.
-  useEffect(() => {
-    const root = listRef.current
-    if (!show || !root) return
-    const obs = new IntersectionObserver(
-      (ents) => {
-        let any = false
-        for (const e of ents) {
-          if (!e.isIntersecting) continue
-          const rel = (e.target as HTMLElement).dataset.rel
-          if (rel && !requestedRef.current.has(rel)) {
-            queueRef.current.add(rel)
-            any = true
-          }
-        }
-        if (any) {
-          window.clearTimeout(flushTimer.current)
-          flushTimer.current = window.setTimeout(flushQueue, 60)
-        }
-      },
-      { root, rootMargin: '250px' }
-    )
-    root.querySelectorAll<HTMLElement>('[data-rel]').forEach((el) => obs.observe(el))
-    return () => obs.disconnect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show, entries, cwd])
 
   const run = async (fn: () => Promise<void>): Promise<void> => {
     try {
@@ -304,9 +266,52 @@ export function LibraryManager(): JSX.Element | null {
 
         {error ? <div className="lib__error">⚠ {error}</div> : null}
 
+        {detail?.info ? (
+          <div className="songdetail">
+            {detail.albumArt ? (
+              <img className="songdetail__art" src={detail.albumArt} alt="" />
+            ) : (
+              <div className="songdetail__art songdetail__art--none">
+                <Icon name="note" size={26} />
+              </div>
+            )}
+            <div className="songdetail__meta">
+              <div className="songdetail__title">
+                {detail.info.title || segments[segments.length - 1]}
+              </div>
+              {detail.info.artist ? (
+                <div className="songdetail__artist">{detail.info.artist}</div>
+              ) : null}
+              <div className="songdetail__sub">
+                {[detail.info.album, detail.info.year || null, detail.info.genre]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </div>
+              <div className="songdetail__sub">
+                {[
+                  detail.info.charter && `by ${detail.info.charter}`,
+                  detail.info.lengthSeconds && formatLength(detail.info.lengthSeconds)
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </div>
+              <div className="songdetail__diffs">
+                <InstrumentDifficulty difficulties={detail.info.difficulties} />
+              </div>
+            </div>
+            <button
+              className="btn-secondary songdetail__edit"
+              onClick={() =>
+                setMetaFor({ rel: cwd, title: segments[segments.length - 1] || 'song' })
+              }
+            >
+              Edit metadata
+            </button>
+          </div>
+        ) : null}
+
         <div
           className="lib__list"
-          ref={listRef}
           onContextMenu={(e) => e.target === e.currentTarget && openCtx(e, null)}
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !e.ctrlKey && !e.shiftKey) setSelected(new Set())
@@ -317,43 +322,26 @@ export function LibraryManager(): JSX.Element | null {
           ) : entries.length === 0 ? (
             <div className="lib__empty">This folder is empty. Right-click for New folder / Paste.</div>
           ) : (
-            entries.map((en) => {
-              const isSongDir = en.type === 'dir' && en.isSong
-              const info = isSongDir ? songInfo.get(relOf(en.name)) : undefined
-              return (
-                <div
-                  key={en.name}
-                  data-rel={isSongDir ? relOf(en.name) : undefined}
-                  className={`lib__item ${info ? 'lib__item--rich' : ''} ${
-                    selected.has(en.name) ? 'lib__item--sel' : ''
-                  } ${clip && clip.op === 'cut' && clip.names.includes(en.name) ? 'lib__item--cut' : ''}`}
-                  onClick={(e) => onItemClick(en.name, e)}
-                  onDoubleClick={() => en.type === 'dir' && void load(relOf(en.name))}
-                  onContextMenu={(e) => openCtx(e, en.name)}
-                >
-                  <Icon
-                    name={en.type === 'dir' ? 'folder' : en.name.toLowerCase().endsWith('.sng') ? 'note' : 'file'}
-                    size={17}
-                    color={en.isSong ? 'var(--accent)' : undefined}
-                  />
-                  {info ? (
-                    <span className="lib__meta">
-                      <span className="lib__title">{info.title || en.name}</span>
-                      <span className="lib__subline">
-                        {[info.artist, info.charter && `by ${info.charter}`, info.lengthSeconds && formatLength(info.lengthSeconds)]
-                          .filter(Boolean)
-                          .join(' · ') || en.name}
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="lib__name">{en.name}</span>
-                  )}
-                  {info ? <LibDiffStrip difficulties={info.difficulties} /> : null}
-                  {en.isSong ? <span className="lib__tag">song</span> : null}
-                  {en.type === 'dir' && !en.isSong ? <span className="lib__tag lib__tag--dir">folder</span> : null}
-                </div>
-              )
-            })
+            entries.map((en) => (
+              <div
+                key={en.name}
+                className={`lib__item ${selected.has(en.name) ? 'lib__item--sel' : ''} ${
+                  clip && clip.op === 'cut' && clip.names.includes(en.name) ? 'lib__item--cut' : ''
+                }`}
+                onClick={(e) => onItemClick(en.name, e)}
+                onDoubleClick={() => en.type === 'dir' && void load(relOf(en.name))}
+                onContextMenu={(e) => openCtx(e, en.name)}
+              >
+                <Icon
+                  name={en.type === 'dir' ? 'folder' : en.name.toLowerCase().endsWith('.sng') ? 'note' : 'file'}
+                  size={17}
+                  color={en.isSong ? 'var(--accent)' : undefined}
+                />
+                <span className="lib__name">{en.name}</span>
+                {en.isSong ? <span className="lib__tag">song</span> : null}
+                {en.type === 'dir' && !en.isSong ? <span className="lib__tag lib__tag--dir">folder</span> : null}
+              </div>
+            ))
           )}
         </div>
 

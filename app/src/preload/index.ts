@@ -14,6 +14,7 @@ import type {
   ReleaseNotes,
   RhythmVerseSystem,
   SearchResponse,
+  SongDetail,
   SongMeta,
   SongResult,
   UpdateAvailable,
@@ -60,6 +61,8 @@ const api = {
     ipcRenderer.invoke('lib:writeMeta', relItem, fields) as Promise<void>,
   libSongInfo: (rels: string[]) =>
     ipcRenderer.invoke('lib:songInfo', rels) as Promise<LibSongInfo[]>,
+  libSongDetail: (rel: string) =>
+    ipcRenderer.invoke('lib:songDetail', rel) as Promise<SongDetail>,
   libFindDuplicates: () => ipcRenderer.invoke('lib:findDuplicates') as Promise<DupGroup[]>,
   libListPlaylists: () => ipcRenderer.invoke('lib:listPlaylists') as Promise<PlaylistInfo[]>,
   libAddToPlaylist: (name: string, relItems: string[]) =>

@@ -70,6 +70,21 @@ export async function writeSongMeta(folderAbs: string, fields: SongMeta): Promis
   await fsp.writeFile(iniPath, lines.join(eol), 'utf-8')
 }
 
+/** Obal alba jako data URI (album.png/jpg/jpeg/webp), nebo null. */
+export async function readAlbumArt(folderAbs: string): Promise<string | null> {
+  for (const n of ['album.png', 'album.jpg', 'album.jpeg', 'album.webp']) {
+    try {
+      const buf = await fsp.readFile(join(folderAbs, n))
+      if (buf.length > 6 * 1024 * 1024) return null // příliš velké → přeskoč
+      const ext = n.slice(n.lastIndexOf('.') + 1)
+      return `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${buf.toString('base64')}`
+    } catch {
+      /* zkus další název */
+    }
+  }
+  return null
+}
+
 /**
  * Detailní info pro bohatý řádek v knihovně — VŠE ze `song.ini` (žádné parsování
  * chartu): název/umělec/charter/album/žánr/rok/délka + obtížnosti nástrojů

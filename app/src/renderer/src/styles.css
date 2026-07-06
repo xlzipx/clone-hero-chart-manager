@@ -3442,3 +3442,61 @@ body {
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.14);
 }
+
+/* ---------- Library manager: detail otevřené písně ---------- */
+.songdetail {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin: 0 18px 10px;
+  padding: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.songdetail__art {
+  width: 84px;
+  height: 84px;
+  border-radius: 9px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--panel);
+}
+.songdetail__art--none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+}
+.songdetail__meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.songdetail__title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.15;
+}
+.songdetail__artist {
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+.songdetail__sub {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.songdetail__sub:empty {
+  display: none;
+}
+.songdetail__diffs {
+  margin-top: 9px;
+}
+.songdetail__edit {
+  flex-shrink: 0;
+}

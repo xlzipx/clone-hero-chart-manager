@@ -5,7 +5,7 @@ import { shell } from 'electron'
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'fs'
 import { basename, extname, join, resolve, sep } from 'path'
 import { getConfig } from './config'
-import { readSongInfo, readSongMeta, writeSongMeta } from './songmeta'
+import { readAlbumArt, readSongInfo, readSongMeta, writeSongMeta } from './songmeta'
 import {
   addSongsToPlaylist,
   deletePlaylist,
@@ -21,6 +21,7 @@ import type {
   PlaylistAddResult,
   PlaylistInfo,
   PlaylistSong,
+  SongDetail,
   SongMeta
 } from '../../shared/types'
 
@@ -171,6 +172,13 @@ export async function libSongInfo(rels: string[]): Promise<LibSongInfo[]> {
     }
   }
   return out
+}
+/** Detail otevřené písně: metadata + obal alba (data URI). */
+export async function libSongDetail(rel: string): Promise<SongDetail> {
+  const abs = safeAbs(rel)
+  const info = await readSongInfo(abs)
+  const albumArt = await readAlbumArt(abs)
+  return { info: info ? { rel, ...info } : null, albumArt }
 }
 
 // ── Playlisty (.setlist) ──────────────────────────────────────────────

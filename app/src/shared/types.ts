@@ -140,6 +140,12 @@ export interface LibSongInfo {
   difficulties: InstrumentDifficulties
 }
 
+/** Detail otevřené písně: metadata + obal alba jako data URI (nebo null). */
+export interface SongDetail {
+  info: LibSongInfo | null
+  albumArt: string | null
+}
+
 /** Editovatelná metadata písně (song.ini). */
 export interface SongMeta {
   name?: string
@@ -256,8 +262,10 @@ export interface RendererApi {
   libReveal(relItem: string): void
   /** Přečte metadata (song.ini) písně. */
   libReadMeta(relItem: string): Promise<SongMeta>
-  /** Detailní info (obtížnosti, charter, délka…) pro dávku písní — pro bohaté řádky. */
+  /** Detailní info (obtížnosti, charter, délka…) pro dávku písní. */
   libSongInfo(rels: string[]): Promise<LibSongInfo[]>
+  /** Detail otevřené písně (metadata + obal alba jako data URI). */
+  libSongDetail(rel: string): Promise<SongDetail>
   /** Zapíše zadaná metadata do song.ini. */
   libWriteMeta(relItem: string, fields: SongMeta): Promise<void>
   /** Najde duplicity v knihovně (identické + varianty téže písně). */
