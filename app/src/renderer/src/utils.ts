@@ -64,6 +64,15 @@ export const INSTRUMENTS: InstrumentMeta[] = [
 
 export const MAX_DIFFICULTY = 6
 
+/**
+ * Odstraní CH/Unity rich-text tagy (<color=…>, <b>, …) → čistý text pro
+ * filtrování, kopírování a tooltips. Pro ZOBRAZENÍ použij komponentu RichText,
+ * která tagy vykreslí barevně jako hra.
+ */
+export function stripTags(s: string): string {
+  return s.replace(/<\/?(?:color|b|i|u|s|size|material|quad|sprite|alpha|mark|noparse)\b[^>]*>/gi, '').trim()
+}
+
 /** Normalizovaný klíč skladby (musí sedět s main `normKey`): artist|title. */
 export function songKey(artist: string, title: string): string {
   const n = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '')

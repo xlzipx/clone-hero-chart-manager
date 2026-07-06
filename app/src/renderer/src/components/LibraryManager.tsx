@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { LibEntry, SongDetail } from '../../../shared/types'
 import { useStore } from '../store'
-import { formatLength } from '../utils'
+import { formatLength, stripTags } from '../utils'
+import { RichText } from './RichText'
 import { DuplicatesModal } from './DuplicatesModal'
 import { Icon } from './Icon'
 import { InstrumentDifficulty } from './InstrumentDifficulty'
@@ -295,23 +296,30 @@ export function LibraryManager(): JSX.Element | null {
             )}
             <div className="songdetail__meta">
               <div className="songdetail__title">
-                {detail.info.title || segments[segments.length - 1]}
+                {detail.info.title ? (
+                  <RichText text={detail.info.title} />
+                ) : (
+                  segments[segments.length - 1]
+                )}
               </div>
               {detail.info.artist ? (
-                <div className="songdetail__artist">{detail.info.artist}</div>
+                <div className="songdetail__artist">
+                  <RichText text={detail.info.artist} />
+                </div>
               ) : null}
               <div className="songdetail__sub">
-                {[detail.info.album, detail.info.year || null, detail.info.genre]
+                {[stripTags(detail.info.album), detail.info.year || null, stripTags(detail.info.genre)]
                   .filter(Boolean)
                   .join(' · ')}
               </div>
               <div className="songdetail__sub">
-                {[
-                  detail.info.charter && `by ${detail.info.charter}`,
-                  detail.info.lengthSeconds && formatLength(detail.info.lengthSeconds)
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
+                {detail.info.charter ? (
+                  <>
+                    by <RichText text={detail.info.charter} />
+                  </>
+                ) : null}
+                {detail.info.charter && detail.info.lengthSeconds ? ' · ' : null}
+                {detail.info.lengthSeconds ? formatLength(detail.info.lengthSeconds) : null}
               </div>
               <div className="songdetail__diffs">
                 <InstrumentDifficulty difficulties={detail.info.difficulties} />

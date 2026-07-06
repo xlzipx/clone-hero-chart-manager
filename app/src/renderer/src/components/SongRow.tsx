@@ -8,6 +8,7 @@ import {
 } from '../utils'
 import { Icon } from './Icon'
 import { InstrumentDifficulty } from './InstrumentDifficulty'
+import { RichText } from './RichText'
 import { RowMenu } from './RowMenu'
 
 /** Malý komponentový wrapper pro album art — fallback na ikonu při onError. */
@@ -182,7 +183,7 @@ function SongRowBase({
           ) : null}
           {song.charter ? (
             <span className="song__charter">
-              <Icon name="charter" size={12} /> {song.charter}
+              <Icon name="charter" size={12} /> <RichText text={song.charter} />
             </span>
           ) : null}
         </div>

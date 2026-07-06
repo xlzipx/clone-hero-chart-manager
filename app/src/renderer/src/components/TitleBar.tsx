@@ -86,6 +86,16 @@ export function TitleBar(): JSX.Element {
           busy={busy}
         />
         <LaunchBtn game="yarg" runningGame={runningGame} onLaunch={launchGame} busy={busy} />
+        {/* Library manager je velká část aplikace — zaslouží si viditelné
+            tlačítko, ne jen ikonku schovanou vpravo nahoře. */}
+        <button
+          className="gamebtn gamebtn--library"
+          title="Browse and manage your Songs library: folders, metadata, playlists, duplicates"
+          onClick={() => setShowLibrary(true)}
+        >
+          <Icon name="folder" size={16} />
+          <span className="gamebtn__label">My Library</span>
+        </button>
       </div>
 
       <div className="titlebar__brand">
@@ -107,13 +117,6 @@ export function TitleBar(): JSX.Element {
             v{version}
           </button>
         ) : null}
-        <button
-          className="titlebar__btn"
-          title="Library manager"
-          onClick={() => setShowLibrary(true)}
-        >
-          <Icon name="folder" size={16} />
-        </button>
         <button className="titlebar__btn" title="Settings" onClick={() => setShowSettings(true)}>
           <Icon name="settings" size={16} />
         </button>

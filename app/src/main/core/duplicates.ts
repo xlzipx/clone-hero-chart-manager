@@ -46,17 +46,18 @@ export async function findDuplicates(): Promise<DupGroup[]> {
     if (entries.some((e) => e.isFile() && SONG_MARKERS.includes(e.name.toLowerCase()))) {
       const meta = await readSongMeta(dir)
       const fallback = splitFolderName(basename(dir))
-      // stripRichTags: CH barevné tagy (<color=…>) by (1) v UI ukazovaly syrové
-      // značky a (2) rozbily porovnání názvů — norm() by nechal „colororange…".
-      const title = stripRichTags(meta.name || fallback.title || '')
+      // Hodnoty SYROVĚ (RichText v UI vykreslí tagy barevně); pro PÁROVÁNÍ se
+      // tagy stripují níž v klíči — jinak by norm() nechal „colororange…"
+      // a otagovaná kopie by se nespárovala s čistou.
+      const title = (meta.name || fallback.title || '').trim()
       if (title) {
         all.push({
           abs: dir,
           rel: relative(songsDir, dir).split(sep).join('/'),
           name: basename(dir),
-          artist: stripRichTags(meta.artist || fallback.artist || ''),
+          artist: (meta.artist || fallback.artist || '').trim(),
           title,
-          charter: stripRichTags(meta.charter || '')
+          charter: (meta.charter || '').trim()
         })
       }
       return // do podsložek písně už nelez
@@ -70,7 +71,7 @@ export async function findDuplicates(): Promise<DupGroup[]> {
   // Seskup podle umělec|název; unikáty vynech (nemají s čím být duplicitní).
   const byTitle = new Map<string, RawSong[]>()
   for (const s of all) {
-    const k = `${norm(s.artist)}|${norm(s.title)}`
+    const k = `${norm(stripRichTags(s.artist))}|${norm(stripRichTags(s.title))}`
     const arr = byTitle.get(k)
     if (arr) arr.push(s)
     else byTitle.set(k, [s])

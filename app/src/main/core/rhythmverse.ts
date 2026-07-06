@@ -18,7 +18,6 @@ import {
   isPs3Format,
   parsePhpStringArray
 } from './gameformats'
-import { stripRichTags } from './songmeta'
 
 const BASE = 'https://rhythmverse.co'
 
@@ -101,10 +100,10 @@ function pickArt(data: Record<string, unknown>, file: Record<string, unknown>): 
 }
 
 function pickCharter(file: Record<string, unknown>): string | null {
-  // stripRichTags: charteři mívají v názvu CH barevné tagy (<color=…>).
-  if (file.charter) return stripRichTags(String(file.charter))
+  // Syrově vč. případných <color=…> tagů — barevně vykreslí RichText v UI.
+  if (file.charter) return String(file.charter)
   const author = file.author as { name?: string } | undefined
-  if (author && author.name) return stripRichTags(author.name)
+  if (author && author.name) return author.name
   return null
 }
 

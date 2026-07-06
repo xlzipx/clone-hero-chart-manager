@@ -142,6 +142,10 @@ body {
   transition: background 0.16s, border-color 0.16s, color 0.16s, transform 0.05s,
     box-shadow 0.18s;
 }
+/* Vstup do Library manageru — stejná rodina jako Launch tlačítka, jen bez tečky. */
+.gamebtn--library {
+  color: var(--text-dim);
+}
 .gamebtn:hover:not(:disabled) {
   background: var(--panel-hover);
   border-color: var(--accent);

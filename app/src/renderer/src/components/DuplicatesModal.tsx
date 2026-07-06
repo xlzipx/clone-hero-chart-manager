@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { DupGroup } from '../../../shared/types'
 import { useStore } from '../store'
 import { Icon } from './Icon'
+import { RichText } from './RichText'
 
 /** Najde a nabídne smazání duplicit v knihovně. `onChanged` = po smazání obnovit. */
 export function DuplicatesModal({
@@ -97,8 +98,12 @@ export function DuplicatesModal({
     <div className="dup__group" key={`${g.reason}-${gi}`}>
       <div className="dup__grouphead">
         <span className="dup__song">
-          {g.songs[0].artist ? `${g.songs[0].artist} — ` : ''}
-          {g.songs[0].title}
+          {g.songs[0].artist ? (
+            <>
+              <RichText text={g.songs[0].artist} /> —{' '}
+            </>
+          ) : null}
+          <RichText text={g.songs[0].title} />
         </span>
         <span className="dup__count">{g.songs.length} copies</span>
       </div>
@@ -106,7 +111,11 @@ export function DuplicatesModal({
         <label key={s.rel} className="dup__row">
           <input type="checkbox" checked={checked.has(s.rel)} onChange={() => toggle(s.rel)} />
           <span className="dup__folder">{s.name}</span>
-          {s.charter ? <span className="dup__charter">{s.charter}</span> : null}
+          {s.charter ? (
+            <span className="dup__charter">
+              <RichText text={s.charter} />
+            </span>
+          ) : null}
         </label>
       ))}
     </div>

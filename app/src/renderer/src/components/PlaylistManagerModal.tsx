@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PlaylistInfo, PlaylistSong } from '../../../shared/types'
 import { Icon } from './Icon'
+import { RichText } from './RichText'
 
 /** Správce Clone Hero setlistů: přejmenování, mazání, zobrazení a odebírání písní. */
 export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.Element {
@@ -202,8 +203,14 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
                       />
                       {s.found ? (
                         <span className="plm__songtext">
-                          <span className="plm__songtitle">{s.title}</span>
-                          {s.artist ? <span className="plm__songartist">{s.artist}</span> : null}
+                          <span className="plm__songtitle">
+                            <RichText text={s.title} />
+                          </span>
+                          {s.artist ? (
+                            <span className="plm__songartist">
+                              <RichText text={s.artist} />
+                            </span>
+                          ) : null}
                         </span>
                       ) : (
                         <span className="plm__songtext">

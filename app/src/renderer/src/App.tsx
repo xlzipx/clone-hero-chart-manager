@@ -18,7 +18,7 @@ import { UpdateBanner } from './components/UpdateBanner'
 import { Discover } from './components/Discover'
 import { WhatsNew } from './components/WhatsNew'
 import { useStore } from './store'
-import { INSTRUMENTS, isAutoDownloadable, songKey } from './utils'
+import { INSTRUMENTS, isAutoDownloadable, songKey, stripTags } from './utils'
 
 export function App(): JSX.Element {
   const results = useStore((s) => s.results)
@@ -67,7 +67,8 @@ export function App(): JSX.Element {
         })
         if (!anyIn) return false
       }
-      if (cf && !(song.charter ?? '').toLowerCase().includes(cf)) return false
+      // stripTags: filtr musí matchovat čistý text, ne <color=…> značky.
+      if (cf && !stripTags(song.charter ?? '').toLowerCase().includes(cf)) return false
       if (af && !(song.album ?? '').toLowerCase().includes(af)) return false
       if (yf && !String(song.year ?? '').includes(yf)) return false
       if (hideOwned && ownedKeys.has(songKey(song.artist, song.title))) return false

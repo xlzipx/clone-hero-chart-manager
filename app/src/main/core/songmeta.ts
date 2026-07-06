@@ -135,13 +135,14 @@ export async function readSongInfo(
     vocals: diff('diff_vocals'),
     keys: diff('diff_keys') ?? diff('diff_keys_real')
   }
-  // Display-only data → tagy pryč (editor čte syrově přes readSongMeta).
+  // Hodnoty jdou do UI SYROVĚ (vč. <color=…> tagů) — vykreslí je RichText
+  // barevně jako hra. Editor metadat je stejně chce syrové.
   return {
-    title: stripRichTags(g('name') ?? ''),
-    artist: stripRichTags(g('artist') ?? ''),
-    charter: stripRichTags(g('charter') ?? g('frets') ?? ''),
-    album: stripRichTags(g('album') ?? ''),
-    genre: stripRichTags(g('genre') ?? ''),
+    title: g('name') ?? '',
+    artist: g('artist') ?? '',
+    charter: g('charter') ?? g('frets') ?? '',
+    album: g('album') ?? '',
+    genre: g('genre') ?? '',
     year: Number.isFinite(yr) ? yr : null,
     lengthSeconds: Number.isFinite(lenMs) ? Math.round(lenMs / 1000) : null,
     difficulties
