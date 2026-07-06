@@ -142,10 +142,6 @@ body {
   transition: background 0.16s, border-color 0.16s, color 0.16s, transform 0.05s,
     box-shadow 0.18s;
 }
-/* Vstup do Library manageru — stejná rodina jako Launch tlačítka, jen bez tečky. */
-.gamebtn--library {
-  color: var(--text-dim);
-}
 .gamebtn:hover:not(:disabled) {
   background: var(--panel-hover);
   border-color: var(--accent);
@@ -400,6 +396,35 @@ body {
   box-shadow: 0 6px 16px -4px rgba(226, 59, 91, 0.55);
 }
 /* Verze v title baru — klik otevře „What's new". */
+/* Výrazný vstup do Library manageru — vpravo v titlebaru, s akcentním
+   gradientním rámečkem, ať nezapadne mezi ikonky. */
+.titlebar__library {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(20, 16, 38, 0.95), rgba(20, 16, 38, 0.95)) padding-box,
+    var(--accent-grad) border-box;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: box-shadow 0.18s, transform 0.05s, color 0.15s;
+}
+.titlebar__library:hover {
+  box-shadow: var(--glow);
+}
+.titlebar__library:active {
+  transform: translateY(1px);
+}
+
 .titlebar__version {
   align-self: center;
   border: 1px solid var(--border-strong);
