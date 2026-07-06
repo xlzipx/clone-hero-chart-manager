@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { LibEntry } from '../../../shared/types'
 import { useStore } from '../store'
 import { DuplicatesModal } from './DuplicatesModal'
@@ -36,6 +36,22 @@ export function LibraryManager(): JSX.Element | null {
   const [plmOpen, setPlmOpen] = useState(false)
   const dialogOpenRef = useRef(false)
   dialogOpenRef.current = dialog !== null
+  const ctxRef = useRef<HTMLDivElement>(null)
+
+  // Kontextové menu je position:fixed na souřadnicích kliknutí — u položek dole
+  // by přeteklo přes okraj obrazovky a useklo se. Po vykreslení ho změříme a
+  // když nedosáhne, posuneme nahoru/doleva tak, aby se celé vešlo.
+  useLayoutEffect(() => {
+    const el = ctxRef.current
+    if (!ctx || !el) return
+    const pad = 8
+    const r = el.getBoundingClientRect()
+    let { x, y } = ctx
+    if (y + r.height > window.innerHeight - pad) y = Math.max(pad, window.innerHeight - r.height - pad)
+    if (x + r.width > window.innerWidth - pad) x = Math.max(pad, window.innerWidth - r.width - pad)
+    el.style.top = `${y}px`
+    el.style.left = `${x}px`
+  }, [ctx])
 
   const relOf = (name: string): string => (cwd ? `${cwd}/${name}` : name)
   const segments = cwd.split(/[\\/]/).filter(Boolean)
@@ -292,6 +308,7 @@ export function LibraryManager(): JSX.Element | null {
               }}
             />
             <div
+              ref={ctxRef}
               className="ctxmenu"
               style={{ left: ctx.x, top: ctx.y }}
               onMouseDown={(e) => e.stopPropagation()}
