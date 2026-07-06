@@ -3224,6 +3224,16 @@ body {
   font-size: 12.5px;
   color: var(--text-faint);
 }
+/* Potvrzení úspěšné akce (přesun/smazání) — vždy viditelné nad patičkou, mimo scroll. */
+.dup__notice {
+  margin: 10px 18px 0;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: rgba(64, 210, 140, 0.1);
+  border: 1px solid rgba(64, 210, 140, 0.4);
+  color: #40d28c;
+  font-size: 12.5px;
+}
 
 /* ---------- Playlist manager ---------- */
 .modal--plm {

@@ -15,6 +15,9 @@ export function DuplicatesModal({
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Potvrzení poslední akce („Moved N to …") — zobrazuje se NAD patičkou, mimo
+  // scroll, stejně jako chyba. U 92 skupin by hláška na konci seznamu nebyla vidět.
+  const [notice, setNotice] = useState<string | null>(null)
 
   const scan = async (): Promise<void> => {
     setGroups(null)
@@ -42,8 +45,10 @@ export function DuplicatesModal({
 
   const deleteChecked = async (): Promise<void> => {
     if (checked.size === 0 || busy) return
+    const count = checked.size
     setBusy(true)
     setError(null)
+    setNotice(null)
     // Jednotlivé selhání nezastaví zbytek a hlavně: i po chybě se MUSÍ rescan,
     // jinak seznam dál ukazuje už smazané položky a opakované Delete zase hází chybu.
     let failed: string | null = null
@@ -57,6 +62,7 @@ export function DuplicatesModal({
     onChanged()
     await scan()
     if (failed) setError(failed)
+    else setNotice(`Moved ${count} ${count === 1 ? 'chart' : 'charts'} to the Recycle Bin.`)
     setBusy(false)
   }
 
@@ -65,11 +71,13 @@ export function DuplicatesModal({
   // tohle je čistý fs přesun. Zároveň slouží jako bezpečnější „karanténa".
   const moveChecked = async (): Promise<void> => {
     if (checked.size === 0 || busy) return
+    const count = checked.size
     const last = useStore.getState().config?.dupMoveDir
     const dir = await window.api.chooseDirectory(last || undefined)
     if (!dir) return
     setBusy(true)
     setError(null)
+    setNotice(null)
     let failed: string | null = null
     try {
       await window.api.libMoveOut([...checked], dir)
@@ -81,6 +89,7 @@ export function DuplicatesModal({
     onChanged()
     await scan() // i po chybě — část položek už mohla být přesunuta
     if (failed) setError(failed)
+    else setNotice(`Moved ${count} ${count === 1 ? 'chart' : 'charts'} to ${dir}.`)
     setBusy(false)
   }
 
@@ -140,8 +149,12 @@ export function DuplicatesModal({
               ) : null}
             </>
           )}
-          {error ? <p className="lib__error">⚠ {error}</p> : null}
         </div>
+
+        {/* Chyba/potvrzení MIMO scrollovatelné tělo — u dlouhého seznamu by na
+            jeho konci nebyly vidět (uživatel si myslel, že se „nic nestalo"). */}
+        {error ? <div className="lib__error">⚠ {error}</div> : null}
+        {!error && notice ? <div className="dup__notice">✓ {notice}</div> : null}
 
         <div className="modal__foot dup__foot">
           <button className="btn-secondary" onClick={() => void scan()} disabled={busy || groups === null}>
