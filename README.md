@@ -1,4 +1,4 @@
-<img width="2077" height="1448" alt="main page" src="https://github.com/user-attachments/assets/7efd22b1-6ac9-4196-88a0-f65ac4304398" />
+<img width="2077" height="1448" alt="main page" src="https://github.com/user-attachments/assets/3ca57905-6013-40a2-ae7e-1043c37ce0ea" />
 
 https://chartmanager.pages.dev/
 
