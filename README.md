@@ -22,20 +22,20 @@ clicks — a whole setlist from a playlist you already love. See
 ## Features
 
 ### Import a Spotify playlist
-- 🎧 **Paste a Spotify link, get the charts** — drop a public Spotify playlist
+- **Paste a Spotify link, get the charts** — drop a public Spotify playlist
   URL into the sidebar and CHM looks up a chart for every song in it, then lets
   you download the matches in bulk. Turn a playlist you already listen to into a
   set of Clone Hero songs in a couple of clicks.
-- 📜 **Any length** — it reads the whole playlist, not just the first 100 songs,
+- **Any length** — it reads the whole playlist, not just the first 100 songs,
   through a small Cloudflare Worker that talks to the official Spotify Web API
   (the built‑in reader is used as a fallback and covers up to 100).
-- 🎚️ **Choose the chart** — when a song has more than one chart you can open
+- **Choose the chart** — when a song has more than one chart you can open
   its versions and pick which charter's to grab; the best auto‑downloadable one
   is preselected.
-- 🌐 **Manual hosts and DLC included** — songs whose charts live on MEGA /
+- **Manual hosts and DLC included** — songs whose charts live on MEGA /
   Mediafire, or that are official Rock Band DLC, are labelled and can be opened
   in your browser straight from the results, so nothing silently goes missing.
-- 🔒 Reads **public** playlists only; no Spotify login and no account data.
+- Reads **public** playlists only; no Spotify login and no account data.
 
 <p align="center">
   <img alt="Paste a public Spotify playlist link in the Import playlist window" width="720" src="docs/img/spotify_2.png" />
@@ -45,31 +45,31 @@ clicks — a whole setlist from a playlist you already love. See
 </p>
 
 ### Search & discovery
-- 🔎 **Two databases, one UI** — RhythmVerse + Chorus Encore. Pick one or
+- **Two databases, one UI** — RhythmVerse + Chorus Encore. Pick one or
   search both at once (merged & de‑duplicated by artist + title + charter,
   Encore preferred when duplicates appear because its hosting is direct).
-- 🗂️ **Browse the whole catalog** — leave the search box empty and the app
+- **Browse the whole catalog** — leave the search box empty and the app
   loads the entire library (140k+ files on RhythmVerse, 90k+ on Encore) so you
   can page through everything, not just what a keyword matches.
-- ⚡ **Type‑ahead suggestions** — debounced top‑results dropdown appears as
+- **Type‑ahead suggestions** — debounced top‑results dropdown appears as
   you type, with album thumbnails and prefix highlighting.
-- 🎚️ **Instrument & difficulty** — large round instrument buttons (guitar,
+- **Instrument & difficulty** — large round instrument buttons (guitar,
   bass, drums, keys, vocals) and a difficulty range picker (`MIN`–`MAX` or
   exact dots) to narrow results.
-- 🎛️ **Advanced filters** — an expandable Filters panel. On RhythmVerse,
+- **Advanced filters** — an expandable Filters panel. On RhythmVerse,
   filter by **genre**, **release year** and **song length** server‑side across
   the whole catalog; on either database, refine the loaded results by
   **charter** / **album** and hide songs you already own.
-- 🔀 **Sort** the whole catalog server‑side by title, artist, length, **most
+- **Sort** the whole catalog server‑side by title, artist, length, **most
   downloaded** or **recently added** (the default order is relevance).
-- 🎲 **Surprise me** — one button in the sidebar picks a random chart out of
+- **Surprise me** — one button in the sidebar picks a random chart out of
   everything you're currently browsing, respecting your instrument filter.
-- ▶️ **Preview before you download** — hover a song's album art and press play
+- **Preview before you download** — hover a song's album art and press play
   for a 30‑second clip of the real recording, matched by artist + title.
-- 📈 **Download counts & "In library" tags** — see how popular a RhythmVerse
+- **Download counts & "In library" tags** — see how popular a RhythmVerse
   chart is, and spot at a glance which songs you already own (click the tag to
   jump to that song in the library manager).
-- 💡 **Rotating tips** in the top bar surface the less obvious features; toggle
+- **Rotating tips** in the top bar surface the less obvious features; toggle
   them with the lightbulb.
 
 <p align="center">
@@ -80,21 +80,21 @@ clicks — a whole setlist from a playlist you already love. See
 </p>
 
 ### Downloads
-- ⬇️ **Multi‑host downloader** — Google Drive (files & folders, including the
+- **Multi‑host downloader** — Google Drive (files & folders, including the
   virus‑scan confirm bypass), Mediafire (HTML scrape), Dropbox (`dl=1`),
   shorteners (bit.ly, tinyurl, t.co, goo.gl, ow.ly, …) and direct links.
-- 🪶 **Manual hosts get a different button** — MEGA, Mediafire and unresolved
+- **Manual hosts get a different button** — MEGA, Mediafire and unresolved
   shorteners render as **Get on MEGA** / **Get on Mediafire** / **Download
   manually** instead of a Download button, because they need a real browser
   click (CAPTCHA, encryption, …). Shorteners are resolved in the background
   and re‑label themselves once the final host is known.
-- 🔁 **Truncated download retry** — if the host closes the connection early
+- **Truncated download retry** — if the host closes the connection early
   (Content‑Length mismatch), the download is retried once before reporting
   the error.
-- ☑️ **Batch download** — Ctrl/Shift‑click rows (or the select‑all checkbox) to
+- **Batch download** — Ctrl/Shift‑click rows (or the select‑all checkbox) to
   pick several charts at once, then grab them all with **Download selected**.
   The count only ever includes charts that can actually be auto‑downloaded.
-- 🧰 **All archives unpack natively** — zip / 7z / RAR5 via bundled modern
+- **All archives unpack natively** — zip / 7z / RAR5 via bundled modern
   7‑Zip 24.09. CRC errors and not‑an‑archive cases get friendly, actionable
   error messages.
 
@@ -115,14 +115,14 @@ clicks — a whole setlist from a playlist you already love. See
   EDAT keys).
 
 ### Manual installs (drag & drop)
-- 📥 Drop a `.zip`, `.rar`, `.7z`, `.sng` or Rock Band CON file (with **or
+- Drop a `.zip`, `.rar`, `.7z`, `.sng` or Rock Band CON file (with **or
   without** extension — magic‑byte detection) onto the drop zone. Or click
   to browse.
-- 🤖 **Auto‑fill artist + title** — the app strips common tags (`_PS`, `_RB3`,
+- **Auto‑fill artist + title** — the app strips common tags (`_PS`, `_RB3`,
   `_v2`, …), splits CamelCase (`LinkinParkNumb` → `Linkin Park Numb`), reads
   metadata directly from `.sng` headers, and falls back to a quick database
   lookup so you don't have to type anything for most files.
-- 🗂️ Pick a target subfolder inside `Songs` (or create a new one). Same
+- Pick a target subfolder inside `Songs` (or create a new one). Same
   pipeline as a normal download from there.
 
 <p align="center">
@@ -130,16 +130,16 @@ clicks — a whole setlist from a playlist you already love. See
 </p>
 
 ### Library manager
-- 📁 **Built‑in file manager** for your `Songs` folder — multi‑select,
+- **Built‑in file manager** for your `Songs` folder — multi‑select,
   cut/copy/paste/delete (uses the Windows recycle bin), rename, create folder,
   right‑click context menu and keyboard shortcuts. Every folder shows **how many
   songs** it holds.
-- 🎵 **Playlists** — create and edit Clone Hero `.setlist` files right here, so
+- **Playlists** — create and edit Clone Hero `.setlist` files right here, so
   setlists you build show up in the game.
-- 👯 **Duplicate finder** — spot identical charts (same hash) and other copies
+- **Duplicate finder** — spot identical charts (same hash) and other copies
   of the same song, compare them side by side, and move the ones you don't want
   out of the way.
-- 📝 **Edit metadata** — adjust a song's `song.ini` (title, artist, charter, …)
+- **Edit metadata** — adjust a song's `song.ini` (title, artist, charter, …)
   in‑app; open any song to see its album art and per‑instrument difficulties.
 
 <p align="center">
@@ -153,20 +153,20 @@ clicks — a whole setlist from a playlist you already love. See
 </table>
 
 ### Clone Hero integration
-- 🎮 **Launch / Switch to Clone Hero** button in the title bar — auto‑detects
+- **Launch / Switch to Clone Hero** button in the title bar — auto‑detects
   `Clone Hero.exe` from common install paths (Steam, Program Files, parent of
   Songs). Lights up green with a pulsing dot when the game is running, and
   brings it to the foreground if it's already open (via Win32
   `SetForegroundWindow` / `ShowWindowAsync` so it works even from a
   minimized state).
-- 🔧 **Manual `Clone Hero.exe` path field** in Settings — appears **only** if
+- **Manual `Clone Hero.exe` path field** in Settings — appears **only** if
   auto‑detection fails (unusual install location).
-- 🎯 **Focus restore** — when you hide CHM (hotkey / minimize button), the
+- **Focus restore** — when you hide CHM (hotkey / minimize button), the
   app brings Clone Hero back to the foreground so you don't have to click on
   the game window.
 
 ### Hotkey reminder pill (optional)
-- 🫧 Tiny **glassmorphism pill** floating in a corner of the screen while
+- Tiny **glassmorphism pill** floating in a corner of the screen while
   Clone Hero is running, showing the show/hide hotkey (e.g.
   `🎸 Ctrl + I`).
 - Click‑through, can't steal focus from the game, neutral frosted‑glass
@@ -304,13 +304,13 @@ anywhere" bundle for sharing.
   a friendly explanation. The whole panel collapses to nothing when idle.
 
 ### Top‑right controls (title bar)
-- 🎮 **Launch / Switch to Clone Hero** — left side, center.
-- 📁 **Library manager** — file manager for your `Songs` folder.
-- ⚙ **Settings** — Songs folder, CH.exe override (only shown if needed),
+- **Launch / Switch to Clone Hero** — left side, center.
+- **Library manager** — file manager for your `Songs` folder.
+- **Settings** — Songs folder, CH.exe override (only shown if needed),
   hotkey reminder pill toggle + position, quick‑toggle hotkey, results per
   page.
-- ▁ **Hide to tray**.
-- ✕ **Quit**.
+- **Hide to tray**.
+- **Quit**.
 
 <p align="center">
   <img alt="Settings panel: Songs folder, hotkey reminder pill and more" width="420" src="docs/img/settings.webp" />
