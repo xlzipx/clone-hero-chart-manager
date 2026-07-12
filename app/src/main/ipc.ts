@@ -95,6 +95,11 @@ export function registerIpc(): void {
           searchRhythmverse(text, page, records, system ?? 'ch', filters, sort),
           searchEnchor(text, page, records, filters, sort)
         ])
+        // Spadly-li OBĚ, propaguj chybu (jinak by prázdný „success" ukázal
+        // „Nothing found" místo chybové hlášky jako u jednotlivých databází).
+        if (rv.status === 'rejected' && en.status === 'rejected') {
+          throw rv.reason instanceof Error ? rv.reason : new Error(String(rv.reason))
+        }
         const rvSongs = rv.status === 'fulfilled' ? rv.value.songs : []
         const enSongs = en.status === 'fulfilled' ? en.value.songs : []
         const seen = new Set<string>()

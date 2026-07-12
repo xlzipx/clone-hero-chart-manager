@@ -9,7 +9,7 @@ import type {
   SongResult,
   SortKey
 } from '../../shared/types'
-import { isAutoDownloadable } from './utils'
+import { RV_CHUNK, RV_PAGE_CAP, isAutoDownloadable } from './utils'
 
 export type { SortKey } from '../../shared/types'
 
@@ -249,6 +249,62 @@ let ownedReloadTimer: ReturnType<typeof setTimeout> | null = null
  * (Stejný vzor jako typeahead v SearchBar.)
  */
 let searchSeq = 0
+
+// Cache velkých serverových „chunků" RhythmVerse pro hluboké stránky (za 249.
+// stranou). Klíč `sig` = kontext (dotaz/systém/řazení/filtry); při jeho změně se
+// zahodí. Drží se jen pár posledních chunků (LRU), ať to neroste bez omezení.
+let rvChunkCache: { sig: string; chunks: Map<number, SongResult[]>; total: number } | null = null
+
+/**
+ * RhythmVerse písničky pro danou DISPLAY stránku (page × records). Mělké stránky
+ * (≤249) jdou přímo (rychlé); hlubší přes velký serverový chunk (RV stránkuje jen
+ * do 249. strany), z něhož lokálně ukrojíme okno — chunky se cachují (LRU). Vrací
+ * null, když byl request mezitím přebit (myReq !== searchSeq). Používá RhythmVerse
+ * samotný i RV část „Both".
+ */
+async function rvPageItems(
+  q: string,
+  system: RhythmVerseSystem,
+  sort: SortKey | undefined,
+  filters: SearchFilters | undefined,
+  page: number,
+  records: number,
+  myReq: number
+): Promise<{ songs: SongResult[]; total: number } | null> {
+  if (page <= RV_PAGE_CAP) {
+    const res = await window.api.search(q, page, records, system, 'rhythmverse', filters, sort)
+    if (myReq !== searchSeq) return null
+    return { songs: res.songs, total: res.totalFiltered }
+  }
+  const sig = JSON.stringify([q, system, sort ?? null, filters ?? null])
+  if (!rvChunkCache || rvChunkCache.sig !== sig) rvChunkCache = { sig, chunks: new Map(), total: 0 }
+  const firstItem = (page - 1) * records
+  const lastItem = firstItem + records - 1
+  const firstChunk = Math.floor(firstItem / RV_CHUNK) + 1
+  const lastChunk = Math.floor(lastItem / RV_CHUNK) + 1
+  for (let c = firstChunk; c <= lastChunk; c++) {
+    // RV neservíruje stránky > 249 (vrací přetečení) → takový chunk vynech; ta
+    // část výsledků zůstane prázdná (u „Both" ji doplní jen Encore).
+    if (c > RV_PAGE_CAP) continue
+    if (rvChunkCache.chunks.has(c)) continue
+    const cres = await window.api.search(q, c, RV_CHUNK, system, 'rhythmverse', filters, sort)
+    if (myReq !== searchSeq) return null
+    rvChunkCache.chunks.set(c, cres.songs)
+    rvChunkCache.total = cres.totalFiltered
+    if (rvChunkCache.chunks.size > 8) {
+      const oldest = rvChunkCache.chunks.keys().next().value
+      if (oldest !== undefined) rvChunkCache.chunks.delete(oldest)
+    }
+  }
+  const out: SongResult[] = []
+  for (let i = firstItem; i <= lastItem; i++) {
+    const c = Math.floor(i / RV_CHUNK) + 1
+    const arr = rvChunkCache.chunks.get(c)
+    const off = i - (c - 1) * RV_CHUNK
+    if (arr && off < arr.length) out.push(arr[off])
+  }
+  return { songs: out, total: rvChunkCache.total }
+}
 
 // ── Přehrávač zvukových ukázek (jeden sdílený na celou appku) ──────────────
 // Jeden <Audio> element + cache blob URL podle klíče písně, ať se stejná ukázka
@@ -618,7 +674,10 @@ export const useStore = create<AppState>((set, get) => {
     // Serverové filtry (vč. nástroje) → losování respektuje zaškrtnuté nástroje.
     const filters = buildServerFilters()
     const myReq = ++searchSeq
-    set({ loading: true, error: null, surprise: true, selectedKeys: [] })
+    // results:[] → losování má vždy čistý stav; jediný pick, který surprise
+    // vloží, je ten výsledný. Zabrání to „zaseknuté" staré písničce, kdyby bylo
+    // losování přebito (rychlé přepnutí) nebo se zdrželo.
+    set({ loading: true, error: null, surprise: true, selectedKeys: [], results: [] })
     try {
       // Kolik je výsledků v aktuálním výběru? Použij známý total (z browse), jinak
       // se zeptej. RhythmVerse `list` stránkuje max ~249 stránek bez ohledu na
@@ -664,6 +723,8 @@ export const useStore = create<AppState>((set, get) => {
       set({
         results: [song],
         totalFiltered: res.totalFiltered || total,
+        // U „Both" = kombinovaný počet (součet), ať „from N charts" sedí s labelem.
+        resultCount: res.resultCount ?? res.totalFiltered ?? total,
         page: 1,
         deep: false,
         deepSongs: [],
@@ -746,25 +807,76 @@ export const useStore = create<AppState>((set, get) => {
       return deepScan()
     }
     const myReq = ++searchSeq
-    set({ loading: true, error: null })
+    // surprise:false → normální hledání (i po „Surprise me") ukáže skeleton, ne kostku.
+    // Odcházíme-li z losování, zahoď i ten pick z results, ať při rychlém přepnutí
+    // během animace (race / zdržený dotaz) nezůstane stará písnička viset nahoře.
+    set({ loading: true, error: null, surprise: false, ...(get().surprise ? { results: [] } : {}) })
     try {
       // Serverové filtry posíláme VŽDY (i u textového hledání), ať se instrument
       // filtruje serverově, ne až klientsky nad stránkou.
-      const res = await window.api.search(
-        query.trim(),
-        page,
-        records,
-        system,
-        database,
-        buildServerFilters(),
-        get().sort
-      )
-      if (myReq !== searchSeq) return // mezitím odstartovalo novější hledání
+      const filters = buildServerFilters()
+      const sort = get().sort
+      const q = query.trim()
+      let songs: SongResult[]
+      let total: number
+      let rcount: number
+
+      // RhythmVerse stránkuje jen do 249. serverové strany → HLUBŠÍ stránky (RV
+      // samotný i RV část „Both") tahneme přes velký chunk a lokálně krájíme
+      // (viz rvPageItems). Mělké stránky jdou přímo, rychle. Encore stránkuje do
+      // hloubky sám. Tím jde proklikat celý katalog v obou režimech.
+      if (database === 'both' && page > RV_PAGE_CAP) {
+        // RV část přes chunk + Encore do hloubky, sloučit + odduplikovat STEJNĚ jako
+        // ipc 'both'. allSettled (jako shallow ipc): když spadne jen jedna DB, ukaž
+        // tu druhou; když obě, propaguj chybu.
+        const [rvR, enR] = await Promise.allSettled([
+          rvPageItems(q, system, sort, filters, page, records, myReq),
+          window.api.search(q, page, records, system, 'enchor', filters, sort)
+        ])
+        if (myReq !== searchSeq) return
+        if (rvR.status === 'rejected' && enR.status === 'rejected') {
+          throw rvR.reason instanceof Error ? rvR.reason : new Error(String(rvR.reason))
+        }
+        const rv = rvR.status === 'fulfilled' ? rvR.value : null
+        const enSongs = enR.status === 'fulfilled' ? enR.value.songs : []
+        const enTot = enR.status === 'fulfilled' ? enR.value.totalFiltered : 0
+        const seen = new Set<string>()
+        const merged: SongResult[] = []
+        const keyOf = (s: SongResult): string =>
+          `${s.artist.trim().toLowerCase()}|${s.title.trim().toLowerCase()}|${(s.charter ?? '')
+            .trim()
+            .toLowerCase()}`
+        for (const s of [...enSongs, ...(rv ? rv.songs : [])]) {
+          const k = keyOf(s)
+          if (seen.has(k)) continue
+          seen.add(k)
+          merged.push(s)
+        }
+        songs = merged
+        total = Math.max(rv ? rv.total : 0, enTot)
+        rcount = (rv ? rv.total : 0) + enTot
+      } else if (database === 'rhythmverse' && page > RV_PAGE_CAP) {
+        const rv = await rvPageItems(q, system, sort, filters, page, records, myReq)
+        if (rv === null) return
+        songs = rv.songs
+        total = rv.total
+        rcount = total
+      } else {
+        const res = await window.api.search(q, page, records, system, database, filters, sort)
+        if (myReq !== searchSeq) return
+        songs = res.songs
+        total = res.totalFiltered
+        rcount = res.resultCount ?? res.totalFiltered
+      }
+
+      // Poslední pojistka proti přebití — jednotná pro všechny větve (pokryje
+      // i rhythmverse cestu, kde byly všechny chunky v cache = žádný await guard).
+      if (myReq !== searchSeq) return
       set({
-        results: res.songs,
-        totalFiltered: res.totalFiltered,
-        resultCount: res.resultCount ?? res.totalFiltered,
-        page: res.page,
+        results: songs,
+        totalFiltered: total,
+        resultCount: rcount,
+        page,
         loading: false,
         selectedIndex: -1,
         selectedKeys: [], // nový výsledek → zruš předchozí výběr

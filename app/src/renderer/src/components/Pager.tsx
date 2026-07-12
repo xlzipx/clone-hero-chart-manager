@@ -1,5 +1,5 @@
 import { useStore } from '../store'
-import { INSTRUMENTS } from '../utils'
+import { INSTRUMENTS, RV_CHUNK, RV_PAGE_CAP } from '../utils'
 import { Icon } from './Icon'
 
 /** Vytvoří seznam stránek s výpustkami: [1,2,3,'…',9]. */
@@ -31,6 +31,7 @@ export function Pager({
   const records = useStore((s) => s.records)
   const totalFiltered = useStore((s) => s.totalFiltered)
   const resultCount = useStore((s) => s.resultCount)
+  const database = useStore((s) => s.database)
   const instrumentFilters = useStore((s) => s.instrumentFilters)
   const diffMin = useStore((s) => s.diffMin)
   const diffMax = useStore((s) => s.diffMax)
@@ -42,7 +43,17 @@ export function Pager({
   const deepTotalPages = useStore((s) => s.deepTotalPages)
   const deepCapHit = useStore((s) => s.deepCapHit)
 
-  const totalPages = Math.max(1, Math.ceil((matchTotal ?? totalFiltered) / records))
+  // matchTotal != null = deep (lokální stránkování). Hluboké stránky RhythmVerse
+  // (i RV část „Both") řeší chunkování ve store → plná hloubka. Samotný RhythmVerse
+  // omez chunkovou kapacitou; Encore i Both jdou do plné hloubky.
+  const rawPages = Math.max(1, Math.ceil((matchTotal ?? totalFiltered) / records))
+  const rvReach = Math.floor((RV_PAGE_CAP * RV_CHUNK) / records)
+  const totalPages =
+    matchTotal != null
+      ? rawPages
+      : database === 'rhythmverse'
+        ? Math.min(rvReach, rawPages)
+        : rawPages
   const diffActive = !(diffMin === 0 && diffMax === 6)
   const filtersActive = instrumentFilters.length > 0 || diffActive
 

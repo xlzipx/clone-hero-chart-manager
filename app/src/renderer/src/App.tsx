@@ -17,7 +17,15 @@ import { TitleBar } from './components/TitleBar'
 import { Discover } from './components/Discover'
 import { WhatsNew } from './components/WhatsNew'
 import { useStore } from './store'
-import { INSTRUMENTS, detectManualHost, isAutoDownloadable, songKey, stripTags } from './utils'
+import {
+  INSTRUMENTS,
+  RV_CHUNK,
+  RV_PAGE_CAP,
+  detectManualHost,
+  isAutoDownloadable,
+  songKey,
+  stripTags
+} from './utils'
 import type { SongResult } from '../../shared/types'
 
 /** Manuální host (MEGA/Mediafire/shortener) nejde spolehlivě auto-stáhnout —
@@ -122,9 +130,16 @@ export function App(): JSX.Element {
 
   // Deep režim: stránkuje se lokálně nad shodami (25/str. dle nastavení),
   // takže počty stránek i výsledků odpovídají tomu, co je vidět.
+  // Hluboké stránky RhythmVerse (i RV část „Both") řeší chunkování ve store →
+  // proklikat jde celý katalog. Samotný RhythmVerse bezpečně omez chunkovou
+  // kapacitou (249×RV_CHUNK); Encore i Both stránkují do plné hloubky; deep lokálně.
+  const serverPages = Math.max(1, Math.ceil(totalFiltered / records))
+  const rvReach = Math.floor((RV_PAGE_CAP * RV_CHUNK) / records)
   const totalPages = deep
     ? Math.max(1, Math.ceil(filteredAll.length / records))
-    : Math.max(1, Math.ceil(totalFiltered / records))
+    : database === 'rhythmverse'
+      ? Math.min(rvReach, serverPages)
+      : serverPages
   const pageClamped = deep ? Math.min(page, totalPages) : page
   const visible = useMemo(
     () =>
@@ -134,8 +149,9 @@ export function App(): JSX.Element {
 
   // Když filtr zúží počet stránek pod aktuální, vrať pager na poslední platnou.
   useEffect(() => {
-    if (deep && page > totalPages) goToPage(totalPages)
-  }, [deep, page, totalPages, goToPage])
+    // Když se počet stránek zúží pod aktuální (filtr, nebo RV strop 249) → clamp.
+    if (page > totalPages) goToPage(totalPages)
+  }, [page, totalPages, goToPage])
 
   const setSelectedIndex = useStore((s) => s.setSelectedIndex)
   const openDownload = useStore((s) => s.openDownload)
@@ -468,7 +484,8 @@ export function App(): JSX.Element {
               <>
                 <Icon name="dice" size={14} /> Surprise pick{' '}
                 <span className="resultsbar__scan">
-                  from {totalFiltered.toLocaleString('en-US')} charts — click Surprise me again
+                  from {(resultCount || totalFiltered).toLocaleString('en-US')} charts — click Surprise me
+                  again
                 </span>
               </>
             ) : deep ? (
@@ -542,8 +559,21 @@ export function App(): JSX.Element {
         className={`results ${loading || (source.length > 0 && !error && visible.length > 0) ? 'results--table' : ''}`}
       >
         {loading ? (
-          // Skeleton řádky (stejná mřížka jako .song → žádný skok, až dorazí data).
-          <>
+          surprise ? (
+            // „Surprise me" má vlastní tématickou animaci (převalující se kostka
+            // v barvách nástrojů) místo generického shimmeru.
+            <div className="surprise-load" aria-live="polite">
+              <span className="surprise-load__dice" aria-hidden="true">
+                <Icon name="dice" size={58} />
+              </span>
+              <div>
+                <div className="surprise-load__label">Rolling the dice…</div>
+                <div className="surprise-load__sub">Picking a chart at random</div>
+              </div>
+            </div>
+          ) : (
+            // Skeleton řádky (stejná mřížka jako .song → žádný skok, až dorazí data).
+            <>
             {Array.from({ length: 8 }).map((_, i) => (
               <div className="song song--skeleton" key={`sk-${i}`} aria-hidden="true">
                 <span className="sk sk--check" />
@@ -562,7 +592,8 @@ export function App(): JSX.Element {
                 <span className="sk sk--dots" />
               </div>
             ))}
-          </>
+            </>
+          )
         ) : error ? (
           <div className="state state--error">⚠ {error}</div>
         ) : source.length === 0 ? (

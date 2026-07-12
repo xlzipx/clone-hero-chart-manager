@@ -10,6 +10,20 @@ export const QUICK_PICKS: string[] = [
   'Pearl Jam', 'Rush'
 ]
 
+// RhythmVerse `list`/`search` stránkuje jen do 249. stránky — dál vrací pořád
+// tutéž „přetečenou" stránku (ověřeno živě: records 25/100/250 přetečou od strany
+// 250 shodně). Pager proto v režimech s RhythmVerse (rhythmverse i both) stropujeme
+// na 249; Encore stránkuje do hloubky, tam se strop neuplatní.
+export const RV_PAGE_CAP = 249
+
+// Pro HLUBOKÉ stránky RhythmVerse (za 249. serverovou stranou) tahneme velké
+// serverové stránky téhle velikosti a lokálně je krájíme na `records`. Musí být tak
+// velká, aby se CELÝ katalog vešel do ≤249 stran i v nejširším systému „All"
+// (~140 tis.): 249×700 = 174 300 > 140 tis. → celý RV proklikatelný. Dělitelné
+// běžnými records (25/50/100). (Ověřeno živě: RV `records=700` bere, „All" končí
+// kolem strany 201, tedy pod mezí 249.)
+export const RV_CHUNK = 700
+
 export function formatLength(seconds: number | null): string {
   if (!seconds || seconds <= 0) return '–'
   const m = Math.floor(seconds / 60)

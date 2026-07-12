@@ -74,7 +74,8 @@ export function SearchBar(): JSX.Element {
         const res = await window.api.search(q, 1, SUGGEST_LIMIT, system, database)
         if (myId !== lastReqId.current) return // overtaken
         setSuggest(res.songs.slice(0, SUGGEST_LIMIT))
-        setSuggestTotal(res.totalFiltered)
+        // U „Both" ukazuj kombinovaný počet (součet) jako hlavní label, ne max.
+        setSuggestTotal(res.resultCount ?? res.totalFiltered)
         setSuggestError(false)
       } catch {
         if (myId !== lastReqId.current) return
@@ -146,7 +147,7 @@ export function SearchBar(): JSX.Element {
     query.trim().length >= 2 &&
     (suggestLoading || suggest.length > 0 || suggestTotal === 0)
 
-  const activeFilterCount = (['genre', 'year', 'songLength'] as const).filter(
+  const activeFilterCount = (['genre', 'year', 'decade', 'songLength'] as const).filter(
     (k) => (filters[k]?.length ?? 0) > 0
   ).length
 
