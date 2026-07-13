@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PlaylistResolveError, PlaylistTrack, SongResult } from '../../../shared/types'
 import spotifyLogo from '../assets/Spotify_logo.webp'
 import { useStore } from '../store'
-import { detectManualHost, formatDownloads, formatLabel, isAutoDownloadable } from '../utils'
+import { detectManualHost, formatDownloads, formatLabel, isAutoDownloadable, songKey } from '../utils'
 import { Icon } from './Icon'
 
 // Import playlistu (v1): vlož odkaz na veřejný Spotify playlist → appka dohledá
@@ -131,6 +131,13 @@ export function PlaylistImportModal(): JSX.Element | null {
   const show = useStore((s) => s.showPlaylistImport)
   const close = useStore((s) => s.setShowPlaylistImport)
   const openBatchDownload = useStore((s) => s.openBatchDownload)
+  // Index „už mám v knihovně" (artist|title, plní se na startu appky). Podle něj
+  // označíme skladby, které už uživatel má, ať zbytečně nestahuje duplikáty.
+  const ownedKeys = useStore((s) => s.ownedKeys)
+  const isOwned = useCallback(
+    (c: SongResult | undefined): boolean => !!c && ownedKeys.has(songKey(c.artist, c.title)),
+    [ownedKeys]
+  )
 
   const [url, setUrl] = useState('')
   const [phase, setPhase] = useState<Phase>('input')
@@ -166,6 +173,8 @@ export function PlaylistImportModal(): JSX.Element | null {
 
   const runMatching = async (tracks: PlaylistTrack[]): Promise<void> => {
     const mine = ++runId.current
+    // Snapshot owned indexu pro celý běh (načtený na startu appky).
+    const ownedSet = useStore.getState().ownedKeys
     let next = 0
     const worker = async (): Promise<void> => {
       for (;;) {
@@ -174,13 +183,17 @@ export function PlaylistImportModal(): JSX.Element | null {
         patchRow(i, { status: 'searching' })
         const charts = await matchTrack(tracks[i])
         if (runId.current !== mine) return
+        const best = charts[0]
+        const owned = best ? ownedSet.has(songKey(best.artist, best.title)) : false
         patchRow(i, {
           status: charts.length ? 'matched' : 'notfound',
           charts,
           chosen: 0,
           // Auto-zaškrtnout jen když nejlepší verze jde stáhnout sama (charty
-          // jsou řazené stažitelné-first). MEGA/Mediafire/DLC necháme nezaškrtnuté.
-          selected: charts.length > 0 && isAutoDownloadable(charts[0])
+          // jsou řazené stažitelné-first) a píseň ještě NEMÁM v knihovně —
+          // duplikáty tak nikdo omylem nestáhne. MEGA/Mediafire/DLC/owned
+          // necháme nezaškrtnuté (ale přepnutelné ručně).
+          selected: charts.length > 0 && isAutoDownloadable(best) && !owned
         })
       }
     }
@@ -356,6 +369,7 @@ export function PlaylistImportModal(): JSX.Element | null {
                 {rows.map((r, i) => {
                   const chart = r.charts[r.chosen]
                   const dl = chart ? isAutoDownloadable(chart) : false
+                  const owned = isOwned(chart)
                   return (
                     <div key={i} className={`plrow plrow--${r.status}`}>
                       <div className="plrow__lead">
@@ -394,6 +408,14 @@ export function PlaylistImportModal(): JSX.Element | null {
                       <div className="plrow__match">
                         {r.status === 'matched' && chart ? (
                           <>
+                            {owned ? (
+                              <span
+                                className="badge badge--owned plrow__owned"
+                                title="You already have this song in your library"
+                              >
+                                <Icon name="check" size={11} /> In library
+                              </span>
+                            ) : null}
                             {dl ? (
                               <span className={`badge ${chart.needsConversion ? 'badge--convert' : 'badge--native'}`}>
                                 {chartLabel(chart)}

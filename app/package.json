@@ -1,6 +1,6 @@
 {
   "name": "chm",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "description": "Clone Hero Chart Manager (CHM): search, download and convert Clone Hero charts from RhythmVerse and Chorus Encore.",
   "main": "./out/main/index.js",
   "author": "ZIPEEK",

@@ -6155,11 +6155,24 @@ button.badge--owned:hover {
 
 /* ── Modal ── */
 .modal--playlist {
-  width: 640px;
+  width: 720px;
   display: flex;
   flex-direction: column;
   max-height: 86%;
   overflow: hidden;
+}
+/* „In library" pill v řádku importu — kompaktní, ať se vejde k badge/charteru
+   a jasně řekl, že píseň už mám (proto se ve výchozím stavu nezaškrtne). */
+.plrow__owned {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex: none;
 }
 .modal--playlist .modal__head h2 {
   display: inline-flex;
