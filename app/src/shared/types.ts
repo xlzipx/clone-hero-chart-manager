@@ -197,6 +197,17 @@ export interface AppConfig {
   reminderPosition: ReminderPosition
   /** Poslední složka, kam se přesouvaly duplicity („Move to folder" místo koše). */
   dupMoveDir: string
+  /**
+   * Šablona názvu/umístění složky chartu, `/` = podsložky uvnitř Songs.
+   * Viz `shared/foldertemplate.ts`. Výchozí `{artist} - {title}` = formát, který
+   * appka používala natvrdo, takže beze změny nastavení se chování nemění.
+   */
+  folderTemplate: string
+  /**
+   * true = neptat se na cílovou složku, rovnou použít `folderTemplate`.
+   * false (výchozí) = ukázat TargetFolderModal jako dosud.
+   */
+  autoTargetFolder: boolean
 }
 
 export type RhythmVerseSystem = 'ch' | 'ps' | 'rb3' | 'all'

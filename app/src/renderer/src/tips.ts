@@ -16,5 +16,6 @@ export const TIPS: string[] = [
   'A chart tagged Official DLC is a paid Rock Band song, so it opens the store instead of downloading.',
   'Charts hosted on MEGA or Mediafire open in your browser; download them, then drop the file back here.',
   'An In library tag means you already own that chart, click it to jump to it in your library.',
+  'Set Chart folder name in Settings and save every download into a predefined folder.',
   'After a download finishes, switch to Clone Hero and run Scan Songs to see the new charts in game.'
 ]

@@ -3,6 +3,7 @@
 import { app } from 'electron'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
+import { DEFAULT_FOLDER_TEMPLATE } from '../../shared/foldertemplate'
 import type { AppConfig } from '../../shared/types'
 
 let cached: AppConfig | null = null
@@ -135,7 +136,13 @@ function defaults(): AppConfig {
     showTips: true, // rotující tipy v liště (uživatel může vypnout)
     showReminder: false, // opt-in
     reminderPosition: 'bottom-right',
-    dupMoveDir: '' // poslední karanténní složka pro duplicity
+    dupMoveDir: '', // poslední karanténní složka pro duplicity
+    // Šablona složky chartu — výchozí hodnota je PŘESNĚ ten formát, který byl do
+    // 0.9.6 natvrdo v `install()`, a auto je vypnuté → kdo si nic nenastaví, má
+    // bit-identické chování jako dřív (i po aktualizaci; `{...def, ...parsed}`
+    // níže dosadí tyhle defaulty do starých configů, které pole ještě nemají).
+    folderTemplate: DEFAULT_FOLDER_TEMPLATE,
+    autoTargetFolder: false
   }
 }
 

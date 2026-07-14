@@ -1,8 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { PlaylistResolveError, PlaylistTrack, SongResult } from '../../../shared/types'
+import type {
+  InstrumentDifficulties,
+  PlaylistResolveError,
+  PlaylistTrack,
+  SongResult
+} from '../../../shared/types'
 import spotifyLogo from '../assets/Spotify_logo.webp'
 import { useStore } from '../store'
-import { detectManualHost, formatDownloads, formatLabel, isAutoDownloadable, songKey } from '../utils'
+import {
+  INSTRUMENTS,
+  MAX_DIFFICULTY,
+  detectManualHost,
+  formatDownloads,
+  formatLabel,
+  isAutoDownloadable,
+  songKey
+} from '../utils'
 import { Icon } from './Icon'
 
 // Import playlistu (v1): vlož odkaz na veřejný Spotify playlist → appka dohledá
@@ -101,6 +114,52 @@ const ERROR_MSG: Record<PlaylistResolveError, string> = {
 
 function chartLabel(c: SongResult): string {
   return formatLabel(c.gameFormat) + (c.needsConversion ? ' → CH' : '')
+}
+
+/**
+ * Popisek jedné ikony nástroje. Tři stavy, které data reálně mají:
+ *  - nenacharováno (undefined)
+ *  - nacharováno, ale bez ohodnocení obtížnosti (tier 0 — posílá ho Encore)
+ *  - nacharováno s obtížností 1..6
+ */
+function instrumentHint(label: string, value: number | undefined): string {
+  if (value === undefined) return `${label}: not charted`
+  if (value <= 0) return `${label}: charted, no difficulty rating`
+  return `${label}: difficulty ${value} of ${MAX_DIFFICULTY}`
+}
+
+/**
+ * Kompaktní nástroje pro řádky importu — jen barevné ikony, bez popisků a teček
+ * (plný `InstrumentDifficulty` je na řádek importu moc velký).
+ *
+ * Chybějící nástroje se NEskrývají, jen ztlumí: díky pevným pozicím jde „má to
+ * bicí?" scanovat okem svisle po sloupci. Kdyby se vynechávaly, pozice by se
+ * řádek od řádku posouvaly a hledání by bylo pomalejší.
+ */
+function PlInstruments({ difficulties }: { difficulties: InstrumentDifficulties }): JSX.Element {
+  // Tooltip je na KAŽDÉ ikoně zvlášť (ne souhrnný na skupině) — jinak by při
+  // přejíždění myší problikával souhrn s per-nástrojovým popiskem.
+  return (
+    <span className="plinst">
+      {INSTRUMENTS.map((inst) => {
+        const value = difficulties[inst.id]
+        // `charted` = jakákoli DEFINOVANÁ hodnota. Musí sedět s InstrumentDifficulty
+        // i s filtrem ve výsledcích: Encore posílá i tier 0 jako platnou
+        // nacharovanou obtížnost, proto NE `value > 0`.
+        const charted = value !== undefined
+        return (
+          <Icon
+            key={inst.id}
+            name={inst.icon}
+            size={13}
+            color={charted ? inst.color : undefined}
+            className={`plinst__i ${charted ? '' : 'plinst__i--off'}`}
+            title={instrumentHint(inst.label, value)}
+          />
+        )
+      })}
+    </span>
+  )
 }
 
 // Krátký štítek, PROČ chart nejde stáhnout automaticky (null = stažitelný sám).
@@ -400,9 +459,27 @@ export function PlaylistImportModal(): JSX.Element | null {
                         )}
                       </div>
 
+                      {/* Charter + stažení jsou tady dole u interpreta (ne vpravo),
+                          aby se vpravo vešly nástroje. Sedí to i logicky: nahoře
+                          „co je to za píseň a kdo ji udělal", vpravo „jaký je to
+                          chart" (knihovna / formát / nástroje / verze). */}
                       <div className="plrow__track">
                         <div className="plrow__title">{r.track.title}</div>
-                        <div className="plrow__artist">{r.track.artist}</div>
+                        <div className="plrow__artist">
+                          <span className="plrow__aname">{r.track.artist}</span>
+                          {r.status === 'matched' && chart ? (
+                            <>
+                              {chart.charter ? (
+                                <span className="plrow__meta">{chart.charter}</span>
+                              ) : null}
+                              {chart.downloads != null && chart.downloads > 0 ? (
+                                <span className="plrow__meta plrow__meta--dls">
+                                  <Icon name="download" size={10} /> {formatDownloads(chart.downloads)}
+                                </span>
+                              ) : null}
+                            </>
+                          ) : null}
+                        </div>
                       </div>
 
                       <div className="plrow__match">
@@ -430,12 +507,7 @@ export function PlaylistImportModal(): JSX.Element | null {
                                 <Icon name="external" size={10} />
                               </button>
                             )}
-                            {chart.charter ? <span className="plrow__charter">{chart.charter}</span> : null}
-                            {chart.downloads != null && chart.downloads > 0 ? (
-                              <span className="plrow__dls">
-                                <Icon name="download" size={11} /> {formatDownloads(chart.downloads)}
-                              </span>
-                            ) : null}
+                            <PlInstruments difficulties={chart.difficulties} />
                             {r.charts.length > 1 ? (
                               <button
                                 className="plrow__versions"
@@ -483,6 +555,9 @@ export function PlaylistImportModal(): JSX.Element | null {
                                 </span>
                               )}
                               <span className="plver__charter">{c.charter || 'Unknown charter'}</span>
+                              {/* Nástroje jsou tu možná ještě cennější než v řádku —
+                                  verze se často liší právě tím, jestli mají bicí. */}
+                              <PlInstruments difficulties={c.difficulties} />
                               {c.downloads != null && c.downloads > 0 ? (
                                 <span className="plrow__dls">
                                   <Icon name="download" size={11} /> {formatDownloads(c.downloads)}

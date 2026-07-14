@@ -276,9 +276,12 @@ interface Props {
   color?: string
   className?: string
   style?: CSSProperties
+  /** Nativní tooltip. Ikona je jinak dekorativní (aria-hidden) — nastav jen tam,
+   *  kde je ikona JEDINÝM nositelem informace (např. nástroje v importu playlistu). */
+  title?: string
 }
 
-export function Icon({ name, size = 16, color, className, style }: Props): JSX.Element {
+export function Icon({ name, size = 16, color, className, style, title }: Props): JSX.Element {
   // Pro 5 nástrojů (guitar/bass/drums/keys/vocals) používáme dodané PNG
   // jako CSS mask — díky tomu si zachovají per-nástroj barvu přes currentColor.
   const pngSrc = INSTRUMENT_PNGS[name]
@@ -286,7 +289,11 @@ export function Icon({ name, size = 16, color, className, style }: Props): JSX.E
     return (
       <span
         className={className}
-        aria-hidden="true"
+        title={title}
+        // S tooltipem už ikona nese informaci → nesmí být skrytá odečítačům.
+        aria-hidden={title ? undefined : 'true'}
+        role={title ? 'img' : undefined}
+        aria-label={title}
         style={{
           color,
           width: size,
@@ -313,8 +320,12 @@ export function Icon({ name, size = 16, color, className, style }: Props): JSX.E
       strokeLinecap="round"
       strokeLinejoin="round"
       style={{ color, flexShrink: 0, display: 'block', overflow: 'visible', ...style }}
-      aria-hidden="true"
+      aria-hidden={title ? undefined : 'true'}
+      role={title ? 'img' : undefined}
+      aria-label={title}
     >
+      {/* <title> = nativní tooltip u SVG (atribut `title` na <svg> nefunguje). */}
+      {title ? <title>{title}</title> : null}
       {PATHS[name]}
     </svg>
   )

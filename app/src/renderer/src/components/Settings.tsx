@@ -1,8 +1,53 @@
 import { useEffect, useRef, useState } from 'react'
+import {
+  DEFAULT_FOLDER_TEMPLATE,
+  FOLDER_TAGS,
+  previewFolderPath,
+  type FolderTagSource
+} from '../../../shared/foldertemplate'
 import type { AppConfig, ReminderPosition } from '../../../shared/types'
 import { useStore } from '../store'
 import { HotkeyInput } from './HotkeyInput'
 import { Icon } from './Icon'
+
+// Ukázková píseň pro náhled šablony. Má VYPLNĚNÉ všechny tagy, ať je hned vidět,
+// co která značka udělá.
+const SAMPLE_SONG: FolderTagSource = {
+  artist: 'Metallica',
+  title: 'Master of Puppets',
+  album: 'Master of Puppets',
+  genre: 'Metal',
+  year: 1986,
+  charter: 'Nickmein'
+}
+
+// Druhý náhled = píseň s CHYBĚJÍCÍMI metadaty (spousta chartů žánr/rok nemá).
+// Ukáže, že prázdné podsložky se zahodí, místo aby vznikly složky „Unknown".
+const SPARSE_SONG: FolderTagSource = {
+  artist: 'Some Band',
+  title: 'Untitled Demo',
+  album: '',
+  genre: '',
+  year: null,
+  charter: null
+}
+
+// Tagy, které reálný chart nemusí mít vyplněné. `{artist}`/`{title}` tu schválně
+// NEJSOU — ty má prakticky vždycky.
+const DROPPABLE_TAG_RE = /\{(genre|year|album|charter)\}/i
+
+/**
+ * Náhled = SKUTEČNÁ cesta na disku, od nastavené Songs složky.
+ *
+ * Proto zpětná lomítka, i když se šablona píše s `/`: v šabloně je `/` vstupní
+ * syntaxe (a parser bere obojí), kdežto tady jde o cestu ve Windows, jakou uvidíš
+ * v Průzkumníku. Ukázat plnou cestu je to, co ten rozdíl vysvětlí samo — půlka
+ * cesty („Songs\…") vypadala jen jako nekonzistentní lomítko proti poli výše.
+ */
+function previewFullPath(song: FolderTagSource, template: string, songsDir: string): string {
+  const base = (songsDir || '').replace(/[\\/]+$/, '') || 'Songs'
+  return `${base}\\${previewFolderPath(song, template)}`
+}
 
 const POSITIONS: { v: ReminderPosition; l: string }[] = [
   { v: 'top-left', l: 'Top-left' },
@@ -68,6 +113,9 @@ export function Settings(): JSX.Element | null {
   const setShowSettings = useStore((s) => s.setShowSettings)
   const saveConfig = useStore((s) => s.saveConfig)
   const [draft, setDraft] = useState<AppConfig | null>(config)
+  // Šablona složky je zabalená (pokročilé) — stav si drží napříč otevřeními okna,
+  // ať to kdo ji používá nemusí rozklikávat pořád dokola.
+  const [tplOpen, setTplOpen] = useState(false)
   const [exeStatus, setExeStatus] = useState<{ path: string | null; autoDetected: boolean } | null>(
     null
   )
@@ -148,6 +196,108 @@ export function Settings(): JSX.Element | null {
               <button onClick={() => pickDir('songsDir')}>…</button>
             </div>
           </label>
+
+          {/* Zabalené: běžný uživatel tohle nepotřebuje (výchozí šablona = chování
+              odjakživa) a v nastavení by ho to jen mátlo. Kdo to zná z Bridge nebo
+              si chce knihovnu třídit sám, si to rozklikne. Zavřený stav ukazuje
+              aktuální šablonu, ať je vidět i bez otevírání. */}
+          <fieldset className="field field--disc">
+            <button
+              type="button"
+              className="disc__head"
+              aria-expanded={tplOpen}
+              onClick={() => setTplOpen((o) => !o)}
+            >
+              <span className="disc__titles">
+                <span className="disc__title">
+                  Chart folder name
+                  <span className="disc__badge">Optional</span>
+                </span>
+                <span className="disc__sub">
+                  Naming and sorting of downloaded charts: <code>{draft.folderTemplate}</code>
+                </span>
+              </span>
+              <Icon name="caret" size={12} className="disc__caret" />
+            </button>
+
+            <div className={`disc ${tplOpen ? 'disc--open' : ''}`}>
+              <div className="disc__inner">
+                <div className="field__row">
+                  <input
+                    className="tpl__input"
+                    value={draft.folderTemplate}
+                    spellCheck={false}
+                    placeholder={DEFAULT_FOLDER_TEMPLATE}
+                    onChange={(e) => setDraft({ ...draft, folderTemplate: e.target.value })}
+                  />
+                  <button
+                    onClick={() => setDraft({ ...draft, folderTemplate: DEFAULT_FOLDER_TEMPLATE })}
+                    title="Reset to the default template"
+                    disabled={draft.folderTemplate === DEFAULT_FOLDER_TEMPLATE}
+                  >
+                    Reset
+                  </button>
+                </div>
+
+                <div className="tpl__tags">
+                  {FOLDER_TAGS.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      className="tpl__tag"
+                      title={`Insert {${t}}`}
+                      onClick={() =>
+                        setDraft({ ...draft, folderTemplate: `${draft.folderTemplate}{${t}}` })
+                      }
+                    >
+                      {`{${t}}`}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Náhled běží přes TUTÉŽ funkci jako skutečná instalace (shared/
+                    foldertemplate.ts), takže nemůže ukazovat něco jiného, než co se stane. */}
+                <div className="tpl__preview">
+                  <div className="tpl__prow">
+                    <span className="tpl__plabel">Preview</span>
+                    <code className="tpl__ppath">
+                      {previewFullPath(SAMPLE_SONG, draft.folderTemplate, draft.songsDir)}
+                    </code>
+                  </div>
+                  {/* Jen když má co ukázat. U výchozí `{artist} - {title}` by to byl
+                      druhý namátkový příklad bez poučení (a přesně tak to mátlo). */}
+                  {DROPPABLE_TAG_RE.test(draft.folderTemplate) ? (
+                    <div className="tpl__prow">
+                      <span className="tpl__plabel" title="Not every chart has a genre, year, album or charter filled in. A subfolder whose tags are all empty is skipped.">
+                        Tags empty
+                      </span>
+                      <code className="tpl__ppath tpl__ppath--dim">
+                        {previewFullPath(SPARSE_SONG, draft.folderTemplate, draft.songsDir)}
+                      </code>
+                    </div>
+                  ) : null}
+                </div>
+
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={draft.autoTargetFolder}
+                    onChange={(e) => setDraft({ ...draft, autoTargetFolder: e.target.checked })}
+                  />
+                  <span>Skip the folder picker and use this template</span>
+                </label>
+
+                <p className="field__hint">
+                  Use <code>/</code> for subfolders, so <code>{'{genre}/{artist}/{artist} - {title}'}</code>{' '}
+                  sorts your library automatically. A subfolder whose tags are all empty is skipped
+                  rather than named "Unknown", and <code>{'{name}'}</code> works as an alias for{' '}
+                  <code>{'{title}'}</code>. Leave the checkbox off to keep picking a folder each time,
+                  with the template still naming the chart folder. Song packs keep their original
+                  folder names.
+                </p>
+              </div>
+            </div>
+          </fieldset>
 
           <label className="field">
             <span>

@@ -4,6 +4,7 @@ import { existsSync, promises as fsp, readdirSync, statSync } from 'fs'
 import { basename, join, relative, resolve, sep } from 'path'
 import { getConfig } from './config'
 import { invalidateLibraryIndex } from './playlists'
+import { renderFolderTemplate } from '../../shared/foldertemplate'
 import type { SongResult } from '../../shared/types'
 
 const SONG_MARKERS = ['song.ini', 'notes.chart', 'notes.mid']
@@ -293,7 +294,13 @@ export async function install(
     .map((p) => sanitize(p))
     .filter((p) => p && p !== '.' && p !== '..')
     .join('\\')
-  const songsDir = cleanSub ? join(baseSongsDir, cleanSub) : baseSongsDir
+  // Šablona složky (nastavení): `dirs` = podsložky z šablony, `name` = název
+  // složky chartu. Skládá se ZA ručně zvolenou podsložku, takže obojí jde
+  // kombinovat. Výchozí šablona `{artist} - {title}` má `dirs` prázdné → cesta
+  // vyjde identicky jako před zavedením šablon. Segmenty už jsou sanitizované a
+  // bez `.`/`..` (viz `renderFolderTemplate`), traversal check dole to i tak ověří.
+  const tpl = renderFolderTemplate(song, getConfig().folderTemplate)
+  const songsDir = join(baseSongsDir, cleanSub, ...tpl.dirs)
   const baseAbs = resolve(baseSongsDir)
   const targetAbs = resolve(songsDir)
   if (targetAbs !== baseAbs && !targetAbs.startsWith(baseAbs + sep)) {
@@ -307,9 +314,12 @@ export async function install(
   if (folders.length > 0) {
     const single = folders.length === 1
     for (const folder of folders) {
-      // U jediné písně použij metadata z RhythmVerse; u packu zachovej původní názvy.
+      // U jediné písně použij název ze šablony (výchozí = „Artist - Title"); u packu
+      // zachovej původní názvy — každá píseň v něm má vlastní metadata, která
+      // v `song` (= záznam celého packu) nemáme, takže by šablona informace zničila.
+      // Podsložky ze šablony (`tpl.dirs`) platí i pro packy — ty jsou už v `songsDir`.
       const folderName = single
-        ? sanitize(`${song.artist} - ${song.title}`)
+        ? tpl.name
         : sanitize(folder.split(/[\\/]/).pop() || `${song.artist} - ${song.title}`)
       const dest = uniqueDir(join(songsDir, folderName))
       // Async kopie — písně mají velké .ogg stopy (desítky MB), cpSync by na tu
@@ -346,7 +356,7 @@ export async function install(
   const singleSng = sngs.length === 1
   for (const sng of sngs) {
     const baseName = singleSng
-      ? sanitize(`${song.artist} - ${song.title}`)
+      ? tpl.name
       : sanitize((sng.split(/[\\/]/).pop() || 'song.sng').replace(/\.sng$/i, ''))
     const dest = uniqueFile(songsDir, baseName, '.sng')
     await fsp.copyFile(sng, dest)

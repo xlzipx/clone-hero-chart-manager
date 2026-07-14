@@ -905,6 +905,22 @@ export const useStore = create<AppState>((set, get) => {
   },
 
   openDownload: async (song) => {
+    // „Auto" = neptat se, cestu určí šablona z nastavení (main ji aplikuje při
+    // instalaci). Podsložku NEposíláme — jinak by se ruční volba z minula sčítala
+    // se šablonou a chart by skončil jinde, než ukazuje náhled v Nastavení.
+    // Zařazujeme rovnou (ne přes confirmDownload) — žádný fake `pendingSong`
+    // a hlavně se nepřepíše `lastSubfolder`, ať ruční režim po vypnutí auta
+    // pořád nabízí poslední zvolenou složku.
+    if (get().config?.autoTargetFolder) {
+      if (get().enqueuedKeys[song.key]) return // guard proti dvojkliku
+      try {
+        const jobId = await window.api.enqueueDownload(song, undefined)
+        set((s) => ({ enqueuedKeys: { ...s.enqueuedKeys, [song.key]: jobId } }))
+      } catch (e) {
+        set({ error: e instanceof Error ? e.message : String(e) })
+      }
+      return
+    }
     set({ pendingSong: song, foldersLoading: true })
     try {
       const folders = await window.api.listSongFolders()
@@ -945,6 +961,21 @@ export const useStore = create<AppState>((set, get) => {
     // Jen auto-stažitelné a ještě nezařazené (přeskoč oficiální DLC, MEGA/Mediafire…).
     const downloadable = songs.filter((s) => isAutoDownloadable(s) && !enqueuedKeys[s.key])
     if (downloadable.length === 0) return
+    // „Auto" → přeskoč výběr cíle, zařaď rovnou (viz `openDownload`).
+    if (get().config?.autoTargetFolder) {
+      set({ selectedKeys: [] })
+      const newEntries: Record<string, string> = {}
+      for (const song of downloadable) {
+        try {
+          const jobId = await window.api.enqueueDownload(song, undefined)
+          newEntries[song.key] = jobId
+        } catch {
+          /* jednotlivé selhání nezastaví dávku */
+        }
+      }
+      set((s) => ({ enqueuedKeys: { ...s.enqueuedKeys, ...newEntries } }))
+      return
+    }
     set({ pendingBatch: downloadable, foldersLoading: true })
     try {
       const folders = await window.api.listSongFolders()
