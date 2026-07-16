@@ -108,7 +108,15 @@ export function AboutModal(): JSX.Element | null {
                 vyšlo by černé na tmavém. Stejný postup jako u Spotify loga. */}
             <span
               className="about__ghicon"
-              style={{ WebkitMaskImage: `url(${githubLogo})`, maskImage: `url(${githubLogo})` }}
+              // URL v uvozovkách je NUTNOST, ne kosmetika: github.svg je pod 4 kB,
+              // takže ho Vite v produkci inlinuje jako data URI — a ten obsahuje
+              // APOSTROFY (viewBox='0 0 16 16'). Neuvozovkovaný url() je podle CSS
+              // specifikace mít nesmí → maska se nenačte a zbyde bílý čtverec.
+              // V devu to nevyjde najevo, tam se servíruje jako cesta k souboru.
+              style={{
+                WebkitMaskImage: `url("${githubLogo}")`,
+                maskImage: `url("${githubLogo}")`
+              }}
               aria-hidden="true"
             />
             View the source on GitHub
