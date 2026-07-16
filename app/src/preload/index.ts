@@ -92,7 +92,8 @@ const api = {
     ipcRenderer.invoke('lib:songInfo', rels) as Promise<LibSongInfo[]>,
   libSongDetail: (rel: string) =>
     ipcRenderer.invoke('lib:songDetail', rel) as Promise<SongDetail>,
-  libFindDuplicates: () => ipcRenderer.invoke('lib:findDuplicates') as Promise<DupGroup[]>,
+  libFindDuplicates: (scope?: string[]) =>
+    ipcRenderer.invoke('lib:findDuplicates', scope) as Promise<DupGroup[]>,
   libListPlaylists: () => ipcRenderer.invoke('lib:listPlaylists') as Promise<PlaylistInfo[]>,
   libAddToPlaylist: (name: string, relItems: string[]) =>
     ipcRenderer.invoke('lib:addToPlaylist', name, relItems) as Promise<PlaylistAddResult>,

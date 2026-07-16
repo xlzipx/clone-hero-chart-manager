@@ -189,7 +189,9 @@ export function registerIpc(): void {
   )
   ipcMain.handle('lib:songInfo', (_e, rels: string[]) => libSongInfo(rels))
   ipcMain.handle('lib:songDetail', (_e, rel: string) => libSongDetail(rel))
-  ipcMain.handle('lib:findDuplicates', () => libFindDuplicates())
+  ipcMain.handle('lib:findDuplicates', (_e, scope?: string[]) =>
+    libFindDuplicates(Array.isArray(scope) ? scope : undefined)
+  )
   ipcMain.handle('lib:listPlaylists', () => libListPlaylists())
   ipcMain.handle('lib:addToPlaylist', (_e, name: string, relItems: string[]) =>
     libAddToPlaylist(name, relItems)

@@ -392,7 +392,8 @@ export interface RendererApi {
   /** Zapíše zadaná metadata do song.ini. */
   libWriteMeta(relItem: string, fields: SongMeta): Promise<void>
   /** Najde duplicity v knihovně (identické + varianty téže písně). */
-  libFindDuplicates(): Promise<DupGroup[]>
+  /** `scope` = relativní podsložky Songs; prázdné/neuvedené = celá knihovna. */
+  libFindDuplicates(scope?: string[]): Promise<DupGroup[]>
   /** Vypíše Clone Hero playlisty (.setlist). */
   libListPlaylists(): Promise<PlaylistInfo[]>
   /** Přidá písně do playlistu (vytvoří / doplní existující). */

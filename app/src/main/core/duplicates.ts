@@ -8,7 +8,7 @@
 // seskupíme podle názvu; MD5 počítáme jen u písní, které s někým sdílí název.
 
 import { promises as fsp } from 'fs'
-import { basename, join, relative, sep } from 'path'
+import { basename, join, relative, resolve, sep } from 'path'
 import { getConfig } from './config'
 import { readSongMeta, stripRichTags } from './songmeta'
 import { songHash } from './playlists'
@@ -56,10 +56,24 @@ interface RawSong extends DupSong {
   abs: string
 }
 
-/** Projde knihovnu a vrátí skupiny duplicit (nejdřív identické, pak varianty). */
-export async function findDuplicates(): Promise<DupGroup[]> {
+/**
+ * Projde knihovnu a vrátí skupiny duplicit (nejdřív identické, pak varianty).
+ *
+ * `scope` = relativní podsložky Songs, ve kterých hledat. Prázdné/neuvedené =
+ * CELÁ knihovna (výchozí chování). Duplicity se pak hledají jen NAPŘÍČ vybranými
+ * složkami — což je smysl volby: „projeď mi jen 1 Downloads".
+ */
+export async function findDuplicates(scope?: string[]): Promise<DupGroup[]> {
   const songsDir = getConfig().songsDir
   const all: RawSong[] = []
+
+  // BEZPEČNOST: rozsah chodí z rendereru přes IPC → nesmí utéct z knihovny
+  // (`..`, absolutní cesta). Stejný princip jako guard v `install()`.
+  const baseAbs = resolve(songsDir)
+  const roots = (scope ?? [])
+    .map((r) => resolve(songsDir, r))
+    .filter((abs) => abs === baseAbs || abs.startsWith(baseAbs + sep))
+  const scanRoots = roots.length > 0 ? roots : [songsDir]
 
   const walk = async (dir: string, depth: number): Promise<void> => {
     if (depth > 6) return
@@ -93,7 +107,14 @@ export async function findDuplicates(): Promise<DupGroup[]> {
       if (e.isDirectory()) await walk(join(dir, e.name), depth + 1)
     }
   }
-  await walk(songsDir, 0)
+  for (const root of scanRoots) await walk(root, 0)
+  // Kdyby se rozsahy překrývaly (vybraná složka i její podsložka, nebo tatáž
+  // dvakrát), prošla by se píseň víckrát a spárovala by se sama se sebou =
+  // FALEŠNÝ duplikát. Dedup podle cesty to uzavře pro všechny takové případy.
+  const seen = new Set<string>()
+  const unique = all.filter((s) => (seen.has(s.rel) ? false : (seen.add(s.rel), true)))
+  all.length = 0
+  all.push(...unique)
 
   // Seskup podle umělec|název; unikáty vynech (nemají s čím být duplicitní).
   const byTitle = new Map<string, RawSong[]>()

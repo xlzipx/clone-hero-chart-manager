@@ -320,6 +320,7 @@ export function libRemoveFromPlaylist(name: string, hashes: string[]): Promise<v
 }
 
 // ── Duplicity ─────────────────────────────────────────────────────────
-export function libFindDuplicates(): Promise<DupGroup[]> {
-  return findDuplicates()
+/** `scope` = relativní podsložky Songs; prázdné/neuvedené = celá knihovna. */
+export function libFindDuplicates(scope?: string[]): Promise<DupGroup[]> {
+  return findDuplicates(scope)
 }

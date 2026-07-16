@@ -40,6 +40,8 @@ interface AppState {
   whatsNewSince: string | null
   /** Otevřený modal „Import playlist" (Spotify → charty). */
   showPlaylistImport: boolean
+  /** Otevřené okno „About" (klik na logo v titlebaru). */
+  showAbout: boolean
 
   // Filtr podle nástroje (id nástroje, který musí být zahraný)
   instrumentFilters: string[]
@@ -146,6 +148,7 @@ interface AppState {
   /** Otevře „What's new". `since` = z jaké verze uživatel přišel (null/nezadáno = posledních N). */
   openWhatsNew: (since?: string | null) => void
   setShowPlaylistImport: (v: boolean) => void
+  setShowAbout: (v: boolean) => void
   doSearch: (page?: number) => Promise<void>
   /** Přepne stránku: v deep režimu lokálně, jinak server dotazem. */
   goToPage: (p: number) => void
@@ -481,6 +484,7 @@ export const useStore = create<AppState>((set, get) => {
   showWhatsNew: false,
   whatsNewSince: null,
   showPlaylistImport: false,
+  showAbout: false,
   instrumentFilters: [],
   diffMin: 0,
   diffMax: 6,
@@ -786,6 +790,7 @@ export const useStore = create<AppState>((set, get) => {
   openLibraryAt: (rels) => set({ libraryReveal: rels, showLibrary: true }),
   setShowWhatsNew: (v) => set({ showWhatsNew: v }),
   setShowPlaylistImport: (v) => set({ showPlaylistImport: v }),
+  setShowAbout: (v) => set({ showAbout: v }),
   openWhatsNew: (since) => set({ showWhatsNew: true, whatsNewSince: since ?? null }),
 
   doSearch: async (page = 1) => {

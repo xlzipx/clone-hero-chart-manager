@@ -10,10 +10,17 @@ import { TipsTicker } from './TipsTicker'
 export function TitleBar(): JSX.Element {
   const setShowSettings = useStore((s) => s.setShowSettings)
   const setShowLibrary = useStore((s) => s.setShowLibrary)
+  const setShowAbout = useStore((s) => s.setShowAbout)
 
   return (
     <div className="titlebar">
-      <div className="titlebar__left">
+      {/* Logo = vstup do About. Titlebar je drag oblast, takže tlačítko musí mít
+          `no-drag` (v CSS), jinak by ho okno „snědlo" a klik by netrefil. */}
+      <button
+        className="titlebar__left titlebar__brandbtn"
+        title="About Chart Manager"
+        onClick={() => setShowAbout(true)}
+      >
         {/* Rytmická značka = 4 EQ pruhy v barvách nástrojů (matchuje brand/ikonu). */}
         <span className="brand-mark" aria-hidden="true">
           <i />
@@ -25,7 +32,7 @@ export function TitleBar(): JSX.Element {
           <span className="brand-w1">Chart</span> <span className="brand-w2">Manager</span>
           <span className="brand-dot">.</span>
         </span>
-      </div>
+      </button>
 
       <TipsTicker />
 

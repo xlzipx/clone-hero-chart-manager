@@ -3542,6 +3542,514 @@ body {
   flex-wrap: wrap;
   gap: 5px;
 }
+/* ---------- Logo v titlebaru = vstup do About ---------- */
+/* `no-drag` je nutnost: titlebar je drag oblast okna, jinak by tlačítko klik
+   nikdy nedostalo (okno by ho snědlo jako tažení). */
+.titlebar__brandbtn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  border-radius: 8px;
+}
+.titlebar__brandbtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+/* Hover = EQ pruhy si poskočí, každý s jiným zpožděním (jako na landing page,
+   jen tam běží při načtení). Transform-origin dole → roste to z podstavy jako
+   equalizer, ne od středu. */
+.titlebar__brandbtn:hover .brand-mark i {
+  animation: brandEq 0.62s cubic-bezier(0.3, 0.9, 0.3, 1);
+  transform-origin: bottom;
+}
+.titlebar__brandbtn:hover .brand-mark i:nth-child(1) {
+  animation-delay: 0s;
+}
+.titlebar__brandbtn:hover .brand-mark i:nth-child(2) {
+  animation-delay: 0.07s;
+}
+.titlebar__brandbtn:hover .brand-mark i:nth-child(3) {
+  animation-delay: 0.14s;
+}
+.titlebar__brandbtn:hover .brand-mark i:nth-child(4) {
+  animation-delay: 0.21s;
+}
+@keyframes brandEq {
+  0% {
+    transform: scaleY(1);
+  }
+  38% {
+    transform: scaleY(0.35);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+/* Na hover se hýbou JEN pruhy. Tečka zůstává bílá — přebarvovat ji je navíc. */
+
+/* ---------- About ---------- */
+.modal--about {
+  width: 580px;
+}
+.about__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Hero = vizitka appky: značka na střed, pod ní fakta. Jediné centrované místo
+   v okně — dává tomu „titulní stranu" a zbytek pak čte klidně zleva. */
+.about__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 4px;
+  text-align: center;
+}
+/* Pruhy VLEVO od textu a zarovnané na střed — přesně jako `.titlebar__left`
+   (flex, align-items: center, gap 8px). Značka musí všude vypadat stejně. */
+.about__logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Vyšší specifičnost přes rodiče (0,2,0 vs 0,1,0 u `.brand-mark`), jinak by
+   pozdější `.brand-mark { transform: translateY(1px) }` přebíjelo — element
+   nese OBĚ třídy a při stejné specificitě vyhraje ta později v souboru. */
+.about__logo .about__mark {
+  height: 35px;
+  transform: translateY(-5px);
+}
+/* JEN velikost — vzhled značky (font, váhy, barvy, mixed case, pořadí) drží
+   `.brand-mark` / `.brand-text`, ať About vypadá přesně jako titlebar.
+   Nic dalšího sem NEpřidávat. */
+.about__name {
+  font-size: 30px;
+}
+/* Fakta o buildu. Oddělovače přes ::before, ať v DOM nejsou prázdné spany. */
+.about__meta {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.about__meta > * + *::before {
+  content: '·';
+  margin: 0 8px;
+  opacity: 0.6;
+}
+.about__ver {
+  font-family: var(--font-mono);
+}
+
+.about__lead {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* Hodnoty projektu = drobné pilulky s fajfkou. Signál, ne odstavec textu. */
+.about__values {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.about__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 170, 220, 0.22);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.about__value svg {
+  color: var(--g-vocals);
+}
+
+/* GitHub = jediná akce v okně, tak ať je to vidět. */
+.about__gh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 170, 220, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+.about__gh:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(148, 170, 220, 0.5);
+  transform: translateY(-1px);
+}
+/* GitHub logo přes masku (viz komentář v AboutModal.tsx) — barvu tak řídí CSS,
+   ne obsah SVG. Originál měl natvrdo skoro černou #1B1F23 = na tmavém neviditelnou. */
+.about__ghicon {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  background: var(--text);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+.about__ghgo {
+  color: var(--text-faint);
+}
+
+/* Co appka umí. Odrážky (ne odstavec) — tohle si nikdo nečte, tohle si scanuje. */
+.about__feats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.about__feats li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.about__featicon {
+  color: var(--g-vocals);
+  flex: none;
+  margin-top: 3px;
+}
+
+/* Autorův blok = hlavička rolety (avatar + jméno vlevo, kolébka vpravo). */
+.about__disc {
+  border: 1px solid var(--tline);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+}
+.about__whohead {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+.about__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+  border: 1px solid var(--border-strong);
+}
+.about__bio {
+  margin-top: 2px;
+}
+.about__bio p {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-dim);
+}
+.about__bio p:last-child {
+  margin-bottom: 0;
+}
+/* Poslední věta bia = pointa („všechno zdarma"), ať nezapadne mezi odstavci. */
+.about__bioend {
+  color: var(--text) !important;
+  font-weight: 500;
+}
+
+/* Kontaktní odkazy (X, Reddit) = tlumenější než hlavní GitHub CTA — kontakt je
+   sekundární. Vedle sebe, ať je jasné, že jsou to alternativy jednoho člověka. */
+.about__socials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.about__social {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px 5px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--tline);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+.about__social:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(148, 170, 220, 0.35);
+  color: var(--text);
+}
+.about__socicon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex: none;
+}
+.about__sochandle {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+.about__credits {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--text-faint);
+  text-align: center;
+  border-top: 1px solid var(--tline);
+  padding-top: 12px;
+}
+.about__link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.about__link:hover {
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titlebar__brandbtn:hover .brand-mark i {
+    animation: none;
+  }
+  .about__gh:hover {
+    transform: none;
+  }
+}
+
+/* ---------- Duplicity: úvodní volba rozsahu (před prvním scanem) ---------- */
+.dup__start {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 6px 0;
+}
+.dup__starthint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.dup__startopts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.dup__startopt {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  padding: 13px;
+  border-radius: 10px;
+  border: 1px solid var(--tline);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-dim);
+  cursor: pointer;
+  min-width: 0;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+.dup__startopt:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(148, 170, 220, 0.35);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+.dup__startopt:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.dup__startopttext {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.dup__startopttitle {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.dup__startoptsub {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+/* Picker na úvodní obrazovce sedí uvnitř těla (ne pod hlavičkou) → bez bočních
+   marginů, ty už dává modal__body. */
+.dup__picker--start {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dup__startopt:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ---------- Duplicity: rozsah hledání (které složky projet) ---------- */
+.dup__scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 22px 0;
+  flex: none;
+}
+.dup__scopebtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--tline);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+.dup__scopebtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+/* Zúžený rozsah = akcent. Musí být na první pohled jasné, že se NEprohledává
+   všechno — jinak by „nic nenalezeno" svádělo k mylnému závěru. */
+.dup__scopebtn--on {
+  border-color: rgba(122, 162, 247, 0.45);
+  color: var(--text);
+}
+.dup__scopebtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.dup__scopecaret {
+  opacity: 0.7;
+}
+.dup__scopeclear {
+  font-size: 11px;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.dup__scopeclear:hover:not(:disabled) {
+  color: var(--text);
+}
+.dup__picker {
+  margin: 8px 22px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--tline);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  flex: none;
+}
+.dup__pickerhint {
+  margin: 0 0 8px;
+}
+/* Vlastní scroll — knihovna může mít desítky složek, ale picker nesmí vytlačit
+   samotný seznam duplicit. */
+.dup__pickerlist {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+.dup__pickitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  min-width: 0;
+}
+.dup__pickitem:hover {
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text);
+}
+.dup__pickname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.dup__pickerfoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* Kde kopie leží. Vizuálně příbuzné s extras odznaky (stejná velikost/tvar), ale
+   BEZ uppercase a s ikonou složky — je to cesta, ne štítek vlastnosti, a uppercase
+   by rozbil čitelnost názvů složek. Klidně se zalomí, cesty bývají dlouhé. */
+.dup__where {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  /* Žlutá „složková" — stejný vzor jako .dup__extra--stems/video (text + rámeček
+     + průsvitné pozadí v jednom odstínu). Bere se drums barva, se kterou už appka
+     jinde pracuje, ať to není nová magic hodnota v paletě. */
+  color: var(--g-drums);
+  border-color: rgba(245, 197, 24, 0.4);
+  background: rgba(245, 197, 24, 0.08);
+  /* Šířka podle obsahu jako u ostatních pills — `flex: none` brání tomu, aby ho
+     flex kontejner roztáhl. Strop jen jako pojistka proti absurdně dlouhé cestě;
+     běžný název složky se do něj vejde celý. */
+  flex: none;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Kořen Songs = ztlumeně: „nikde v podsložce" je normál, nemá to tahat oko. */
+.dup__where--root {
+  color: var(--text-faint);
+  opacity: 0.75;
+}
+
 .dup__extra {
   font-family: var(--font-mono);
   font-size: 9.5px;
@@ -3555,6 +4063,9 @@ body {
   white-space: nowrap;
 }
 /* Nejužitečnější signály zvýrazněné barvou. */
+/* Barevné varianty jednotně: text + rámeček + průsvitné pozadí ve STEJNÉM
+   odstínu. Barvy jdou z palety `--g-*` (nástrojů) — nezavádí to nové magic
+   hodnoty a systém pak drží pohromadě. */
 .dup__extra--stems {
   color: var(--accent-tri);
   border-color: rgba(45, 214, 192, 0.4);
@@ -3562,8 +4073,29 @@ body {
 }
 .dup__extra--video {
   color: #b98bff;
-  border-color: rgba(var(--accent-rgb), 0.4);
-  background: rgba(var(--accent-rgb), 0.08);
+  border-color: rgba(185, 139, 255, 0.4);
+  background: rgba(185, 139, 255, 0.08);
+}
+/* Background image → bass modrá (var(--g-bass) = #4a90e2). Atmosférická, sedne
+   k „pozadí". */
+.dup__extra--background {
+  color: var(--g-bass);
+  border-color: rgba(74, 144, 226, 0.4);
+  background: rgba(74, 144, 226, 0.08);
+}
+/* Highway → keys magenta (#d23bd2). Sytější než pastelová fialová u Video,
+   takže se dva „fialové" pills nesplynou. */
+.dup__extra--highway {
+  color: var(--g-keys);
+  border-color: rgba(210, 59, 210, 0.4);
+  background: rgba(210, 59, 210, 0.08);
+}
+/* Album art → guitar červená (#ff5b5b). Nejvýraznější barva pro nejvíc
+   „estetický" prvek řádku. */
+.dup__extra--albumArt {
+  color: var(--g-guitar);
+  border-color: rgba(255, 91, 91, 0.4);
+  background: rgba(255, 91, 91, 0.08);
 }
 .dup__charter {
   flex-shrink: 0;

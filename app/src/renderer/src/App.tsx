@@ -5,6 +5,7 @@ import { Icon } from './components/Icon'
 import { LibraryManager } from './components/LibraryManager'
 import { LocalDropModal } from './components/LocalDropModal'
 import { MarketplaceModal } from './components/MarketplaceModal'
+import { AboutModal } from './components/AboutModal'
 import { PlaylistImportModal } from './components/PlaylistImportModal'
 import { Pager } from './components/Pager'
 import { SearchBar } from './components/SearchBar'
@@ -364,7 +365,8 @@ export function App(): JSX.Element {
 
       if (e.key === 'Escape') {
         const st = useStore.getState()
-        if (st.showPlaylistImport) st.setShowPlaylistImport(false)
+        if (st.showAbout) st.setShowAbout(false)
+        else if (st.showPlaylistImport) st.setShowPlaylistImport(false)
         else if (st.showWhatsNew) st.setShowWhatsNew(false)
         else if (st.showLibrary) st.setShowLibrary(false)
         else if (st.showSettings) {
@@ -375,12 +377,13 @@ export function App(): JSX.Element {
         } else window.api.hideOverlay()
         return
       }
-      // Otevřené Nastavení/Správce/What's new/Import: nech projít jen Escape (výše), nenaviguj.
+      // Otevřené Nastavení/Správce/What's new/Import/About: nech projít jen Escape (výše), nenaviguj.
       if (
         useStore.getState().showSettings ||
         useStore.getState().showLibrary ||
         useStore.getState().showWhatsNew ||
-        useStore.getState().showPlaylistImport
+        useStore.getState().showPlaylistImport ||
+        useStore.getState().showAbout
       )
         return
       if (e.key === '/' && !typing) {
@@ -645,6 +648,7 @@ export function App(): JSX.Element {
       <LocalDropModal />
       <WhatsNew />
       <PlaylistImportModal />
+      <AboutModal />
     </div>
   )
 }
