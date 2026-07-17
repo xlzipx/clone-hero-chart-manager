@@ -20,10 +20,9 @@ import { WhatsNew } from './components/WhatsNew'
 import { useStore } from './store'
 import {
   INSTRUMENTS,
-  RV_CHUNK,
-  RV_PAGE_CAP,
   detectManualHost,
   isAutoDownloadable,
+  rvReachablePages,
   songKey,
   stripTags
 } from './utils'
@@ -72,7 +71,7 @@ export function App(): JSX.Element {
 
   // Klientský filtr + řazení (v deep režimu nad CELÝM dotazem).
   const filteredAll = useMemo(() => {
-    // „Surprise" = jedna vylosovaná písnička; ukaž ji tak jak je (nástroj už
+    // „Surprise" = hrstka vylosovaných písní; ukaž je tak jak jsou (nástroj už
     // vyřešil server, tier/charter/album klientsky neaplikuj, ať nezmizí).
     if (surprise) return source
     const cf = charterFilter.trim().toLowerCase()
@@ -135,7 +134,7 @@ export function App(): JSX.Element {
   // proklikat jde celý katalog. Samotný RhythmVerse bezpečně omez chunkovou
   // kapacitou (249×RV_CHUNK); Encore i Both stránkují do plné hloubky; deep lokálně.
   const serverPages = Math.max(1, Math.ceil(totalFiltered / records))
-  const rvReach = Math.floor((RV_PAGE_CAP * RV_CHUNK) / records)
+  const rvReach = rvReachablePages(records)
   const totalPages = deep
     ? Math.max(1, Math.ceil(filteredAll.length / records))
     : database === 'rhythmverse'
@@ -485,10 +484,11 @@ export function App(): JSX.Element {
           <span className="resultsbar__count">
             {surprise ? (
               <>
-                <Icon name="dice" size={14} /> Surprise pick{' '}
+                <Icon name="dice" size={14} /> {results.length}{' '}
+                {results.length === 1 ? 'surprise pick' : 'surprise picks'}{' '}
                 <span className="resultsbar__scan">
-                  from {(resultCount || totalFiltered).toLocaleString('en-US')} charts — click Surprise me
-                  again
+                  from {(resultCount || totalFiltered).toLocaleString('en-US')} charts, click Surprise
+                  me again for more
                 </span>
               </>
             ) : deep ? (
@@ -571,7 +571,7 @@ export function App(): JSX.Element {
               </span>
               <div>
                 <div className="surprise-load__label">Rolling the dice…</div>
-                <div className="surprise-load__sub">Picking a chart at random</div>
+                <div className="surprise-load__sub">Picking a few charts at random</div>
               </div>
             </div>
           ) : (
@@ -617,7 +617,11 @@ export function App(): JSX.Element {
         ) : (
           visible.map((song, i) => (
             <SongRow
-              key={song.key}
+              // Index v klíči je POJISTKA: kdyby dva výsledky měly shodný
+              // `song.key` (Encore i po dedupu, jiný zdroj…), React by jinak
+              // tříštil reconciliation a staré řádky by uvízly v DOM. Seznam se
+              // při hledání celý nahrazuje, takže index nezpůsobí reorder problém.
+              key={`${song.key}#${i}`}
               song={song}
               selected={i === selectedIndex}
               owned={ownedKeys.has(songKey(song.artist, song.title))}

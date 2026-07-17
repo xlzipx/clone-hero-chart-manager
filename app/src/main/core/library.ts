@@ -5,6 +5,7 @@ import { basename, join, relative, resolve, sep } from 'path'
 import { getConfig } from './config'
 import { invalidateLibraryIndex } from './playlists'
 import { renderFolderTemplate } from '../../shared/foldertemplate'
+import { songKey } from '../../shared/songid'
 import type { SongResult } from '../../shared/types'
 
 const SONG_MARKERS = ['song.ini', 'notes.chart', 'notes.mid']
@@ -113,11 +114,9 @@ function findSngFiles(root: string): string[] {
   return found
 }
 
-/** Normalizovaný klíč skladby: jen malá písmena a číslice, artist|title. */
-function normKey(artist: string, title: string): string {
-  const n = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '')
-  return `${n(artist)}|${n(title)}`
-}
+// Klíč identity písně = `shared/songid.ts` (sdílený s rendererem, ať „In library"
+// sedí). `normKey` byl dřív vlastní kopie — teď jen alias na sdílený `songKey`.
+const normKey = songKey
 
 /** "Artist - Title" → rozdělené; jinak title = celý název. */
 function splitName(name: string): { artist: string; title: string } {

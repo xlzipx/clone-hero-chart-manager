@@ -24,6 +24,25 @@ export const RV_PAGE_CAP = 249
 // kolem strany 201, tedy pod mezí 249.)
 export const RV_CHUNK = 700
 
+/**
+ * Kolik stránek RhythmVerse jde reálně proklikat při daném `records`. Odvozeno
+ * z chunkovací kapacity (249 serverových stran × RV_CHUNK položek). Sdílené,
+ * ať `App` (výpočet totalPages) a `Pager` nikdy neukážou jiný počet stránek.
+ */
+export function rvReachablePages(records: number): number {
+  return Math.floor((RV_PAGE_CAP * RV_CHUNK) / records)
+}
+
+// ── „Surprise me" losování (viz store.surpriseMe) ────────────────────────────
+// Náhodná stránka se drží BEZPEČNĚ pod RV_PAGE_CAP (249) — pár stránek rezerva,
+// aby ani při zaokrouhlení `total/pick` losování netrefilo přetečenou stranu.
+export const RV_SURPRISE_MAX_PAGE = 245
+// Chorus Encore `per_page` strop (300+ → HTTP 400, ověřeno živě).
+export const ENCORE_PER_PAGE_MAX = 250
+// RhythmVerse „surprise" pick — velký, aby se celý katalog vešel do ≤ maxPage
+// stránek (RV bere records i výrazně nad běžný strop).
+export const RV_SURPRISE_PICK = 600
+
 export function formatLength(seconds: number | null): string {
   if (!seconds || seconds <= 0) return '–'
   const m = Math.floor(seconds / 60)
@@ -83,11 +102,10 @@ export function stripTags(s: string): string {
   return s.replace(/<\/?(?:color|b|i|u|s|size|material|quad|sprite|alpha|mark|noparse)\b[^>]*>/gi, '').trim()
 }
 
-/** Normalizovaný klíč skladby (musí sedět s main `normKey`): artist|title. */
-export function songKey(artist: string, title: string): string {
-  const n = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '')
-  return `${n(artist)}|${n(title)}`
-}
+// Klíč identity písně sdílíme s main procesem (viz `shared/songid.ts`), ať se
+// „In library" párování nikdy nerozejde. Re-export drží zpětnou kompatibilitu
+// importů `songKey` z utils.
+export { songKey } from '../../shared/songid'
 
 export type ManualHost = 'MEGA' | 'Mediafire' | 'Shortener' | null
 

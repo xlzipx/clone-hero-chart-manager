@@ -125,9 +125,12 @@ function defaults(): AppConfig {
     chExePath: '', // auto-detekce z songsDir
     yargExePath: '', // auto-detekce v běžných YARG instalech
     recordsPerPage: 25,
-    // 1.2 = ověřené ideální rozpoložení na 4K @ 125 % Windows scale (defaultně
-    // pro všechny; kdo má v configu uloženou vlastní hodnotu, tomu zůstane).
-    uiScale: 1.2,
+    // Default 1.0 (= 100 %). Historicky bylo 1.2 kvůli 4K @ 125 %, ale na malých
+    // obrazovkách (notebook 1366×768 / 1920×1080 s vyšším Windows scaling) se
+    // sidebar nevejde a Import playlist tlačítko končí pod foldem. `{...def,
+    // ...parsed}` níž zajistí, že kdo má vlastní hodnotu uloženou, tomu zůstane
+    // (včetně těch, co historicky zdědili 1.2 — nepřepíšeme je násilím).
+    uiScale: 1.0,
     hotkeys: {
       // Show / hide window — Ctrl+I (rychlý "Insert/Invoke" toggle, ergonomický
       // pro pravou ruku na klávesnici; nepřekrývá běžné herní bindings v CH).

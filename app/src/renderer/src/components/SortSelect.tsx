@@ -4,29 +4,32 @@ import type { SortKey } from '../store'
 import { Icon } from './Icon'
 
 // `rvOnly`: RhythmVerse má počet stažení, Chorus Encore ne → v Encore režimu
-// „Most downloaded" nezobrazujeme (nešlo by seřadit, jen by matlo).
-// `hint`: tooltip vysvětlující volbu (uživatelé se ptali, co je „Default").
+// „Downloads" nezobrazujeme (nešlo by seřadit, jen by matlo).
+// Popisky jsou BEZ směru (dřív „Title (A–Z)") — směr řídí zvlášť šipka vedle.
 const OPTIONS: { id: SortKey; label: string; rvOnly?: boolean; hint: string }[] = [
   {
     id: 'relevance',
     label: 'Default',
     hint: 'The source order — best match when searching, or the catalogue’s own default when browsing'
   },
-  { id: 'title', label: 'Title (A–Z)', hint: 'Alphabetical by song title' },
-  { id: 'artist', label: 'Artist (A–Z)', hint: 'Alphabetical by artist' },
+  { id: 'title', label: 'Title', hint: 'Alphabetical by song title' },
+  { id: 'artist', label: 'Artist', hint: 'Alphabetical by artist' },
   {
     id: 'downloads',
-    label: 'Most downloaded',
+    label: 'Downloads',
     rvOnly: true,
-    hint: 'Most downloaded first (RhythmVerse download counts)'
+    hint: 'By RhythmVerse download count'
   },
-  { id: 'newest', label: 'Recently added', hint: 'Most recently added or updated first' },
-  { id: 'length', label: 'Length', hint: 'Longest songs first' }
+  { id: 'newest', label: 'Added', hint: 'By date added / last updated' },
+  { id: 'length', label: 'Length', hint: 'By song length' }
 ]
 
 export function SortSelect(): JSX.Element {
   const sort = useStore((s) => s.sort)
+  const sortDir = useStore((s) => s.sortDir)
+  const sortTouched = useStore((s) => s.sortTouched)
   const setSort = useStore((s) => s.setSort)
+  const setSortDir = useStore((s) => s.setSortDir)
   const database = useStore((s) => s.database)
   const options = OPTIONS.filter((o) => !o.rvOnly || database !== 'enchor')
   const [open, setOpen] = useState(false)
@@ -42,39 +45,53 @@ export function SortSelect(): JSX.Element {
   }, [open])
 
   const current = options.find((o) => o.id === sort) ?? options[0]
+  // „Default" (relevance) nemá směr — server řadí podle relevance/vlastního pořadí.
+  const dirEnabled = current.id !== 'relevance'
 
   return (
-    <div className="dd dd--sort" ref={ref}>
+    <div className="sortctl" ref={ref}>
+      <div className={`dd dd--sort ${open ? 'dd--open' : ''}`}>
+        <button type="button" className="dd__btn" onClick={() => setOpen((o) => !o)} title={current.hint}>
+          {/* Dokud uživatel sort AKTIVNĚ nezvolil, ukaž „Sort by" jako pozvánku. */}
+          <span>{sortTouched ? current.label : 'Sort by'}</span>
+          <Icon name="caret" size={11} className="dd__caret" />
+        </button>
+        {open ? (
+          <ul className="dd__menu" role="listbox">
+            {options.map((o) => (
+              <li key={o.id}>
+                <button
+                  type="button"
+                  title={o.hint}
+                  className={`dd__item ${o.id === sort ? 'dd__item--sel' : ''}`}
+                  onClick={() => {
+                    setSort(o.id)
+                    setOpen(false)
+                  }}
+                >
+                  {o.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+      {/* Přepínač směru — zašedlý u „Default", kde řazení nemá směr. */}
       <button
         type="button"
-        className="dd__btn"
-        onClick={() => setOpen((o) => !o)}
-        title={current.hint}
+        className="sortctl__dir"
+        disabled={!dirEnabled}
+        title={
+          !dirEnabled
+            ? 'Default order has no direction'
+            : sortDir === 'asc'
+              ? 'Ascending — click for descending'
+              : 'Descending — click for ascending'
+        }
+        onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}
       >
-        {/* Ve výchozím stavu ukaž „Sort by" (samotné „Default" mátlo — nikdo
-            nevěděl, co reprezentuje); po výběru řazení jeho název. */}
-        <span>{current.id === 'relevance' ? 'Sort by' : current.label}</span>
-        <Icon name="caret" size={11} className="dd__caret" />
+        <Icon name="caret" size={12} style={{ transform: sortDir === 'asc' ? 'rotate(180deg)' : 'none' }} />
       </button>
-      {open ? (
-        <ul className="dd__menu" role="listbox">
-          {options.map((o) => (
-            <li key={o.id}>
-              <button
-                type="button"
-                title={o.hint}
-                className={`dd__item ${o.id === sort ? 'dd__item--sel' : ''}`}
-                onClick={() => {
-                  setSort(o.id)
-                  setOpen(false)
-                }}
-              >
-                {o.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
     </div>
   )
 }

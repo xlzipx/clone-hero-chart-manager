@@ -255,7 +255,7 @@ export function Sidebar(): JSX.Element {
           <Icon name="dice" size={18} className="side-surprise__dice" />
           <span className="side-surprise__text">
             <span className="side-surprise__title">Surprise me</span>
-            <span className="side-surprise__sub">Discover a random chart</span>
+            <span className="side-surprise__sub">Discover 5 random charts</span>
           </span>
         </button>
 

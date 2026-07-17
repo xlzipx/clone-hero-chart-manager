@@ -1,5 +1,5 @@
 import { useStore } from '../store'
-import { INSTRUMENTS, RV_CHUNK, RV_PAGE_CAP } from '../utils'
+import { INSTRUMENTS, rvReachablePages } from '../utils'
 import { Icon } from './Icon'
 
 /** Vytvoří seznam stránek s výpustkami: [1,2,3,'…',9]. */
@@ -47,7 +47,7 @@ export function Pager({
   // (i RV část „Both") řeší chunkování ve store → plná hloubka. Samotný RhythmVerse
   // omez chunkovou kapacitou; Encore i Both jdou do plné hloubky.
   const rawPages = Math.max(1, Math.ceil((matchTotal ?? totalFiltered) / records))
-  const rvReach = Math.floor((RV_PAGE_CAP * RV_CHUNK) / records)
+  const rvReach = rvReachablePages(records)
   const totalPages =
     matchTotal != null
       ? rawPages

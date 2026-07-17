@@ -22,6 +22,7 @@ import type {
   SongMeta,
   SongResult,
   SortKey,
+  SortDir,
   UpdateAvailable,
   UpdateCheckResult
 } from '../shared/types'
@@ -34,7 +35,8 @@ const api = {
     system?: RhythmVerseSystem,
     database?: Database,
     filters?: SearchFilters,
-    sort?: SortKey
+    sort?: SortKey,
+    sortDir?: SortDir
   ) =>
     ipcRenderer.invoke(
       'search',
@@ -44,7 +46,8 @@ const api = {
       system,
       database,
       filters,
-      sort
+      sort,
+      sortDir
     ) as Promise<SearchResponse>,
   getFilterOptions: (system?: RhythmVerseSystem) =>
     ipcRenderer.invoke('search:filterOptions', system) as Promise<FilterOptions>,
@@ -108,6 +111,8 @@ const api = {
 
   getJobs: () => ipcRenderer.invoke('jobs:getAll') as Promise<DownloadJob[]>,
   clearFinishedJobs: () => ipcRenderer.invoke('jobs:clearFinished') as Promise<void>,
+  cancelJob: (id: string) => ipcRenderer.invoke('jobs:cancel', id) as Promise<void>,
+  cancelAllJobs: () => ipcRenderer.invoke('jobs:cancelAll') as Promise<void>,
 
   onJobUpdate: (cb: (job: DownloadJob) => void) => {
     const handler = (_e: unknown, job: DownloadJob) => cb(job)

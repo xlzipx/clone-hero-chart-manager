@@ -6,7 +6,7 @@
 export const TIPS: string[] = [
   'Hover a song’s album art and press play to preview it before you download.',
   'Leave the search box empty to browse the entire catalogue, no keyword needed.',
-  'Surprise me in the sidebar picks a random chart, filtered to your chosen instrument.',
+  'Surprise me in the sidebar picks a handful of random charts, filtered to your chosen instrument.',
   'Import playlist in the sidebar takes a public Spotify link and finds charts for the whole playlist at once.',
   'Set the database to Both to search RhythmVerse and Chorus Encore at the same time.',
   'Open Filters to narrow by genre, year, decade, length, charter or album on RhythmVerse.',

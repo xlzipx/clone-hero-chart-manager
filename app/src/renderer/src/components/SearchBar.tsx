@@ -210,7 +210,10 @@ export function SearchBar(): JSX.Element {
                 ) : (
                   suggest.map((song, i) => (
                     <button
-                      key={song.key}
+                      // Index v klíči = pojistka proti duplicitnímu `song.key`
+                      // (Encore umí vrátit tentýž chart 2×) → jinak React tříští
+                      // reconciliation. Stejný princip jako u výsledků v App.tsx.
+                      key={`${song.key}#${i}`}
                       className={`suggest__item ${i === hoverIdx ? 'suggest__item--hover' : ''}`}
                       onMouseEnter={() => setHoverIdx(i)}
                       onMouseLeave={() => setHoverIdx(-1)}

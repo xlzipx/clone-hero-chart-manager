@@ -234,24 +234,87 @@ export async function removeSongsFromPlaylist(name: string, hashes: string[]): P
 }
 
 // ── Rozřešení hash → píseň (pro zobrazení obsahu setlistu) ─────────────
-// Index knihovny (hash → umělec/název) je drahý (hashuje všechny charty), proto
-// se krátce cacheuje. Metadata (song.ini) hash NEMĚNÍ (ten je jen z notes.chart/
-// mid), takže editace metadat cache neznehodnocuje; mění ji přidání/smazání písní.
+// Index knihovny (hash → umělec/název) je drahý: MD5 se počítá z CELÉHO obsahu
+// notes.chart/mid, což u velké knihovny znamená přečíst stovky MB z disku. Dvě
+// vrstvy cache to krotí:
+//   1) `indexCache` — hotová mapa v paměti, 5 min TTL (opakované otevření = instant)
+//   2) `hashDiskCache` — PERZISTENTNÍ (userData) hash keyed cestou+mtime+velikostí
+//      notes souboru → MD5 se přepočítá JEN pro nové/změněné písně. Tím přežije
+//      restart appky i vyhození OS file-cache („po nějaké době") — první otevření
+//      setlistu pak jen `stat`uje soubory (metadata z MFT, ~KB), místo aby četlo
+//      stovky MB obsahu.
 let indexCache: { at: number; map: Map<string, { artist: string; title: string }> } | null = null
 
+interface HashCacheEntry {
+  mtimeMs: number
+  size: number
+  hash: string
+}
+let hashDiskCache: Map<string, HashCacheEntry> | null = null
+
+function hashCachePath(): string {
+  return join(app.getPath('userData'), 'hash-index.json')
+}
+
+/** Načte perzistentní hash cache (jednou, pak z paměti). Poškozená = prázdná. */
+async function loadHashCache(): Promise<Map<string, HashCacheEntry>> {
+  if (hashDiskCache) return hashDiskCache
+  try {
+    const raw = await fsp.readFile(hashCachePath(), 'utf-8')
+    const obj = JSON.parse(raw) as Record<string, HashCacheEntry>
+    hashDiskCache = new Map(Object.entries(obj))
+  } catch {
+    hashDiskCache = new Map()
+  }
+  return hashDiskCache
+}
+
+/** Uloží hash cache (best-effort; selhání zápisu jen znamená přepočet příště). */
+async function saveHashCache(map: Map<string, HashCacheEntry>): Promise<void> {
+  hashDiskCache = map
+  try {
+    await writeSetlistAtomic(hashCachePath(), Buffer.from(JSON.stringify(Object.fromEntries(map))))
+  } catch {
+    /* nevadí */
+  }
+}
+
 /**
- * Zneplatní cache indexu. Volat po každé změně obsahu knihovny (instalace,
- * smazání, přesun písně) a po změně `songsDir` — jinak by setlisty až 5 minut
- * neviděly nové/přesunuté písně.
+ * Zneplatní cache indexu V PAMĚTI. Volat po každé změně obsahu knihovny
+ * (instalace, smazání, přesun písně) a po změně `songsDir` — jinak by setlisty
+ * až 5 minut neviděly nové/přesunuté písně. Perzistentní hash cache se NEMAŽE:
+ * je klíčovaná cestou+mtime+velikostí, takže se sama zaktualizuje jen tam, kde
+ * se soubor reálně změnil (a smazané písně z ní vypadnou při dalším průchodu).
  */
 export function invalidateLibraryIndex(): void {
   indexCache = null
 }
 
+/** notes soubor písně (chart preferováno) + jeho mtime/velikost, nebo null. */
+async function notesStat(
+  dir: string
+): Promise<{ path: string; mtimeMs: number; size: number } | null> {
+  for (const f of ['notes.chart', 'notes.mid']) {
+    const p = join(dir, f)
+    try {
+      const st = await fsp.stat(p)
+      return { path: p, mtimeMs: st.mtimeMs, size: st.size }
+    } catch {
+      /* zkus druhý */
+    }
+  }
+  return null
+}
+
 async function libraryHashIndex(): Promise<Map<string, { artist: string; title: string }>> {
   if (indexCache && Date.now() - indexCache.at < 5 * 60 * 1000) return indexCache.map
   const songsDir = getConfig().songsDir
+  const oldCache = await loadHashCache()
+  // `nextCache` obsahuje JEN písně viděné teď → smazané samy vypadnou (prune).
+  const nextCache = new Map<string, HashCacheEntry>()
   const map = new Map<string, { artist: string; title: string }>()
+  let changed = false
+
   const walk = async (dir: string, depth: number): Promise<void> => {
     if (depth > 6) return
     let entries: import('fs').Dirent[]
@@ -261,22 +324,41 @@ async function libraryHashIndex(): Promise<Map<string, { artist: string; title: 
       return
     }
     if (entries.some((e) => e.isFile() && SONG_MARKERS.includes(e.name.toLowerCase()))) {
-      const h = await songHash(dir)
-      if (h) {
-        const meta = await readSongMeta(dir)
-        const fb = basename(dir)
-        const dash = fb.indexOf(' - ')
-        // Syrově vč. tagů — RichText v UI je vykreslí barevně jako hra.
-        map.set(h, {
-          artist: (meta.artist || (dash > 0 ? fb.slice(0, dash) : '')).trim(),
-          title: (meta.name || (dash > 0 ? fb.slice(dash + 3) : fb)).trim()
-        })
+      const st = await notesStat(dir)
+      if (st) {
+        // Hash závisí JEN na obsahu notes souboru → když mtime+velikost sedí
+        // s cache, MD5 přeskočíme (to je ta drahá část = přečíst celý soubor).
+        const cached = oldCache.get(st.path)
+        let h: string | null
+        if (cached && cached.mtimeMs === st.mtimeMs && cached.size === st.size) {
+          h = cached.hash
+        } else {
+          h = await songHash(dir)
+          changed = true
+        }
+        if (h) {
+          nextCache.set(st.path, { mtimeMs: st.mtimeMs, size: st.size, hash: h })
+          // Metadata (artist/title) čteme vždy: song.ini je malé (~KB), takže i
+          // celá knihovna je pár MB, a zůstanou tak vždy aktuální i po editaci.
+          const meta = await readSongMeta(dir)
+          const fb = basename(dir)
+          const dash = fb.indexOf(' - ')
+          // Syrově vč. tagů — RichText v UI je vykreslí barevně jako hra.
+          map.set(h, {
+            artist: (meta.artist || (dash > 0 ? fb.slice(0, dash) : '')).trim(),
+            title: (meta.name || (dash > 0 ? fb.slice(dash + 3) : fb)).trim()
+          })
+        }
       }
       return
     }
     for (const e of entries) if (e.isDirectory()) await walk(join(dir, e.name), depth + 1)
   }
   await walk(songsDir, 0)
+
+  // Ulož jen když se něco pohnulo (nový/změněný hash) nebo ubyly písně — jinak
+  // zbytečný zápis při každém otevření.
+  if (changed || nextCache.size !== oldCache.size) void saveHashCache(nextCache)
   indexCache = { at: Date.now(), map }
   return map
 }

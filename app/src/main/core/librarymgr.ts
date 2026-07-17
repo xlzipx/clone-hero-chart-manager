@@ -99,8 +99,9 @@ export function libList(rel: string): { path: string; entries: LibEntry[] } {
     } catch {
       continue
     }
-    if (st.isDirectory()) entries.push({ name, type: 'dir', isSong: isSongDir(full) })
-    else if (st.isFile()) entries.push({ name, type: 'file', isSong: false })
+    const common = { size: st.size, mtimeMs: st.mtimeMs, birthtimeMs: st.birthtimeMs }
+    if (st.isDirectory()) entries.push({ name, type: 'dir', isSong: isSongDir(full), ...common })
+    else if (st.isFile()) entries.push({ name, type: 'file', isSong: false, ...common })
   }
   entries.sort((a, b) =>
     a.type === b.type ? a.name.localeCompare(b.name, 'cs') : a.type === 'dir' ? -1 : 1

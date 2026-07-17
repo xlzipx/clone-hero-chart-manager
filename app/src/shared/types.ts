@@ -131,6 +131,18 @@ export interface SearchFilters {
  * umí jen RhythmVerse — Encore počet stažení nemá, takže tam padne na default.
  */
 export type SortKey = 'relevance' | 'title' | 'artist' | 'downloads' | 'newest' | 'length'
+export type SortDir = 'asc' | 'desc'
+
+/** Výchozí směr každého řazení (když si uživatel směr sám nepřepne). Sdílené
+ *  mezi UI (šipka) a backendem (fallback), ať se nerozejdou. */
+export const SORT_DEFAULT_DIR: Record<SortKey, SortDir> = {
+  relevance: 'desc',
+  title: 'asc',
+  artist: 'asc',
+  downloads: 'desc',
+  newest: 'desc',
+  length: 'desc'
+}
 
 export interface FilterOption {
   id: string
@@ -156,6 +168,7 @@ export type JobStage =
   | 'installing'
   | 'done'
   | 'error'
+  | 'canceled'
 
 export interface DownloadJob {
   id: string
@@ -220,6 +233,12 @@ export interface LibEntry {
   name: string
   type: 'dir' | 'file'
   isSong: boolean
+  /** Velikost souboru v bajtech (u složek 0 — velikost se dopočítává jinak). */
+  size: number
+  /** Čas poslední změny (ms epoch) — pro řazení „naposledy změněné". */
+  mtimeMs: number
+  /** Čas vytvoření (ms epoch) — pro řazení „naposledy přidané". */
+  birthtimeMs: number
 }
 
 export interface LibListing {
@@ -349,7 +368,8 @@ export interface RendererApi {
     system?: RhythmVerseSystem,
     database?: Database,
     filters?: SearchFilters,
-    sort?: SortKey
+    sort?: SortKey,
+    sortDir?: SortDir
   ): Promise<SearchResponse>
   /** Volby filtrů (žánry, dekády, roky…) pro advanced panel; z RhythmVerse číselníku. */
   getFilterOptions(system?: RhythmVerseSystem): Promise<FilterOptions>
@@ -408,6 +428,8 @@ export interface RendererApi {
   libRemoveFromPlaylist(name: string, hashes: string[]): Promise<void>
   getJobs(): Promise<DownloadJob[]>
   clearFinishedJobs(): Promise<void>
+  cancelJob(id: string): Promise<void>
+  cancelAllJobs(): Promise<void>
   onJobUpdate(cb: (job: DownloadJob) => void): () => void
   getConfig(): Promise<AppConfig>
   setConfig(patch: Partial<AppConfig>): Promise<AppConfig>

@@ -13,11 +13,13 @@
 //
 // Obtížnosti: -1 = part nezahrán; 0..6 = tier.
 
+import { SORT_DEFAULT_DIR } from '../../shared/types'
 import type {
   InstrumentDifficulties,
   SearchFilters,
   SearchResponse,
   SongResult,
+  SortDir,
   SortKey
 } from '../../shared/types'
 
@@ -126,11 +128,13 @@ function normalize(c: EnchorChart): SongResult {
  * bundlu i živě). Platné `type`: name/artist/album/genre/year/length/charter/
  * modifiedTime. 'downloads' Encore NEMÁ → padne na default (žádný sort).
  */
-const ENC_SORT: Partial<Record<SortKey, { type: string; direction: 'asc' | 'desc' }>> = {
-  title: { type: 'name', direction: 'asc' },
-  artist: { type: 'artist', direction: 'asc' },
-  length: { type: 'length', direction: 'desc' },
-  newest: { type: 'modifiedTime', direction: 'desc' }
+// Jen mapa KLÍČ→typ; směr řídí `sortDir` (default v SORT_DEFAULT_DIR). Encore
+// downloads nemá, takže tam žádný `type` není → padne na default (bez řazení).
+const ENC_SORT_TYPE: Partial<Record<SortKey, string>> = {
+  title: 'name',
+  artist: 'artist',
+  length: 'length',
+  newest: 'modifiedTime'
 }
 
 /**
@@ -145,7 +149,8 @@ export async function search(
   page = 1,
   records = 25,
   filters?: SearchFilters,
-  sort?: SortKey
+  sort?: SortKey,
+  sortDir?: SortDir
 ): Promise<SearchResponse> {
   const body: Record<string, unknown> = {
     search: text,
@@ -154,8 +159,8 @@ export async function search(
   }
   if (filters?.instrument?.length) body.instrument = filters.instrument[0]
   if (filters?.difficulty?.length) body.difficulty = filters.difficulty[0]
-  const sortSpec = sort ? ENC_SORT[sort] : undefined
-  if (sortSpec) body.sort = sortSpec
+  const type = sort ? ENC_SORT_TYPE[sort] : undefined
+  if (type && sort) body.sort = { type, direction: sortDir ?? SORT_DEFAULT_DIR[sort] }
 
   const res = await fetch(`${API}/search`, {
     method: 'POST',
@@ -173,9 +178,19 @@ export async function search(
   }
   const json: { found?: number; data?: EnchorChart[] } = await res.json()
   const rawSongs = Array.isArray(json.data) ? json.data : []
+  // Encore občas vrátí TENTÝŽ chart víckrát v jedné odpovědi (ověřeno živě:
+  // chartId 707173 „Big Bad Beetleborgs" přišel 2× se shodným md5). Duplicitní
+  // `key` pak v Reactu tříští reconciliation — staré řádky se při přepnutí
+  // databáze neuvolní a hromadí se. Dedup podle `key` to uzavře u zdroje.
+  const seen = new Set<string>()
+  const songs = rawSongs.map(normalize).filter((s) => {
+    if (seen.has(s.key)) return false
+    seen.add(s.key)
+    return true
+  })
   return {
-    songs: rawSongs.map(normalize),
-    totalFiltered: typeof json.found === 'number' ? json.found : rawSongs.length,
+    songs,
+    totalFiltered: typeof json.found === 'number' ? json.found : songs.length,
     page,
     records
   }

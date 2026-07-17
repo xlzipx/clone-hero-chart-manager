@@ -10,13 +10,27 @@ const STAGE_LABEL: Record<string, string> = {
   converting: 'Converting',
   installing: 'Installing',
   done: 'Done',
-  error: 'Error'
+  error: 'Error',
+  canceled: 'Canceled'
 }
+
+// Úloha, kterou lze ještě zrušit (běží nebo čeká) — má křížek + počítá se do „active".
+const CANCELABLE = new Set(['queued', 'resolving', 'downloading', 'extracting', 'converting'])
+// Terminální stav (žádná další práce) — počítá se do „finished" pro Clear history.
+const TERMINAL = new Set(['done', 'error', 'canceled'])
 
 export function DownloadQueue(): JSX.Element | null {
   const jobs = useStore((s) => s.jobs)
   const clearFinishedJobs = useStore((s) => s.clearFinishedJobs)
+  const cancelJob = useStore((s) => s.cancelJob)
+  const cancelAllJobs = useStore((s) => s.cancelAllJobs)
   const [open, setOpen] = useState(true)
+  // ID úloh, u kterých uživatel klikl zrušit, ale běžící krok (konverze) ještě
+  // dobíhá. Dává OKAMŽITOU zpětnou vazbu „Canceling…", než dorazí finální stav
+  // z main procesu — jinak by se po kliknutí zdánlivě nic nedělo.
+  const [canceling, setCanceling] = useState<Set<string>>(new Set())
+  const markCanceling = (ids: string[]): void =>
+    setCanceling((prev) => new Set([...prev, ...ids]))
   const list = useMemo(() => Object.values(jobs).reverse(), [jobs])
   const shouldShow = list.length > 0
 
@@ -50,7 +64,7 @@ export function DownloadQueue(): JSX.Element | null {
   if (!rendered) return null
 
   const display = shouldShow ? list : lastList.current
-  const active = display.filter((j) => j.stage !== 'done' && j.stage !== 'error').length
+  const active = display.filter((j) => !TERMINAL.has(j.stage)).length
   const finished = display.length - active
   const anyDone = display.some((j) => j.stage === 'done')
 
@@ -71,6 +85,18 @@ export function DownloadQueue(): JSX.Element | null {
             style={{ transform: open ? 'none' : 'rotate(180deg)' }}
           />
         </button>
+        {active > 0 ? (
+          <button
+            className="queue__clear queue__stopall"
+            title="Cancel all downloads still in progress"
+            onClick={() => {
+              markCanceling(display.filter((j) => !TERMINAL.has(j.stage)).map((j) => j.id))
+              void cancelAllJobs()
+            }}
+          >
+            <Icon name="close" size={13} /> Stop all
+          </button>
+        ) : null}
         {finished > 0 ? (
           <button
             className="queue__clear"
@@ -88,13 +114,31 @@ export function DownloadQueue(): JSX.Element | null {
       ) : null}
       {open ? (
         <div className="queue__list">
-          {display.map((job) => (
-            <div className={`qjob qjob--${job.stage}`} key={job.id}>
+          {display.map((job) => {
+            // „Canceling" = uživatel klikl zrušit, ale krok ještě dobíhá (job
+            // není terminální). Ukáž to hned, i než dorazí finální stav z main.
+            const isCanceling = canceling.has(job.id) && !TERMINAL.has(job.stage)
+            return (
+            <div className={`qjob qjob--${job.stage} ${isCanceling ? 'qjob--canceling' : ''}`} key={job.id}>
               <div className="qjob__top">
                 <span className="qjob__title">
                   {job.song.artist} – {job.song.title}
                 </span>
-                <span className="qjob__stage">{STAGE_LABEL[job.stage] ?? job.stage}</span>
+                <span className="qjob__stage">
+                  {isCanceling ? 'Canceling…' : STAGE_LABEL[job.stage] ?? job.stage}
+                </span>
+                {CANCELABLE.has(job.stage) && !isCanceling ? (
+                  <button
+                    className="qjob__cancel"
+                    title="Cancel this download"
+                    onClick={() => {
+                      markCanceling([job.id])
+                      void cancelJob(job.id)
+                    }}
+                  >
+                    <Icon name="close" size={12} />
+                  </button>
+                ) : null}
               </div>
               <div className="qjob__bar">
                 <div
@@ -108,7 +152,8 @@ export function DownloadQueue(): JSX.Element | null {
               {job.message ? <div className="qjob__msg">{job.message}</div> : null}
               {job.error ? <div className="qjob__err">⚠ {job.error}</div> : null}
             </div>
-          ))}
+            )
+          })}
           </div>
         ) : null}
         </div>

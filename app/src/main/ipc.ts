@@ -9,6 +9,7 @@ import type {
   SearchFilters,
   SearchResponse,
   SongResult,
+  SortDir,
   SortKey
 } from '../shared/types'
 import { getConfig, setConfig } from './core/config'
@@ -46,6 +47,7 @@ import {
   libTrash,
   libWriteMeta
 } from './core/librarymgr'
+import { mergeKey } from '../shared/songid'
 import type { SongMeta } from '../shared/types'
 import { invalidateLibraryIndex } from './core/playlists'
 import { getPreview } from './core/preview'
@@ -71,11 +73,12 @@ export function registerIpc(): void {
       system?: RhythmVerseSystem,
       database?: Database,
       filters?: SearchFilters,
-      sort?: SortKey
+      sort?: SortKey,
+      sortDir?: SortDir
     ): Promise<SearchResponse> => {
       const db: Database = database ?? 'rhythmverse'
       if (db === 'enchor') {
-        return searchEnchor(text, page, records, filters, sort)
+        return searchEnchor(text, page, records, filters, sort, sortDir)
       }
       if (db === 'both') {
         // Žánr / rok / délku umí serverově jen RhythmVerse. Když je některý
@@ -88,12 +91,12 @@ export function registerIpc(): void {
           filters?.songLength?.length
         )
         if (rvOnlyFilter) {
-          return searchRhythmverse(text, page, records, system ?? 'ch', filters, sort)
+          return searchRhythmverse(text, page, records, system ?? 'ch', filters, sort, sortDir)
         }
         // Spojený režim: stáhne první stránku z obou a dedupuje.
         const [rv, en] = await Promise.allSettled([
-          searchRhythmverse(text, page, records, system ?? 'ch', filters, sort),
-          searchEnchor(text, page, records, filters, sort)
+          searchRhythmverse(text, page, records, system ?? 'ch', filters, sort, sortDir),
+          searchEnchor(text, page, records, filters, sort, sortDir)
         ])
         // Spadly-li OBĚ, propaguj chybu (jinak by prázdný „success" ukázal
         // „Nothing found" místo chybové hlášky jako u jednotlivých databází).
@@ -104,15 +107,14 @@ export function registerIpc(): void {
         const enSongs = en.status === 'fulfilled' ? en.value.songs : []
         const seen = new Set<string>()
         const merged: SongResult[] = []
-        const key = (s: SongResult): string =>
-          `${s.artist.trim().toLowerCase()}|${s.title.trim().toLowerCase()}|${(
-            s.charter ?? ''
-          )
-            .trim()
-            .toLowerCase()}`
-        // Enchor preferujeme – přímý .sng hosting bývá spolehlivější než GDrive scrape.
-        for (const s of [...enSongs, ...rvSongs]) {
-          const k = key(s)
+        // Pořadí slučování: normálně Encore první (přímý .sng hosting bývá
+        // spolehlivější než GDrive scrape). VÝJIMKA „Most downloaded": Encore počet
+        // stažení NEMÁ (řadí se náhodně), takže by se necharakterně tlačil nahoru —
+        // proto u tohoto řazení dáme napřed RhythmVerse, kde downloads dávají smysl.
+        const ordered = sort === 'downloads' ? [...rvSongs, ...enSongs] : [...enSongs, ...rvSongs]
+        // Dedup klíč `mergeKey` sdílíme s rendererem (hluboké „Both" ve store).
+        for (const s of ordered) {
+          const k = mergeKey(s)
           if (seen.has(k)) continue
           seen.add(k)
           merged.push(s)
@@ -133,7 +135,7 @@ export function registerIpc(): void {
           records
         }
       }
-      return searchRhythmverse(text, page, records, system ?? 'ch', filters, sort)
+      return searchRhythmverse(text, page, records, system ?? 'ch', filters, sort, sortDir)
     }
   )
 
@@ -162,6 +164,8 @@ export function registerIpc(): void {
   )
   ipcMain.handle('jobs:getAll', () => jobManager.getAll())
   ipcMain.handle('jobs:clearFinished', () => jobManager.clearFinished())
+  ipcMain.handle('jobs:cancel', (_e, id: string) => jobManager.cancel(id))
+  ipcMain.handle('jobs:cancelAll', () => jobManager.cancelAll())
   ipcMain.handle('library:listFolders', () => listSongFolders())
   ipcMain.handle('library:ownedKeys', () => ownedSongKeys())
   ipcMain.handle('library:ownedFolders', (_e, artist: string, title: string) =>

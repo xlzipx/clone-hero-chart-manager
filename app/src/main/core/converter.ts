@@ -66,7 +66,8 @@ async function onyxConvert(
   inputPath: string,
   outDir: string,
   kind: 'CON' | 'DTX',
-  onProgress?: (p: ConvertProgress) => void
+  onProgress?: (p: ConvertProgress) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const onyx = getConfig().onyxPath
   if (!existsSync(onyx)) {
@@ -101,7 +102,7 @@ async function onyxConvert(
   try {
     // 1) Import
     onProgress?.({ progress: -1, message: kind === 'DTX' ? 'Importing DTX…' : 'Importing CON…' })
-    const imp = await run(onyx, ['import', importPath, '--to', projDir])
+    const imp = await run(onyx, ['import', importPath, '--to', projDir], undefined, signal)
     if (imp.code !== 0) {
       throw new Error(`Onyx import failed (code ${imp.code}): ${imp.stderr || imp.stdout}`)
     }
@@ -123,7 +124,8 @@ async function onyxConvert(
         if (stream === 'stdout' && /writing audio|finished/i.test(line)) {
           onProgress?.({ progress: -1, message: line.trim().slice(0, 80) })
         }
-      }
+      },
+      signal
     )
     if (build.code !== 0) {
       throw new Error(`Onyx build failed (code ${build.code}): ${build.stderr || build.stdout}`)
@@ -148,9 +150,10 @@ async function onyxConvert(
 export function convertCon(
   inputPath: string,
   outDir: string,
-  onProgress?: (p: ConvertProgress) => void
+  onProgress?: (p: ConvertProgress) => void,
+  signal?: AbortSignal
 ): Promise<void> {
-  return onyxConvert(inputPath, outDir, 'CON', onProgress)
+  return onyxConvert(inputPath, outDir, 'CON', onProgress, signal)
 }
 
 /**
@@ -161,7 +164,8 @@ export function convertCon(
 export function convertDtx(
   inputPath: string,
   outDir: string,
-  onProgress?: (p: ConvertProgress) => void
+  onProgress?: (p: ConvertProgress) => void,
+  signal?: AbortSignal
 ): Promise<void> {
-  return onyxConvert(inputPath, outDir, 'DTX', onProgress)
+  return onyxConvert(inputPath, outDir, 'DTX', onProgress, signal)
 }

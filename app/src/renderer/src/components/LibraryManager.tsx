@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { LibEntry, SongDetail } from '../../../shared/types'
 import { useStore } from '../store'
 import { formatLength, stripTags } from '../utils'
@@ -18,6 +18,17 @@ type Dialog =
 type Clip = { op: 'cut' | 'copy'; items: string[]; names: string[] } | null
 type Ctx = { x: number; y: number } | null
 
+// „Size" záměrně NENÍ v nabídce: knihovna jsou hlavně složky a `statSync.size`
+// u složky není velikost obsahu (~0). „Songs inside" je pro složky smysluplnější
+// a levnější metrika velikosti; rekurzivní byte-velikost by byl další drahý sweep.
+type LibSortKey = 'name' | 'songs' | 'modified' | 'created'
+const LIB_SORTS: { id: LibSortKey; label: string }[] = [
+  { id: 'name', label: 'Name' },
+  { id: 'songs', label: 'Songs inside' },
+  { id: 'modified', label: 'Date modified' },
+  { id: 'created', label: 'Date added' }
+]
+
 export function LibraryManager(): JSX.Element | null {
   const show = useStore((s) => s.showLibrary)
   const close = useStore((s) => s.setShowLibrary)
@@ -29,6 +40,40 @@ export function LibraryManager(): JSX.Element | null {
   const [entries, setEntries] = useState<LibEntry[]>([])
   // Počty písní v PODsložkách (name → count), doplňují se asynchronně po výpisu.
   const [folderCounts, setFolderCounts] = useState<Record<string, number>>({})
+  // Řazení výpisu. Složky/soubory se drží pohromadě (dir-first), klíč řadí uvnitř.
+  const [sortKey, setSortKey] = useState<LibSortKey>('name')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  // Seřazený výpis pro RENDER i shift-výběr (rozsah musí sedět s viditelným
+  // pořadím). Složky vždy nad soubory; sekundárně dle zvoleného klíče. `songs`
+  // bere počty z `folderCounts` (async), takže se přeřadí, jakmile dorazí.
+  const sortedEntries = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    const cmp = (a: LibEntry, b: LibEntry): number => {
+      // Dir-first je pevné, nezávislé na směru — soubory nikdy nevytlačí složky.
+      if ((a.type === 'dir') !== (b.type === 'dir')) return a.type === 'dir' ? -1 : 1
+      let d = 0
+      switch (sortKey) {
+        case 'name':
+          d = a.name.localeCompare(b.name, 'cs')
+          break
+        case 'songs':
+          d = (folderCounts[a.name] ?? 0) - (folderCounts[b.name] ?? 0)
+          break
+        case 'modified':
+          d = a.mtimeMs - b.mtimeMs
+          break
+        case 'created':
+          d = a.birthtimeMs - b.birthtimeMs
+          break
+      }
+      // Při shodě (stejný počet písní / datum) dorovnej jménem VZESTUPNĚ jako
+      // stabilní tie-break — nezávisle na směru, ať pořadí neposkakuje.
+      if (d === 0) return a.name.localeCompare(b.name, 'cs')
+      return d * dir
+    }
+    return [...entries].sort(cmp)
+  }, [entries, folderCounts, sortKey, sortDir])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchor, setAnchor] = useState<string | null>(null)
   const [clip, setClip] = useState<Clip>(null)
@@ -206,7 +251,7 @@ export function LibraryManager(): JSX.Element | null {
       setSelected(next)
       setAnchor(name)
     } else if (e.shiftKey && anchor) {
-      const names = entries.map((x) => x.name)
+      const names = sortedEntries.map((x) => x.name)
       const a = names.indexOf(anchor)
       const b = names.indexOf(name)
       if (a >= 0 && b >= 0) {
@@ -293,8 +338,10 @@ export function LibraryManager(): JSX.Element | null {
           </button>
         </div>
 
-        <div className="lib__toolbar">
-          <button className="lib__btn" onClick={() => void load(segments.slice(0, -1).join('/'))} disabled={!cwd} title="Up">
+        {/* Řádek 1: cesta (breadcrumbs) — vlastní řádek, ať dlouhá cesta nikdy
+            netlačí do nástrojů a layout nepřeskakuje. Přeteče → vodorovný scroll. */}
+        <div className="lib__crumbsrow">
+          <button className="lib__btn lib__btn--icon" onClick={() => void load(segments.slice(0, -1).join('/'))} disabled={!cwd} title="Up one folder">
             <Icon name="chevronLeft" size={15} />
           </button>
           <div className="lib__crumbs">
@@ -310,7 +357,10 @@ export function LibraryManager(): JSX.Element | null {
               </span>
             ))}
           </div>
-          <div className="lib__spacer" />
+        </div>
+
+        {/* Řádek 2: nástroje — akce vlevo, řazení + Explorer/Refresh vpravo. */}
+        <div className="lib__toolbar">
           <button className="lib__btn" onClick={() => { setDialog({ type: 'new' }); setDialogValue('') }}>
             <Icon name="folderPlus" size={15} /> New folder
           </button>
@@ -325,10 +375,31 @@ export function LibraryManager(): JSX.Element | null {
               <Icon name="paste" size={15} /> Paste ({clip.items.length})
             </button>
           ) : null}
-          <button className="lib__btn" onClick={() => window.api.libOpen(cwd)} title="Open in Explorer">
+          <div className="lib__spacer" />
+          <div className="lib__sort" title="Sort this folder">
+            <select
+              className="lib__sortsel"
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as LibSortKey)}
+            >
+              {LIB_SORTS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <button
+              className="lib__sortdir"
+              title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
+              onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            >
+              <Icon name="caret" size={12} style={{ transform: sortDir === 'asc' ? 'rotate(180deg)' : 'none' }} />
+            </button>
+          </div>
+          <button className="lib__btn lib__btn--icon" onClick={() => window.api.libOpen(cwd)} title="Open in Explorer">
             <Icon name="external" size={15} />
           </button>
-          <button className="lib__btn" onClick={() => void load(cwd)} title="Refresh">
+          <button className="lib__btn lib__btn--icon" onClick={() => void load(cwd)} title="Refresh">
             <Icon name="refresh" size={15} />
           </button>
         </div>
@@ -414,7 +485,7 @@ export function LibraryManager(): JSX.Element | null {
           ) : entries.length === 0 ? (
             <div className="lib__empty">This folder is empty. Right-click for New folder / Paste.</div>
           ) : (
-            entries.map((en) => (
+            sortedEntries.map((en) => (
               <div
                 key={en.name}
                 className={`lib__item ${selected.has(en.name) ? 'lib__item--sel' : ''} ${

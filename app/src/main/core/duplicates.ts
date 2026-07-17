@@ -12,6 +12,7 @@ import { basename, join, relative, resolve, sep } from 'path'
 import { getConfig } from './config'
 import { readSongMeta, stripRichTags } from './songmeta'
 import { songHash } from './playlists'
+import { normText } from '../../shared/songid'
 import type { DupExtras, DupGroup, DupSong } from '../../shared/types'
 
 const SONG_MARKERS = ['song.ini', 'notes.chart', 'notes.mid']
@@ -42,9 +43,8 @@ function detectExtras(entries: import('fs').Dirent[]): DupExtras {
   return ex
 }
 
-function norm(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]/g, '')
-}
+// Normalizace textu = sdílený `normText` (shared/songid.ts).
+const norm = normText
 
 function splitFolderName(name: string): { artist: string; title: string } {
   const d = name.indexOf(' - ')

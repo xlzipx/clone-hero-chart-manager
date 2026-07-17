@@ -65,20 +65,69 @@ function deriveLocalSong(path: string): SongResult {
   }
 }
 
+/** Vnitřní signál, že úlohu zrušil uživatel — odliší zrušení od reálné chyby. */
+class CanceledError extends Error {
+  constructor() {
+    super('canceled')
+    this.name = 'CanceledError'
+  }
+}
+
+const TERMINAL: JobStage[] = ['done', 'error', 'canceled']
+
 class JobManager extends EventEmitter {
   private jobs = new Map<string, DownloadJob>()
   private queue: string[] = []
   private running = false
+  /** ID úloh, které uživatel zrušil (běžící se přeruší na příští kontrole). */
+  private canceled = new Set<string>()
+  /** Abort per běžící úloha — zabije právě probíhající child proces (konverze). */
+  private aborters = new Map<string, AbortController>()
 
   getAll(): DownloadJob[] {
     return Array.from(this.jobs.values())
   }
 
-  /** Odstraní dokončené/chybové úlohy z historie. */
+  /** Odstraní dokončené/chybové/zrušené úlohy z historie. */
   clearFinished(): void {
     for (const [id, job] of this.jobs) {
-      if (job.stage === 'done' || job.stage === 'error') this.jobs.delete(id)
+      if (TERMINAL.includes(job.stage)) this.jobs.delete(id)
     }
+  }
+
+  /**
+   * Zruší úlohu. Zařazená (ještě neběžící) se zruší okamžitě a nikdy nespustí;
+   * běžící se přeruší na nejbližší kontrole mezi kroky (rozdělané soubory jsou
+   * jen v temp složce, kterou `runJob` ve `finally` smaže — do knihovny se tak
+   * nic nedokončeného nedostane).
+   */
+  cancel(id: string): void {
+    const job = this.jobs.get(id)
+    if (!job || TERMINAL.includes(job.stage)) return
+    this.canceled.add(id)
+    const qi = this.queue.indexOf(id)
+    if (qi !== -1) {
+      // Zařazená úloha ještě neběžela → rovnou terminál, runJob se jí nedotkne.
+      this.queue.splice(qi, 1)
+      this.setStage(id, 'canceled', 'Canceled')
+      this.canceled.delete(id)
+    }
+    // Běžící úloha: zabij hned probíhající child proces (konverze onyx trvá
+    // minuty). Konverze pak selže, `throwIfCanceled` / catch to vyhodnotí jako
+    // zrušení. Bez abortu by uživatel čekal na doběhnutí celého kroku.
+    this.aborters.get(id)?.abort()
+  }
+
+  /** Zruší VŠECHNY neukončené úlohy (tlačítko „Stop all"). */
+  cancelAll(): void {
+    for (const [id, job] of this.jobs) {
+      if (!TERMINAL.includes(job.stage)) this.cancel(id)
+    }
+  }
+
+  /** Hodí `CanceledError`, pokud byla úloha mezitím zrušena (kontrola mezi kroky). */
+  private throwIfCanceled(id: string): void {
+    if (this.canceled.has(id)) throw new CanceledError()
   }
 
   enqueue(song: SongResult, targetSubfolder?: string): string {
@@ -178,8 +227,11 @@ class JobManager extends EventEmitter {
     if (!job) return
     const song = job.song
     const tmpRoot = mkdtempSync(join(tmpdir(), 'chsd-'))
+    const aborter = new AbortController()
+    this.aborters.set(id, aborter)
 
     try {
+      this.throwIfCanceled(id) // zrušeno, než se vůbec začalo
       const url = song.downloadUrl || song.downloadPageUrl
       if (!url) throw new Error('Missing download link')
       if (/marketplace\.xbox\.com/.test(url)) {
@@ -269,6 +321,7 @@ class JobManager extends EventEmitter {
         }
       }
 
+      this.throwIfCanceled(id) // po stažení/rozbalení, před (dlouhou) konverzí
       // 3) Konverze (pokud potřeba) — nejdřív CON, jinak zkus DTXMania.
       const conFiles = findConFiles(workDir)
       let installSource = workDir
@@ -284,10 +337,15 @@ class JobManager extends EventEmitter {
         let done = 0
         for (const con of conFiles) {
           const dest = join(convOut, `song_${done}`)
-          await convertCon(con, dest, (cp) => {
-            const overall = (done + Math.max(cp.progress, 0)) / conFiles.length
-            this.update(id, { stage: 'converting', progress: overall, message: cp.message })
-          })
+          await convertCon(
+            con,
+            dest,
+            (cp) => {
+              const overall = (done + Math.max(cp.progress, 0)) / conFiles.length
+              this.update(id, { stage: 'converting', progress: overall, message: cp.message })
+            },
+            aborter.signal
+          )
           done++
         }
         installSource = convOut
@@ -305,17 +363,25 @@ class JobManager extends EventEmitter {
           let done = 0
           for (const dtx of dtxEntries) {
             const dest = join(convOut, `song_${done}`)
-            await convertDtx(dtx, dest, (cp) => {
-              const overall = (done + Math.max(cp.progress, 0)) / dtxEntries.length
-              this.update(id, { stage: 'converting', progress: overall, message: cp.message })
-            })
+            await convertDtx(
+              dtx,
+              dest,
+              (cp) => {
+                const overall = (done + Math.max(cp.progress, 0)) / dtxEntries.length
+                this.update(id, { stage: 'converting', progress: overall, message: cp.message })
+              },
+              aborter.signal
+            )
             done++
           }
           installSource = convOut
         }
       }
 
-      // 4) Install into the library
+      this.throwIfCanceled(id) // poslední šance před zápisem do knihovny
+      // 4) Install into the library. Od tohoto bodu už NEpřerušujeme — instalace
+      // je krátká a atomická (`uniqueDir` + kopie), takže do Songs se buď zapíše
+      // celá píseň, nebo (při zrušení výše) vůbec nic.
       this.setStage(id, 'installing', 'Installing into library…')
       const { installedPaths } = await install(installSource, song, job.targetSubfolder)
 
@@ -326,13 +392,21 @@ class JobManager extends EventEmitter {
         installPath: installedPaths[0]
       })
     } catch (err) {
-      this.update(id, {
-        stage: 'error',
-        progress: -1,
-        error: err instanceof Error ? err.message : String(err)
-      })
+      // Zrušení uživatelem NENÍ chyba — vlastní terminální stav bez červené hlášky.
+      if (err instanceof CanceledError || this.canceled.has(id)) {
+        this.update(id, { stage: 'canceled', progress: -1, message: 'Canceled' })
+      } else {
+        this.update(id, {
+          stage: 'error',
+          progress: -1,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
     } finally {
+      this.canceled.delete(id)
+      this.aborters.delete(id)
       try {
+        // Rozdělaný obsah v temp → smazat (i po zrušení: nic nedokončeného nezůstane).
         if (existsSync(tmpRoot)) await rm(tmpRoot, { recursive: true, force: true })
       } catch {
         /* úklid best-effort */

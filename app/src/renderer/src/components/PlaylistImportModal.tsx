@@ -529,7 +529,9 @@ export function PlaylistImportModal(): JSX.Element | null {
                         <div className="plrow__picker">
                           {r.charts.map((c, ci) => (
                             <button
-                              key={c.key}
+                              // Index v klíči = pojistka proti duplicitnímu `c.key`
+                              // (viz stejný fix u výsledků a našeptávače).
+                              key={`${c.key}#${ci}`}
                               className={`plver ${ci === r.chosen ? 'plver--on' : ''}`}
                               title={isAutoDownloadable(c) ? undefined : externalHint(c)}
                               onClick={() => {

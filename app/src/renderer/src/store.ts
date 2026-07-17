@@ -7,9 +7,19 @@ import type {
   RhythmVerseSystem,
   SearchFilters,
   SongResult,
+  SortDir,
   SortKey
 } from '../../shared/types'
-import { RV_CHUNK, RV_PAGE_CAP, isAutoDownloadable } from './utils'
+import { SORT_DEFAULT_DIR } from '../../shared/types'
+import { mergeKey } from '../../shared/songid'
+import {
+  ENCORE_PER_PAGE_MAX,
+  RV_CHUNK,
+  RV_PAGE_CAP,
+  RV_SURPRISE_MAX_PAGE,
+  RV_SURPRISE_PICK,
+  isAutoDownloadable
+} from './utils'
 
 export type { SortKey } from '../../shared/types'
 
@@ -56,6 +66,12 @@ interface AppState {
   hideOwned: boolean
   // Řazení výsledků
   sort: SortKey
+  /** Směr řazení. Výchozí je odvozen z klíče (SORT_DEFAULT_DIR); uživatel ho
+   *  může přepnout šipkou nezávisle na klíči. */
+  sortDir: SortDir
+  /** true = uživatel sort AKTIVNĚ zvolil z menu; false = jede výchozí a tlačítko
+   *  má stále ukazovat „Sort by" místo konkrétní volby. */
+  sortTouched: boolean
 
   // ── „Surprise me" ────────────────────────────────────────────────────────
   /** Zobrazuje se právě jedna náhodně vylosovaná písnička? Jakékoli běžné
@@ -129,6 +145,7 @@ interface AppState {
   setHideOwned: (v: boolean) => void
   loadOwnedKeys: () => Promise<void>
   setSort: (s: SortKey) => void
+  setSortDir: (d: SortDir) => void
   /** „Surprise me" — vylosuje JEDNU náhodnou písničku z celého právě prohlíženého
    *  výběru (respektuje filtr nástroje) a zobrazí ji. */
   surpriseMe: () => void
@@ -180,6 +197,8 @@ interface AppState {
   ) => Promise<void>
   applyJobUpdate: (job: DownloadJob) => void
   clearFinishedJobs: () => Promise<void>
+  cancelJob: (id: string) => Promise<void>
+  cancelAllJobs: () => Promise<void>
   loadConfig: () => Promise<void>
   saveConfig: (patch: Partial<AppConfig>) => Promise<void>
 }
@@ -269,17 +288,19 @@ async function rvPageItems(
   q: string,
   system: RhythmVerseSystem,
   sort: SortKey | undefined,
+  sortDir: SortDir | undefined,
   filters: SearchFilters | undefined,
   page: number,
   records: number,
   myReq: number
 ): Promise<{ songs: SongResult[]; total: number } | null> {
   if (page <= RV_PAGE_CAP) {
-    const res = await window.api.search(q, page, records, system, 'rhythmverse', filters, sort)
+    const res = await window.api.search(q, page, records, system, 'rhythmverse', filters, sort, sortDir)
     if (myReq !== searchSeq) return null
     return { songs: res.songs, total: res.totalFiltered }
   }
-  const sig = JSON.stringify([q, system, sort ?? null, filters ?? null])
+  // Směr je součást signatury cache — jinak by přepnutí A-Z/Z-A vracelo staré chunky.
+  const sig = JSON.stringify([q, system, sort ?? null, sortDir ?? null, filters ?? null])
   if (!rvChunkCache || rvChunkCache.sig !== sig) rvChunkCache = { sig, chunks: new Map(), total: 0 }
   const firstItem = (page - 1) * records
   const lastItem = firstItem + records - 1
@@ -290,7 +311,7 @@ async function rvPageItems(
     // část výsledků zůstane prázdná (u „Both" ji doplní jen Encore).
     if (c > RV_PAGE_CAP) continue
     if (rvChunkCache.chunks.has(c)) continue
-    const cres = await window.api.search(q, c, RV_CHUNK, system, 'rhythmverse', filters, sort)
+    const cres = await window.api.search(q, c, RV_CHUNK, system, 'rhythmverse', filters, sort, sortDir)
     if (myReq !== searchSeq) return null
     rvChunkCache.chunks.set(c, cres.songs)
     rvChunkCache.total = cres.totalFiltered
@@ -424,7 +445,8 @@ export const useStore = create<AppState>((set, get) => {
           system,
           database,
           buildServerFilters(),
-          get().sort
+          get().sort,
+          get().sortDir
         )
         if (myReq !== searchSeq) return // mezitím odstartovalo novější hledání
         const total = res.totalFiltered || res.songs.length
@@ -492,7 +514,12 @@ export const useStore = create<AppState>((set, get) => {
   albumFilter: '',
   ownedKeys: new Set<string>(),
   hideOwned: false,
-  sort: 'relevance',
+  // Default = 'newest': první stránka se přirozeně mění, jak přibývají charty.
+  // Tlačítko pořád ukazuje „Sort by" (viz `sortTouched`), takže se uživatel
+  // nespletě, že by šlo o aktivní volbu z jeho strany.
+  sort: 'newest',
+  sortDir: SORT_DEFAULT_DIR.newest,
+  sortTouched: false,
   surprise: false,
   marketplacePrompt: null,
   pendingSong: null,
@@ -621,13 +648,28 @@ export const useStore = create<AppState>((set, get) => {
     // Chorus Encore neumí žánr/rok/délku → při přepnutí na něj je vyčistíme, ať
     // odznáček „Filters" nelže a nezůstanou viset nefunkční filtry. Řazení podle
     // stažení taky Encore neumí → padni zpět na default, ať UI nelže.
+    //
+    // Vyčistíme i `results`/`deep`/`deepSongs`/totals: bez toho staré výsledky
+    // z předchozí databáze visí pod novým labelem, než doběhne nový fetch. Prázdný
+    // stav = UI hned ukáže skeleton (doSearch nastaví `loading: true`).
+    const revert = get().sort === 'downloads' && d === 'enchor'
+    const patch: Partial<AppState> = {
+      database: d,
+      results: [],
+      deep: false,
+      deepSongs: [],
+      totalFiltered: 0,
+      resultCount: 0
+    }
     if (d === 'enchor') {
-      set({
-        database: d,
-        filters: {},
-        sort: get().sort === 'downloads' ? 'relevance' : get().sort
-      })
-    } else set({ database: d })
+      patch.filters = {}
+      if (revert) {
+        patch.sort = 'newest'
+        patch.sortDir = SORT_DEFAULT_DIR.newest
+        patch.sortTouched = false
+      }
+    }
+    set(patch as Partial<AppState>)
   },
   setSystem: (s) => {
     // Číselník filtrů (žánry/roky/délky) je pro každý systém jiný → vynutit
@@ -669,12 +711,19 @@ export const useStore = create<AppState>((set, get) => {
   // jedné) → změna sortu přenačte od stránky 1. V deep režimu se tím přeskenuje
   // se správným server sortem, v „Both" navíc klient srovná sloučenou stránku.
   setSort: (s) => {
-    set({ sort: s, selectedIndex: -1, page: 1 })
+    // `sortTouched: true` = uživatel aktivně sáhnul do menu → tlačítko od teď
+    // ukazuje konkrétní volbu, ne „Sort by". Změna klíče resetuje směr na jeho
+    // výchozí (Title→A-Z, Downloads→nejvíc první…); šipkou ho pak lze přepnout.
+    set({ sort: s, sortDir: SORT_DEFAULT_DIR[s], sortTouched: true, selectedIndex: -1, page: 1 })
+    void get().doSearch(1)
+  },
+  setSortDir: (d) => {
+    set({ sortDir: d, sortTouched: true, selectedIndex: -1, page: 1 })
     void get().doSearch(1)
   },
   surpriseMe: async () => {
     get().stopPreview()
-    const { query, system, database, records, sort } = get()
+    const { query, system, database, records, sort, sortDir } = get()
     // Serverové filtry (vč. nástroje) → losování respektuje zaškrtnuté nástroje.
     const filters = buildServerFilters()
     const myReq = ++searchSeq
@@ -688,7 +737,7 @@ export const useStore = create<AppState>((set, get) => {
       // `records`, takže hlubší písničky jdou dosáhnout jen přes VĚTŠÍ `records`.
       let total = get().totalFiltered
       if (!total || total < 1) {
-        const probe = await window.api.search(query.trim(), 1, 1, system, database, filters, sort)
+        const probe = await window.api.search(query.trim(), 1, 1, system, database, filters, sort, sortDir)
         if (myReq !== searchSeq) return
         total = probe.totalFiltered || probe.songs.length
       }
@@ -706,26 +755,31 @@ export const useStore = create<AppState>((set, get) => {
       let pick: number
       let maxPage: number
       if (database === 'enchor') {
-        pick = Math.min(250, Math.max(records, 100))
+        pick = Math.min(ENCORE_PER_PAGE_MAX, Math.max(records, 100))
         maxPage = Math.max(1, Math.ceil(total / pick))
       } else if (database === 'both') {
-        pick = Math.min(250, Math.max(records, Math.ceil(total / 245)))
-        maxPage = Math.max(1, Math.min(245, Math.ceil(total / pick)))
+        pick = Math.min(ENCORE_PER_PAGE_MAX, Math.max(records, Math.ceil(total / RV_SURPRISE_MAX_PAGE)))
+        maxPage = Math.max(1, Math.min(RV_SURPRISE_MAX_PAGE, Math.ceil(total / pick)))
       } else {
-        pick = Math.min(600, Math.max(records, Math.ceil(total / 245)))
-        maxPage = Math.max(1, Math.min(245, Math.ceil(total / pick)))
+        pick = Math.min(RV_SURPRISE_PICK, Math.max(records, Math.ceil(total / RV_SURPRISE_MAX_PAGE)))
+        maxPage = Math.max(1, Math.min(RV_SURPRISE_MAX_PAGE, Math.ceil(total / pick)))
       }
       const randPage = 1 + Math.floor(Math.random() * maxPage)
-      const res = await window.api.search(query.trim(), randPage, pick, system, database, filters, sort)
+      const res = await window.api.search(query.trim(), randPage, pick, system, database, filters, sort, sortDir)
       if (myReq !== searchSeq) return
       const pool = res.songs
       if (!pool.length) {
         set({ loading: false, surprise: false })
         return
       }
-      const song = pool[Math.floor(Math.random() * pool.length)]
+      // Vylosuj N unikátních písní. Dřív to bylo jen 1 → uživatel musel klikat
+      // znovu a znovu. Když má pool méně než N (drobný katalog / úzký filtr),
+      // vezmi vše, co je — nedopisuj to opakovanými picky.
+      const WANT = 5
+      const shuffled = [...pool].sort(() => Math.random() - 0.5)
+      const picks = shuffled.slice(0, Math.min(WANT, shuffled.length))
       set({
-        results: [song],
+        results: picks,
         totalFiltered: res.totalFiltered || total,
         // U „Both" = kombinovaný počet (součet), ať „from N charts" sedí s labelem.
         resultCount: res.resultCount ?? res.totalFiltered ?? total,
@@ -821,6 +875,7 @@ export const useStore = create<AppState>((set, get) => {
       // filtruje serverově, ne až klientsky nad stránkou.
       const filters = buildServerFilters()
       const sort = get().sort
+      const sortDir = get().sortDir
       const q = query.trim()
       let songs: SongResult[]
       let total: number
@@ -835,8 +890,8 @@ export const useStore = create<AppState>((set, get) => {
         // ipc 'both'. allSettled (jako shallow ipc): když spadne jen jedna DB, ukaž
         // tu druhou; když obě, propaguj chybu.
         const [rvR, enR] = await Promise.allSettled([
-          rvPageItems(q, system, sort, filters, page, records, myReq),
-          window.api.search(q, page, records, system, 'enchor', filters, sort)
+          rvPageItems(q, system, sort, sortDir, filters, page, records, myReq),
+          window.api.search(q, page, records, system, 'enchor', filters, sort, sortDir)
         ])
         if (myReq !== searchSeq) return
         if (rvR.status === 'rejected' && enR.status === 'rejected') {
@@ -847,12 +902,12 @@ export const useStore = create<AppState>((set, get) => {
         const enTot = enR.status === 'fulfilled' ? enR.value.totalFiltered : 0
         const seen = new Set<string>()
         const merged: SongResult[] = []
-        const keyOf = (s: SongResult): string =>
-          `${s.artist.trim().toLowerCase()}|${s.title.trim().toLowerCase()}|${(s.charter ?? '')
-            .trim()
-            .toLowerCase()}`
-        for (const s of [...enSongs, ...(rv ? rv.songs : [])]) {
-          const k = keyOf(s)
+        // Stejné slučování jako mělké „Both" v ipc.ts: u „Most downloaded" napřed
+        // RhythmVerse (Encore downloads nemá), jinak Encore první (.sng spolehlivost).
+        const rvSongs = rv ? rv.songs : []
+        const ordered = sort === 'downloads' ? [...rvSongs, ...enSongs] : [...enSongs, ...rvSongs]
+        for (const s of ordered) {
+          const k = mergeKey(s)
           if (seen.has(k)) continue
           seen.add(k)
           merged.push(s)
@@ -861,13 +916,13 @@ export const useStore = create<AppState>((set, get) => {
         total = Math.max(rv ? rv.total : 0, enTot)
         rcount = (rv ? rv.total : 0) + enTot
       } else if (database === 'rhythmverse' && page > RV_PAGE_CAP) {
-        const rv = await rvPageItems(q, system, sort, filters, page, records, myReq)
+        const rv = await rvPageItems(q, system, sort, sortDir, filters, page, records, myReq)
         if (rv === null) return
         songs = rv.songs
         total = rv.total
         rcount = total
       } else {
-        const res = await window.api.search(q, page, records, system, database, filters, sort)
+        const res = await window.api.search(q, page, records, system, database, filters, sort, sortDir)
         if (myReq !== searchSeq) return
         songs = res.songs
         total = res.totalFiltered
@@ -1157,6 +1212,19 @@ export const useStore = create<AppState>((set, get) => {
         })
       }, 5000)
     }
+    // Zrušená úloha se sama uklidí po 2 s — uživatel ji zrušil, nemá důvod ji
+    // držet v historii (na rozdíl od 'error', kde si chce přečíst příčinu). Když
+    // to byla poslední položka, lišta fronty se pak sama zavře.
+    if (job.stage === 'canceled') {
+      setTimeout(() => {
+        const cur = useStore.getState().jobs[job.id]
+        if (!cur || cur.stage !== 'canceled') return
+        useStore.setState((s) => {
+          const { [job.id]: _gone, ...rest } = s.jobs
+          return { jobs: rest }
+        })
+      }, 2000)
+    }
   },
 
   clearFinishedJobs: async () => {
@@ -1165,7 +1233,7 @@ export const useStore = create<AppState>((set, get) => {
       const jobs: typeof s.jobs = {}
       const removed = new Set<string>()
       for (const [id, j] of Object.entries(s.jobs)) {
-        if (j.stage === 'done' || j.stage === 'error') removed.add(id)
+        if (j.stage === 'done' || j.stage === 'error' || j.stage === 'canceled') removed.add(id)
         else jobs[id] = j
       }
       const enqueuedKeys: typeof s.enqueuedKeys = {}
@@ -1173,6 +1241,36 @@ export const useStore = create<AppState>((set, get) => {
         if (!removed.has(id)) enqueuedKeys[k] = id
       }
       return { jobs, enqueuedKeys }
+    })
+  },
+
+  cancelJob: async (id) => {
+    // Uvolni klíč z `enqueuedKeys` hned, ať jde píseň případně stáhnout znovu
+    // (finální stav 'canceled' dorazí přes jobs:update event z main procesu).
+    set((s) => {
+      const enqueuedKeys: typeof s.enqueuedKeys = {}
+      for (const [k, jid] of Object.entries(s.enqueuedKeys)) if (jid !== id) enqueuedKeys[k] = jid
+      return { enqueuedKeys }
+    })
+    await window.api.cancelJob(id)
+  },
+
+  cancelAllJobs: async () => {
+    await window.api.cancelAllJobs()
+    // enqueuedKeys pro aktivní úlohy uvolníme podle toho, které zůstanou
+    // neterminální — jednoduše všechny, co nejsou 'done' (zrušené a rozdělané
+    // ať jdou stáhnout znovu). Finální stavy dorazí přes jobs:update.
+    set((s) => {
+      const activeIds = new Set(
+        Object.entries(s.jobs)
+          .filter(([, j]) => j.stage !== 'done')
+          .map(([jid]) => jid)
+      )
+      const enqueuedKeys: typeof s.enqueuedKeys = {}
+      for (const [k, jid] of Object.entries(s.enqueuedKeys)) {
+        if (!activeIds.has(jid)) enqueuedKeys[k] = jid
+      }
+      return { enqueuedKeys }
     })
   },
 

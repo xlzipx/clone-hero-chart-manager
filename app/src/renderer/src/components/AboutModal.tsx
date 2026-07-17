@@ -18,7 +18,7 @@ const FEATURES = [
   'Search RhythmVerse and Chorus Encore together, or one at a time.',
   'Preview a song before you download it, so you know what you are getting.',
   'Rock Band charts are converted to Clone Hero for you.',
-  'Paste a Spotify playlist and get a chart for every song in it.',
+  'Paste a Spotify playlist and get a chart for every song that has one.',
   'Keep the library tidy: duplicates, playlists, metadata and artwork.'
 ]
 
@@ -27,8 +27,6 @@ export function AboutModal(): JSX.Element | null {
   const show = useStore((s) => s.showAbout)
   const close = useStore((s) => s.setShowAbout)
   const [version, setVersion] = useState('')
-  // Bio je slohovka → zabalené. Kdo chce, rozklikne; ostatním nepřekáží.
-  const [bioOpen, setBioOpen] = useState(false)
 
   useEffect(() => {
     if (show) void window.api.appVersion().then(setVersion)
@@ -123,56 +121,33 @@ export function AboutModal(): JSX.Element | null {
             <Icon name="external" size={13} className="about__ghgo" />
           </button>
 
-          {/* Bio pod rozkliknutím — stejná roleta (0fr↔1fr) jako sekce v Nastavení. */}
-          <div className="field--disc about__disc">
-            <button
-              type="button"
-              className="disc__head"
-              aria-expanded={bioOpen}
-              onClick={() => setBioOpen((o) => !o)}
-            >
-              <span className="about__whohead">
+          {/* Kontaktní karta — vizitka na jednom řádku (avatar+jméno vlevo,
+              odkazy vpravo). Krátký lead nahoře říká, proč jsou tam odkazy. */}
+          <div className="about__contact">
+            <p className="about__contactlead">
+              Got a question or an issue? Feel free to reach out.
+            </p>
+            <div className="about__contactrow">
+              <div className="about__whohead">
                 <img className="about__avatar" src={zipeekLogo} alt="" />
-                <span className="disc__titles">
-                  <span className="disc__title">ZIPEEK</span>
-                  <span className="disc__sub">Creator of Chart Manager</span>
+                <span className="about__whotexts">
+                  <span className="about__whoname">ZIPEEK</span>
+                  <span className="about__whorole">Creator of Chart Manager</span>
                 </span>
-              </span>
-              <Icon name="caret" size={12} className="disc__caret" />
-            </button>
-            <div className={`disc ${bioOpen ? 'disc--open' : ''}`}>
-              <div className="disc__inner">
-                <div className="about__bio">
-                  <p>
-                    Hi, my name is Jan (aka ZIPEEK). I'm a PC enthusiast with a passion for graphic
-                    design, music, sports and science. I work as a sales assistant in a small family
-                    business, and I spend every moment of free time on my hobbies, from gaming to
-                    music to the latest tech.
-                  </p>
-                  <p>
-                    This app was built with Claude Code. It opened a door that would have been
-                    unthinkable for me before, and the deeper I get into this, the more respect I
-                    have for developers and the craft behind their work.
-                  </p>
-                  <p className="about__bioend">
-                    I share my creations with everyone, and everything is free to download.
-                  </p>
-                  {/* Kontaktní odkazy pod bio — X i Reddit jako alternativní reach. */}
-                  <div className="about__socials">
-                    <button className="about__social" onClick={open(X_URL)}>
-                      {/* JPG (rastr), takže <img>. Bílé pozadí kolem loga je součást
-                          souboru — obarvit z CSS nejde, jen zaoblím rohy. */}
-                      <img className="about__socicon" src={xLogo} alt="" />
-                      <span>X</span>
-                      <span className="about__sochandle">@xlZiPx</span>
-                    </button>
-                    <button className="about__social" onClick={open(REDDIT_URL)}>
-                      <img className="about__socicon" src={redditLogo} alt="" />
-                      <span>Reddit</span>
-                      <span className="about__sochandle">u/xlZiPx</span>
-                    </button>
-                  </div>
-                </div>
+              </div>
+              <div className="about__socials">
+                <button className="about__social" onClick={open(X_URL)}>
+                  {/* JPG (rastr), takže <img>. Bílé pozadí kolem loga je součást
+                      souboru — obarvit z CSS nejde, jen zaoblím rohy. */}
+                  <img className="about__socicon" src={xLogo} alt="" />
+                  <span>X</span>
+                  <span className="about__sochandle">@xlZiPx</span>
+                </button>
+                <button className="about__social" onClick={open(REDDIT_URL)}>
+                  <img className="about__socicon" src={redditLogo} alt="" />
+                  <span>Reddit</span>
+                  <span className="about__sochandle">u/xlZiPx</span>
+                </button>
               </div>
             </div>
           </div>

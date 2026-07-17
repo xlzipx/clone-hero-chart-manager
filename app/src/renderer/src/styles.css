@@ -560,21 +560,6 @@ body {
   color: var(--text);
   font-weight: 700;
 }
-.about__btn {
-  flex-shrink: 0;
-}
-.about__result {
-  margin-top: 8px;
-}
-.about__result--uptodate {
-  color: var(--ok);
-}
-.about__result--available {
-  color: var(--text);
-}
-.about__result--error {
-  color: var(--warn);
-}
 /* UI scale stepper. */
 .scaler {
   display: flex;
@@ -1386,6 +1371,32 @@ body {
 }
 .dd--sort .dd__btn {
   min-width: 130px;
+}
+/* Sort ovládání = dropdown klíče + přepínač směru vedle sebe (jako v knihovně). */
+.sortctl {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.sortctl__dir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  background: var(--panel);
+  border: none;
+  border-radius: var(--r-md);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.sortctl__dir:hover:not(:disabled) {
+  background: var(--panel-hover);
+  color: var(--text);
+}
+.sortctl__dir:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .dd__btn {
   display: inline-flex;
@@ -2563,7 +2574,7 @@ body {
   position: relative;
   overflow: hidden;
 }
-.qjob:not(.qjob--done):not(.qjob--error) .qjob__fill::after {
+.qjob:not(.qjob--done):not(.qjob--error):not(.qjob--canceled):not(.qjob--canceling) .qjob__fill::after {
   /* Pohybující se proužek v progress baru – signál, že to běží. */
   content: '';
   position: absolute;
@@ -2589,6 +2600,58 @@ body {
 }
 .qjob--error .qjob__fill {
   background: var(--warn);
+}
+/* Ruší se (krok ještě dobíhá) — jantarový stav + tlumený, pulzující progress,
+   ať je hned vidět, že appka zrušení vzala na vědomí a čeká na doběhnutí kroku. */
+.qjob--canceling .qjob__stage {
+  color: #ffab6b;
+}
+.qjob--canceling .qjob__fill {
+  background: #ffab6b;
+  opacity: 0.5;
+  animation: cancelPulse 1s ease-in-out infinite;
+}
+@keyframes cancelPulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+/* Zrušená úloha = tlumená, bez shimmeru — vizuálně „ukončeno, ale ne dokončeno". */
+.qjob--canceled .qjob__fill {
+  background: var(--text-faint);
+  opacity: 0.5;
+}
+.qjob--canceled .qjob__title {
+  color: var(--text-dim);
+}
+/* Křížek pro zrušení jedné úlohy — decentní, zvýrazní se na hover. */
+.qjob__cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: -2px -2px -2px 0;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.qjob__cancel:hover {
+  background: rgba(255, 90, 90, 0.15);
+  color: #ff6b6b;
+}
+/* „Stop all" = varovný akcent, odliší od neutrálního „Clear history". */
+.queue__stopall:hover {
+  color: #ff6b6b;
 }
 .qjob__msg {
   font-size: 11.5px;
@@ -3057,6 +3120,15 @@ body {
   display: flex;
   flex-direction: column;
 }
+/* Cesta (breadcrumbs) na vlastním řádku nad nástroji — dlouhá cesta tak nikdy
+   netlačí do tlačítek a layout nepřeskakuje. Přeteče → vodorovný scroll řádku. */
+.lib__crumbsrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px 0;
+  min-width: 0;
+}
 .lib__toolbar {
   display: flex;
   align-items: center;
@@ -3064,6 +3136,10 @@ body {
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
+}
+/* Ikonová tlačítka (Up, Explorer, Refresh) — čtvercová, bez textu. */
+.lib__btn--icon {
+  padding: 7px 9px;
 }
 .lib__spacer {
   flex: 1;
@@ -3086,6 +3162,53 @@ body {
   background: var(--panel-hover);
   border-color: var(--accent);
 }
+/* Řazení knihovny: select klíče + toggle směru. Sladěné 1:1 s .lib__btn (výška,
+   font, barvy, hover), spojené v jeden segment (radius jen na krajích). */
+.lib__sort {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+}
+.lib__sortsel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-right: none;
+  color: var(--text);
+  padding: 7px 9px;
+  border-radius: var(--r-md) 0 0 var(--r-md);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.12s;
+}
+.lib__sortsel:hover {
+  background: var(--panel-hover);
+  border-color: var(--accent);
+}
+.lib__sortsel option {
+  background: var(--bg-solid);
+  color: var(--text);
+  font-weight: 600;
+}
+.lib__sortdir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.lib__sortdir:hover {
+  background: var(--panel-hover);
+  border-color: var(--accent);
+  color: var(--text);
+}
 .lib__btn:disabled {
   opacity: 0.4;
   cursor: default;
@@ -3101,9 +3224,17 @@ body {
 .lib__crumbs {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 2px;
   min-width: 0;
+  flex: 1;
+  /* Dlouhá cesta se posune vodorovně, ne zalomí — řádek zůstane jednořádkový. */
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.lib__crumbs .crumb {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .crumb {
   display: inline-flex;
@@ -3741,18 +3872,54 @@ body {
   margin-top: 3px;
 }
 
-/* Autorův blok = hlavička rolety (avatar + jméno vlevo, kolébka vpravo). */
-.about__disc {
+/* Kontaktní karta autora — vizitka na jednom řádku. Nahoře výzva ("Got a
+   question…"), pod ní horizontální řádek: avatar+jméno vlevo, socials vpravo.
+   `flex-wrap` v řádku = na úzkém okně se odkazy zabalí pod jméno, ne přeteče. */
+.about__contact {
   border: 1px solid var(--tline);
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.14);
-  overflow: hidden;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.about__contactlead {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.about__contactrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .about__whohead {
   display: flex;
   align-items: center;
   gap: 11px;
   min-width: 0;
+}
+.about__whotexts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.about__whoname {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.about__whorole {
+  font-size: 11.5px;
+  color: var(--text-faint);
 }
 .about__avatar {
   width: 34px;
@@ -3761,23 +3928,6 @@ body {
   object-fit: cover;
   flex: none;
   border: 1px solid var(--border-strong);
-}
-.about__bio {
-  margin-top: 2px;
-}
-.about__bio p {
-  margin: 0 0 8px;
-  font-size: 12.5px;
-  line-height: 1.65;
-  color: var(--text-dim);
-}
-.about__bio p:last-child {
-  margin-bottom: 0;
-}
-/* Poslední věta bia = pointa („všechno zdarma"), ať nezapadne mezi odstavci. */
-.about__bioend {
-  color: var(--text) !important;
-  font-weight: 500;
 }
 
 /* Kontaktní odkazy (X, Reddit) = tlumenější než hlavní GitHub CTA — kontakt je

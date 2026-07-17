@@ -11,6 +11,7 @@
 //
 // Pozn.: hodnota obtížnosti 0 nebo null znamená „part nezahraný"; 1–6 je tier.
 
+import { SORT_DEFAULT_DIR } from '../../shared/types'
 import type {
   FilterOption,
   FilterOptions,
@@ -18,6 +19,7 @@ import type {
   SearchFilters,
   SearchResponse,
   SongResult,
+  SortDir,
   SortKey
 } from '../../shared/types'
 import {
@@ -194,19 +196,21 @@ function applyFilters(body: URLSearchParams, filters?: SearchFilters): void {
  * jako `sort[0][sort_by]=X&sort[0][sort_order]=ASC|DESC` (ověřeno proti bundlu
  * i živě). Platná pole: title, artist, length, downloads, update_date, …
  */
-const RV_SORT: Partial<Record<SortKey, [by: string, order: 'ASC' | 'DESC']>> = {
-  title: ['title', 'ASC'],
-  artist: ['artist', 'ASC'],
-  length: ['length', 'DESC'],
-  downloads: ['downloads', 'DESC'],
-  newest: ['update_date', 'DESC']
+// Jen mapa KLÍČ→pole; směr (ASC/DESC) řídí `sortDir` (default v SORT_DEFAULT_DIR).
+const RV_SORT_FIELD: Partial<Record<SortKey, string>> = {
+  title: 'title',
+  artist: 'artist',
+  length: 'length',
+  downloads: 'downloads',
+  newest: 'update_date'
 }
 
-function applySort(body: URLSearchParams, sort?: SortKey): void {
-  const spec = sort ? RV_SORT[sort] : undefined
-  if (!spec) return
-  body.append('sort[0][sort_by]', spec[0])
-  body.append('sort[0][sort_order]', spec[1])
+function applySort(body: URLSearchParams, sort?: SortKey, sortDir?: SortDir): void {
+  const field = sort ? RV_SORT_FIELD[sort] : undefined
+  if (!field || !sort) return
+  const dir = sortDir ?? SORT_DEFAULT_DIR[sort]
+  body.append('sort[0][sort_by]', field)
+  body.append('sort[0][sort_order]', dir === 'asc' ? 'ASC' : 'DESC')
 }
 
 /**
@@ -222,7 +226,8 @@ export async function search(
   records = 25,
   system: RhythmVerseSystem = 'ch',
   filters?: SearchFilters,
-  sort?: SortKey
+  sort?: SortKey,
+  sortDir?: SortDir
 ): Promise<SearchResponse> {
   const hasText = !!text.trim()
   const endpoint = hasText ? 'search/live' : 'list'
@@ -233,7 +238,7 @@ export async function search(
   body.set('records', String(records))
   body.set('page', String(page))
   applyFilters(body, filters)
-  applySort(body, sort)
+  applySort(body, sort, sortDir)
 
   const res = await fetch(url, {
     method: 'POST',
