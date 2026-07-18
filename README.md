@@ -9,10 +9,10 @@
 A Windows desktop app for searching, downloading and automatically converting
 Clone Hero charts from the [RhythmVerse](https://rhythmverse.co/songfiles/game)
 and [Chorus Encore](https://www.enchor.us) databases — with drag‑and‑drop
-manual installs, an in‑game hotkey reminder pill, and one‑click launch of the
-game itself.
+manual installs, an in‑game hotkey reminder pill, and one‑click launch of
+Clone Hero or YARG.
 
-**New: import a Spotify playlist.** Paste a public Spotify playlist link and
+**Import a Spotify playlist.** Paste a public Spotify playlist link and
 CHM finds a chart for every song in it, then downloads them all in a few
 clicks — a whole setlist from a playlist you already love. See
 [Import a Spotify playlist](#import-a-spotify-playlist) below.
@@ -152,18 +152,21 @@ clicks — a whole setlist from a playlist you already love. See
   </tr>
 </table>
 
-### Clone Hero integration
-- **Launch / Switch to Clone Hero** button in the title bar — auto‑detects
+### Clone Hero &amp; YARG integration
+- **Launch / Switch to Clone Hero** button in the sidebar — auto‑detects
   `Clone Hero.exe` from common install paths (Steam, Program Files, parent of
   Songs). Lights up green with a pulsing dot when the game is running, and
   brings it to the foreground if it's already open (via Win32
   `SetForegroundWindow` / `ShowWindowAsync` so it works even from a
   minimized state).
+- **Launch YARG** too — a separate sidebar button that auto‑detects `YARG.exe`
+  (override it in Settings if needed). YARG reads charts from the same Clone
+  Hero `Songs` folder, so there's no separate library to manage.
 - **Manual `Clone Hero.exe` path field** in Settings — always available as an
   override, in case auto‑detection picks the wrong install or you have several.
-- **Focus restore** — when you hide CHM (hotkey / minimize button), the
-  app brings Clone Hero back to the foreground so you don't have to click on
-  the game window.
+- **Focus restore** — when you hide CHM (hotkey / minimize button), the app
+  brings the running game (Clone Hero or YARG) back to the foreground so you
+  don't have to click on its window.
 
 ### Hotkey reminder pill (optional)
 - Tiny **glassmorphism pill** floating in a corner of the screen while
@@ -174,10 +177,11 @@ clicks — a whole setlist from a playlist you already love. See
 - Off by default; toggle in Settings.
 
 ### UI polish
-- Modern frameless window with a center‑lit gradient title bar and plastic
-  3D **CHART MANAGER** brand.
+- Modern frameless window with a **Chart Manager.** wordmark and a small
+  equalizer‑bar mark in the instrument colours.
 - Custom dark dropdowns, themed checkboxes, smooth row entry animations,
-  shimmer effect on download buttons, breathing border on the drop zone, etc.
+  shimmer effect on download buttons, breathing border on the drop zone,
+  skeleton loading rows that mirror the real results, etc.
 - Accessibility: respects `@prefers-reduced-motion`.
 
 ## Architecture
@@ -248,8 +252,9 @@ yourself.
 On first launch the app tries to auto‑detect your Clone Hero installation:
 
 1. From the parent of the `Songs` folder.
-2. From known paths (`C:\Program Files\Clone Hero`, the Steam library
-   path under `Program Files (x86)`, `G:\Clone Hero`, …).
+2. From known paths (`C:\Program Files\Clone Hero`,
+   `C:\Program Files (x86)\Clone Hero`, and the Steam library under
+   `Program Files (x86)\Steam\steamapps\common\Clone Hero`).
 
 If both fail, **Settings opens automatically** and you point it at your
 `Songs` folder once. Everything else is configured from there.
@@ -263,9 +268,10 @@ npm run dist            # → app\dist\CHM-Setup-<version>.exe (installer)
 npm run dist:portable   # → app\dist\CHM-Portable-<version>.exe (portable)
 ```
 
-Shipped artifacts live in **`release/installer/`** and **`release/portable/`**
-in the project root — `app/dist/` is just the build output, the final files
-get moved into `release/` for sharing.
+Both commands write their `.exe` (plus the installer's `latest.yml` /
+`.blockmap` for auto‑update) into **`app/dist/`** — those are the files
+published to
+[GitHub Releases](https://github.com/xlzipx/clone-hero-chart-manager/releases).
 
 Requirements to build: Windows, Node.js 20+ (tested on 24), plus the bundled
 tools present locally:
@@ -305,21 +311,25 @@ anywhere" bundle for sharing.
   auto‑dismiss after 5 seconds; failures stick around with a friendly
   explanation. The whole panel collapses to nothing when idle.
 
-### Top‑right controls (title bar)
-- **Launch / Switch to Clone Hero** — left side, center.
-- **Library manager** — file manager for your `Songs` folder.
-- **Settings** — Songs folder, an optional chart folder‑name template,
-  `Clone Hero.exe` and `YARG.exe` path overrides, results per page, UI scale,
-  the hotkey‑reminder pill (toggle + position) and the quick‑toggle hotkey.
-- **Hide to tray**.
-- **Quit**.
+### Title bar
+- **Left** — the **Chart Manager.** wordmark; click it for the About window.
+- **Centre** — rotating tips (toggle with the lightbulb).
+- **Right** — **My Library** (the `Songs` file manager), **Settings**, **Hide
+  to tray** and **Quit**.
+
+**Settings** covers: Songs folder, an optional chart folder‑name template,
+`Clone Hero.exe` and `YARG.exe` path overrides, results per page, UI scale,
+the hotkey‑reminder pill (toggle + position) and the quick‑toggle hotkey.
+
+The **Launch / Switch to Clone Hero** and **Launch YARG** buttons live in the
+left sidebar, not the title bar.
 
 <p align="center">
   <img alt="Settings window: Library &amp; paths, Interface and Game overlay in a two-column layout" width="820" src="docs/img/settings.png" />
 </p>
 
 > **Scanning into the game:** Clone Hero has no external rescan command —
-> after a download finishes, switch to the game (the title‑bar button does
+> after a download finishes, switch to the game (the sidebar button does
 > this and then sits idle), open **Settings → General → Scan Songs**, and
 > your new songs appear.
 >
