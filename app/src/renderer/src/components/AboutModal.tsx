@@ -79,9 +79,9 @@ export function AboutModal(): JSX.Element | null {
           </div>
 
           <p className="about__lead">
-            One place to find, preview, download and organise charts for{' '}
-            {IS_MAC ? 'Clone Hero' : 'Clone Hero and YARG'}. Search two catalogues at once, drop in
-            a Spotify playlist, and keep your Songs folder tidy.
+            One place to find, preview, download and organise charts for Clone Hero and YARG.
+            Search two catalogues at once, drop in a Spotify playlist, and keep your Songs folder
+            tidy.
           </p>
 
           <div className="about__values">

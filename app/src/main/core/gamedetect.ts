@@ -1,8 +1,8 @@
 // Detekce běžících rhythm her (Clone Hero + YARG) — jejich spuštění a focus restore.
 //
 // Windows: plná podpora CH i YARG (tasklist / PowerShell SetForegroundWindow).
-// macOS:   podpora Clone Hero (open / pgrep / osascript). YARG oficiální macOS
-//          build nemá, takže na Macu YARG vypadá jako "nenalezeno".
+// macOS:   plná podpora CH i YARG (open / pgrep / osascript). YARG má oficiální
+//          macOS universal build (přes YARC Launcher).
 
 import { exec, execFile, spawn } from 'child_process'
 import { existsSync, readdirSync, statSync } from 'fs'
@@ -18,8 +18,9 @@ const execAsync = promisify(exec)
 /** Známé jména procesů pro každou hru (mohou se v budoucnu rozšířit). */
 const PROC_CH = 'Clone Hero.exe'
 const PROC_YARG = 'YARG.exe'
-/** Jméno procesu CH uvnitř .app bundlu na macOS (Contents/MacOS/Clone Hero). */
+/** Jména procesů uvnitř .app bundlu na macOS (Contents/MacOS/<name>). */
 const PROC_CH_MAC = 'Clone Hero'
+const PROC_YARG_MAC = 'YARG'
 
 export type GameId = 'clone-hero' | 'yarg'
 export type RunningGame = GameId | null
@@ -37,6 +38,39 @@ function macChAppCandidates(): string[] {
     join(home, 'Clone Hero', 'Clone Hero.app'), // rozložení jako na Windows
     join(home, 'Downloads', 'Clone Hero.app')
   ]
+}
+
+/**
+ * macOS: najde `.app` bundle daného jména pod kořeny do hloubky `maxDepth`.
+ * Do jiných `.app` bundlů nesestupujeme (obsahují spoustu podsložek). Slouží
+ * hlavně k dohledání YARG.app, který YARC Launcher instaluje do vnořené složky.
+ */
+function findAppBundle(roots: string[], appName: string, maxDepth: number): string | null {
+  const walk = (dir: string, depth: number): string | null => {
+    let entries: import('fs').Dirent[]
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return null
+    }
+    for (const e of entries) {
+      if (e.isDirectory() && e.name === appName) return join(dir, e.name)
+    }
+    if (depth >= maxDepth) return null
+    for (const e of entries) {
+      if (e.isDirectory() && !e.name.endsWith('.app')) {
+        const hit = walk(join(dir, e.name), depth + 1)
+        if (hit) return hit
+      }
+    }
+    return null
+  }
+  for (const root of roots) {
+    if (!existsSync(root)) continue
+    const hit = walk(root, 0)
+    if (hit) return hit
+  }
+  return null
 }
 
 /**
@@ -70,17 +104,39 @@ export function detectChExe(): string | null {
 }
 
 /**
- * Vrátí cestu k YARG.exe (jen Windows — YARG nemá oficiální macOS build).
+ * Vrátí cestu ke spustitelnému YARG artefaktu (manuální override má přednost).
  *
- * YARG launcher rozbaluje konkrétní verze do náhodně pojmenovaných GUID složek
- * pod `…/YARG Installs/<GUID>/installation/YARG.exe`. Hledáme:
- *  1) Manuální override.
- *  2) Známé root paths — pro každý hledáme nejnovější GUID/installation/YARG.exe.
+ * Windows: `YARG.exe` — launcher rozbaluje verze do náhodně pojmenovaných GUID
+ *   složek pod `…/YARG Installs/<GUID>/installation/YARG.exe`.
+ * macOS: `YARG.app` — buď v /Applications, nebo (přes YARC Launcher) vnořené
+ *   pod `~/Library/Application Support/YARC/…`.
  */
 export function detectYargExe(): string | null {
-  if (!isWin) return null
   const cfg = getConfig()
   if (cfg.yargExePath && existsSync(cfg.yargExePath)) return cfg.yargExePath
+
+  if (isMac) {
+    const home = homedir()
+    for (const p of [
+      '/Applications/YARG.app',
+      join(home, 'Applications', 'YARG.app'),
+      join(home, 'Downloads', 'YARG.app')
+    ]) {
+      if (existsSync(p)) return p
+    }
+    // YARC Launcher instaluje YARG do vnořené složky v Application Support.
+    return findAppBundle(
+      [
+        join(home, 'Library', 'Application Support', 'YARC'),
+        join(home, 'Library', 'Application Support', 'YARC Launcher'),
+        join(home, 'Library', 'Application Support', 'in.yarg.launcher')
+      ],
+      'YARG.app',
+      5
+    )
+  }
+
+  if (!isWin) return null
 
   const rootCandidates = [
     'G:\\YARG\\Content\\YARG Installs',
@@ -173,14 +229,19 @@ async function runningGameWin(): Promise<RunningGame> {
 }
 
 async function runningGameMac(): Promise<RunningGame> {
+  // pgrep -x: přesná shoda jména procesu. Vrátí exit 1 když nic nenajde →
+  // promisify(exec) to hodí jako reject, takže chytneme v catch. CH má přednost.
   try {
-    // pgrep -x: přesná shoda jména procesu. `|| true` v shellu není potřeba —
-    // pgrep vrátí exit 1 když nic nenajde, což promisify(exec) hodí jako reject,
-    // takže to prostě chytneme v catch a vrátíme null.
     await execAsync(`pgrep -x "${PROC_CH_MAC}"`, { timeout: 2500 })
     return 'clone-hero'
   } catch {
-    return null // YARG na macOS neřešíme
+    /* CH neběží — zkus YARG */
+  }
+  try {
+    await execAsync(`pgrep -x "${PROC_YARG_MAC}"`, { timeout: 2500 })
+    return 'yarg'
+  } catch {
+    return null
   }
 }
 
@@ -224,20 +285,26 @@ export function launchGame(): { ok: true } | { ok: false; error: string } {
   }
 }
 
-/** Spustí YARG (jen Windows). */
+/** Spustí YARG (detach). Windows i macOS. */
 export function launchYarg(): { ok: true } | { ok: false; error: string } {
-  if (!isWin) {
-    return { ok: false, error: 'YARG has no official macOS build — launching it is Windows-only.' }
+  if (!isWin && !isMac) {
+    return { ok: false, error: 'Launching YARG is only supported on Windows and macOS.' }
   }
   const exe = detectYargExe()
   if (!exe) {
     return {
       ok: false,
-      error:
-        "Couldn't find YARG.exe. Set the path manually in Settings — typically at G:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe."
+      error: isMac
+        ? "Couldn't find YARG.app. Install YARG via the YARC Launcher, or set the path in Settings."
+        : "Couldn't find YARG.exe. Set the path manually in Settings — typically at G:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe."
     }
   }
   try {
+    if (isMac) {
+      const child = spawn('open', ['-a', exe], { detached: true, stdio: 'ignore' })
+      child.unref()
+      return { ok: true }
+    }
     const child = spawn(exe, [], {
       cwd: dirname(exe),
       detached: true,
@@ -275,15 +342,15 @@ export async function bringGameToFront(
   }
 
   if (isMac) {
-    // Na macu řešíme jen CH (YARG tu neběží).
+    const appName = target === 'yarg' ? PROC_YARG_MAC : PROC_CH_MAC
     return new Promise((resolve) => {
       execFile(
         'osascript',
-        ['-e', `tell application "${PROC_CH_MAC}" to activate`],
+        ['-e', `tell application "${appName}" to activate`],
         { timeout: 4000 },
         (err) => {
           if (err) resolve({ ok: false, error: err.message })
-          else resolve({ ok: true, game: 'clone-hero' })
+          else resolve({ ok: true, game: target as GameId })
         }
       )
     })

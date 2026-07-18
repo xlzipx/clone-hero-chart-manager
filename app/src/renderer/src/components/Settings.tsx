@@ -355,42 +355,41 @@ export function Settings(): JSX.Element | null {
             </p>
           </label>
 
-          {/* YARG má oficiální build jen na Windows — na macu pole skryjeme. */}
-          {!IS_MAC && (
-            <label className="field">
-              <span>
-                YARG.exe path
-                {yargStatus?.path === null && !draft.yargExePath ? (
-                  <em className="field__hint" style={{ marginLeft: 6 }}>
-                    — not detected (set manually if installed)
-                  </em>
-                ) : yargStatus?.autoDetected && !draft.yargExePath ? (
-                  <em className="field__hint" style={{ marginLeft: 6 }}>
-                    — auto-detected, override below if needed
-                  </em>
-                ) : null}
-              </span>
-              <div className="field__row">
-                <input
-                  placeholder={
-                    yargStatus?.autoDetected && yargStatus.path
-                      ? `Using: ${yargStatus.path}`
+          <label className="field">
+            <span>
+              {IS_MAC ? 'YARG.app path' : 'YARG.exe path'}
+              {yargStatus?.path === null && !draft.yargExePath ? (
+                <em className="field__hint" style={{ marginLeft: 6 }}>
+                  — not detected (set manually if installed)
+                </em>
+              ) : yargStatus?.autoDetected && !draft.yargExePath ? (
+                <em className="field__hint" style={{ marginLeft: 6 }}>
+                  — auto-detected, override below if needed
+                </em>
+              ) : null}
+            </span>
+            <div className="field__row">
+              <input
+                placeholder={
+                  yargStatus?.autoDetected && yargStatus.path
+                    ? `Using: ${yargStatus.path}`
+                    : IS_MAC
+                      ? 'e.g. /Applications/YARG.app'
                       : 'e.g. C:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe'
-                  }
-                  value={draft.yargExePath}
-                  onChange={(e) => setDraft({ ...draft, yargExePath: e.target.value })}
-                />
-                <button onClick={pickYargExe} title="Browse for YARG.exe">
-                  …
-                </button>
-              </div>
-              <p className="field__hint">
-                Used by the overlay + hotkey to detect YARG. CHM also brings YARG back to the
-                foreground when you hide this window. YARG reads charts from Clone Hero's Songs
-                folder, so no separate library is needed.
-              </p>
-            </label>
-          )}
+                }
+                value={draft.yargExePath}
+                onChange={(e) => setDraft({ ...draft, yargExePath: e.target.value })}
+              />
+              <button onClick={pickYargExe} title="Browse for YARG">
+                …
+              </button>
+            </div>
+            <p className="field__hint">
+              Used by the overlay + hotkey to detect YARG. CHM also brings YARG back to the
+              foreground when you hide this window. YARG reads charts from Clone Hero's Songs
+              folder, so no separate library is needed.
+            </p>
+          </label>
               </section>
             </div>
 

@@ -57,9 +57,12 @@ Because the build is unsigned:
 ## What's different on macOS vs Windows
 
 - **Clone Hero** is fully supported: detection, launch (`open -a`), and focus-back
-  (AppleScript `activate`) all work. Default Songs folder is
-  `~/Library/Application Support/com.srylain.CloneHero/Songs`.
-- **YARG** has no official macOS build, so YARG launch/detection is Windows-only.
+  (AppleScript `activate`) all work. Songs auto-detects from `~/Clone Hero/Songs`
+  and other common locations.
+- **YARG** is supported too — it has an official macOS universal build (via the
+  YARC Launcher). CHM detects `YARG.app` (in /Applications or under the YARC
+  Launcher folder), launches it and brings it back to the foreground, same as
+  Clone Hero. Set the path manually in Settings if it isn't found.
 - **Auto-update** is off (unsigned) — manual "View release" banner instead.
 - The window uses the same custom title bar; there are also standard macOS menu
   shortcuts (⌘Q, ⌘C/V/A, ⌘W).

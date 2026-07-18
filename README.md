@@ -14,7 +14,7 @@ A **Windows and macOS** desktop app for searching, downloading and automatically
 converting Clone Hero charts from the [RhythmVerse](https://rhythmverse.co/songfiles/game)
 and [Chorus Encore](https://www.enchor.us) databases — with drag‑and‑drop
 manual installs, an in‑game hotkey reminder pill, and one‑click launch of
-Clone Hero (YARG launch is Windows‑only — it has no official macOS build).
+Clone Hero or YARG.
 
 **Import a Spotify playlist.** Paste a public Spotify playlist link and
 CHM finds a chart for every song in it, then downloads them all in a few
@@ -171,10 +171,10 @@ clicks — a whole setlist from a playlist you already love. See
 - **Focus restore** — when you hide CHM (hotkey / minimize button), the app
   brings the running game (Clone Hero or YARG) back to the foreground so you
   don't have to click on its window.
-- **macOS** — Clone Hero is fully supported here too: detection, launch
-  (`open -a`) and focus‑back (AppleScript `activate`). YARG is Windows‑only, so
-  its launcher and settings are hidden on macOS. Songs auto‑detects from
-  `~/Clone Hero/Songs` and other common locations.
+- **macOS** — both games are supported here too: detection, launch (`open -a`)
+  and focus‑back (AppleScript `activate`) work for Clone Hero and YARG (YARG has
+  an official macOS universal build via the YARC Launcher). Songs auto‑detects
+  from `~/Clone Hero/Songs` and other common locations.
 
 ### Hotkey reminder pill (optional)
 - Tiny **glassmorphism pill** floating in a corner of the screen while
@@ -362,10 +362,10 @@ anywhere" bundle for sharing.
 - **Right** — **My Library** (the `Songs` file manager), **Settings**, **Hide
   to tray** and **Quit**.
 
-**Settings** covers: Songs folder, an optional chart folder‑name template, the
-Clone Hero path override (`Clone Hero.exe` on Windows, `Clone Hero.app` on
-macOS) plus a `YARG.exe` override on Windows, results per page, UI scale, the
-hotkey‑reminder pill (toggle + position) and the quick‑toggle hotkey.
+**Settings** covers: Songs folder, an optional chart folder‑name template, and
+the Clone Hero / YARG path overrides (`.exe` on Windows, `.app` on macOS),
+results per page, UI scale, the hotkey‑reminder pill (toggle + position) and the
+quick‑toggle hotkey.
 
 The **Launch / Switch to Clone Hero** and **Launch YARG** buttons live in the
 left sidebar, not the title bar.
