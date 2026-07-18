@@ -145,7 +145,7 @@ clicks — a whole setlist from a playlist you already love. See
 </p>
 <table>
   <tr>
-    <td width="50%" valign="top"><img alt="Create and edit Clone Hero setlists" width="100%" src="docs/img/setlist-manager.webp" /></td>
+    <td width="50%" valign="top"><img alt="Create and edit Clone Hero setlists" width="100%" src="docs/img/setlist-manager.png" /></td>
     <td width="50%" valign="top"><img alt="Duplicate finder comparing copies side by side" width="100%" src="docs/img/find-duplicates.webp" /></td>
   </tr>
 </table>
@@ -311,7 +311,7 @@ anywhere" bundle for sharing.
 - **Quit**.
 
 <p align="center">
-  <img alt="Settings panel: Songs folder, hotkey reminder pill and more" width="420" src="docs/img/settings.webp" />
+  <img alt="Settings panel: Songs folder, hotkey reminder pill and more" width="420" src="docs/img/settings.png" />
 </p>
 
 > **Scanning into the game:** Clone Hero has no external rescan command —
