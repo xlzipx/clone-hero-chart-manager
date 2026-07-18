@@ -39,7 +39,7 @@ function positionFor(pos: ReminderPosition): { x: number; y: number } {
   }
 }
 
-/** Formátuje hotkey pro UI. Na macu nativní symboly (⌘⌥⌃⇧, spojené: ⌘I),
+/** Formátuje hotkey pro UI. Na macu nativní symboly s „+" (⌘+I),
  *  na Windows textové názvy (Ctrl + I). */
 function formatHotkey(accel: string): string {
   if (!accel) return '—'
@@ -61,7 +61,7 @@ function formatHotkey(accel: string): string {
       if (l === 'super' || l === 'meta') return 'Win'
       return s
     })
-    .join(isMac ? '' : ' + ')
+    .join(isMac ? '+' : ' + ')
 }
 
 /** Inline HTML pro pill — substituuje aktuální hotkey.

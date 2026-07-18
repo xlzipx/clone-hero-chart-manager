@@ -23,7 +23,7 @@ const MAC_SYMBOLS: Record<string, string> = {
 }
 function displayAccel(accel: string): string {
   if (!accel || !IS_MAC) return accel
-  return accel.split('+').map((p) => MAC_SYMBOLS[p] ?? p).join('')
+  return accel.split('+').map((p) => MAC_SYMBOLS[p] ?? p).join('+')
 }
 
 /** Electron globalShortcut povoluje jen ASCII printable znaky + speciální tokeny. */
