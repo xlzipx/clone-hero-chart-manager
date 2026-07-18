@@ -1,0 +1,66 @@
+name: Build macOS release
+
+# Builds the unsigned macOS .dmg in the cloud so a release does not need a Mac.
+# Fires automatically when a version tag (v*) is pushed, and can also be run
+# manually from the Actions tab (which just produces the .dmg as an artifact).
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-mac:
+    runs-on: macos-latest # Apple Silicon runner -> arm64 build
+    permissions:
+      contents: write # needed to attach the .dmg to the release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Fetch macOS native binaries (Onyx + 7-Zip)
+        run: |
+          set -euo pipefail
+          mkdir -p native/onyx-mac native/7zip-mac
+          # Onyx (Rock Band CON converter) — macOS x64 build (runs via Rosetta).
+          curl -L -o /tmp/onyx-mac.zip \
+            https://github.com/mtolly/onyx/releases/download/20251011/onyx-20251011-macos-x64.zip
+          unzip -q -o /tmp/onyx-mac.zip -d native/onyx-mac
+          # 7-Zip console (7zz) — universal macOS build.
+          curl -L -o /tmp/7zz.tar.xz \
+            https://github.com/ip7z/7zip/releases/download/26.02/7z2602-mac.tar.xz
+          mkdir -p /tmp/7zz-out
+          tar -xf /tmp/7zz.tar.xz -C /tmp/7zz-out
+          cp /tmp/7zz-out/7zz native/7zip-mac/7zz
+          chmod +x native/7zip-mac/7zz
+
+      - name: Build unsigned .dmg
+        working-directory: app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false # do not look for a signing certificate
+        run: npm run dist:mac -- --publish never
+
+      - name: Upload .dmg as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chm-macos-dmg
+          path: app/dist/*.dmg
+          if-no-files-found: error
+
+      - name: Attach .dmg to the release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/dist/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
