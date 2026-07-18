@@ -59,9 +59,11 @@ clicks — a whole setlist from a playlist you already love. See
   the whole catalog; on either database, refine the loaded results by
   **charter** / **album** and hide songs you already own.
 - **Sort** the whole catalog server‑side by title, artist, length, **most
-  downloaded** or **recently added** (the default order is relevance).
-- **Surprise me** — one button in the sidebar picks a random chart out of
-  everything you're currently browsing, respecting your instrument filter.
+  downloaded** or **recently added** (the default), each with an ascending /
+  descending toggle. Leave it untouched for the source's own relevance order.
+- **Surprise me** — one button in the sidebar picks **five** random charts out
+  of everything you're currently browsing, respecting your instrument filter;
+  click again for five more.
 - **Preview before you download** — hover a song's album art and press play
   for a 30‑second clip of the real recording, matched by artist + title.
 - **Download counts & "In library" tags** — see how popular a RhythmVerse
@@ -157,8 +159,8 @@ clicks — a whole setlist from a playlist you already love. See
   brings it to the foreground if it's already open (via Win32
   `SetForegroundWindow` / `ShowWindowAsync` so it works even from a
   minimized state).
-- **Manual `Clone Hero.exe` path field** in Settings — appears **only** if
-  auto‑detection fails (unusual install location).
+- **Manual `Clone Hero.exe` path field** in Settings — always available as an
+  override, in case auto‑detection picks the wrong install or you have several.
 - **Focus restore** — when you hide CHM (hotkey / minimize button), the
   app brings Clone Hero back to the foreground so you don't have to click on
   the game window.
@@ -290,7 +292,7 @@ anywhere" bundle for sharing.
 - Leave the search box empty to **browse the whole catalog**, or use the
   **instrument circles**, **difficulty range** and the **Filters** panel
   (genre, release year, song length, charter, album) to narrow results.
-- In the left sidebar, hit **Surprise me** for a random pick, or **Import
+- In the left sidebar, hit **Surprise me** for five random picks, or **Import
   playlist** to pull in a whole Spotify playlist at once.
 - Click **Download** on a row → pick a target subfolder inside `Songs` (or
   create a new one) → done. For hosts the app can't auto‑download from, the
@@ -298,20 +300,22 @@ anywhere" bundle for sharing.
   **Download manually**; click that, save the file in your browser, and drop
   it on the drop zone.
 - The **Download queue** sits at the bottom of the window during downloads.
-  Finished items auto‑dismiss after 5 seconds; failures stick around with
-  a friendly explanation. The whole panel collapses to nothing when idle.
+  **Cancel** any item mid‑flight (or **Stop all**) — it aborts the download or
+  conversion right away and cleans up the half‑finished files. Finished items
+  auto‑dismiss after 5 seconds; failures stick around with a friendly
+  explanation. The whole panel collapses to nothing when idle.
 
 ### Top‑right controls (title bar)
 - **Launch / Switch to Clone Hero** — left side, center.
 - **Library manager** — file manager for your `Songs` folder.
-- **Settings** — Songs folder, CH.exe override (only shown if needed),
-  hotkey reminder pill toggle + position, quick‑toggle hotkey, results per
-  page.
+- **Settings** — Songs folder, an optional chart folder‑name template,
+  `Clone Hero.exe` and `YARG.exe` path overrides, results per page, UI scale,
+  the hotkey‑reminder pill (toggle + position) and the quick‑toggle hotkey.
 - **Hide to tray**.
 - **Quit**.
 
 <p align="center">
-  <img alt="Settings panel: Songs folder, hotkey reminder pill and more" width="420" src="docs/img/settings.png" />
+  <img alt="Settings window: Library &amp; paths, Interface and Game overlay in a two-column layout" width="820" src="docs/img/settings.png" />
 </p>
 
 > **Scanning into the game:** Clone Hero has no external rescan command —
