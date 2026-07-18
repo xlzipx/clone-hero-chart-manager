@@ -113,7 +113,9 @@ function detectOnyxPath(): string {
     // macOS dev: rozbalený onyx-macos-x64 bundle.
     ...rootCandidates().map((r) => join(r, 'native', 'onyx-mac'))
   ]
-  return findFile(roots, onyxBinaryName(), 3) ?? ''
+  // Hloubka 5: na macu je binárka uvnitř Onyx.app/Contents/MacOS/, a zip se může
+  // rozbalit ještě do vnořené složky — ať to najdeme i tak.
+  return findFile(roots, onyxBinaryName(), 5) ?? ''
 }
 
 /** Najde složku se 7-Zip CLI (vedle exe ve složce `tools`), nebo dev bin. */
