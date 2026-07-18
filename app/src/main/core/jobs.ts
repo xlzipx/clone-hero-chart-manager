@@ -227,6 +227,8 @@ class JobManager extends EventEmitter {
     const job = this.jobs.get(id)
     if (!job) return
     const song = job.song
+    // Kosmetické soubory přeskočené kvůli poškození (CRC) — zmíníme je v „Done".
+    let skippedFiles: string[] = []
     const tmpRoot = mkdtempSync(join(tmpdir(), 'chsd-'))
     const aborter = new AbortController()
     this.aborters.set(id, aborter)
@@ -259,7 +261,7 @@ class JobManager extends EventEmitter {
             this.setStage(id, 'extracting', 'Extracting…')
             const exDir = join(tmpRoot, '_extracted')
             mkdirSync(exDir, { recursive: true })
-            await extract(downloadPath, exDir)
+            skippedFiles = await extract(downloadPath, exDir)
             workDir = exDir
           } else if (await isSngFile(downloadPath)) {
             // .sng (Encore container) → vždy rozbalit, stejně jako u stažených
@@ -305,7 +307,7 @@ class JobManager extends EventEmitter {
           this.setStage(id, 'extracting', 'Extracting…')
           const exDir = join(tmpRoot, '_extracted')
           mkdirSync(exDir, { recursive: true })
-          await extract(downloadPath, exDir)
+          skippedFiles = await extract(downloadPath, exDir)
           workDir = exDir
         } else if (await isSngFile(downloadPath)) {
           // .sng (Encore container) → vždy rozbalit. Starší Clone Hero ho
@@ -386,10 +388,16 @@ class JobManager extends EventEmitter {
       this.setStage(id, 'installing', 'Installing into library…')
       const { installedPaths } = await install(installSource, song, job.targetSubfolder)
 
+      const songWord = installedPaths.length === 1 ? 'song' : 'songs'
+      let doneMsg = `Done (${installedPaths.length} ${songWord})`
+      if (skippedFiles.length > 0) {
+        // Poškozený kosmetický soubor (video/obrázek) přeskočen — chart je celý.
+        doneMsg += `, skipped corrupted ${skippedFiles.join(', ')}`
+      }
       this.update(id, {
         stage: 'done',
         progress: 1,
-        message: `Done (${installedPaths.length} ${installedPaths.length === 1 ? 'song' : 'songs'})`,
+        message: doneMsg,
         installPath: installedPaths[0]
       })
     } catch (err) {
