@@ -77,16 +77,6 @@ body {
   overflow: hidden;
 }
 
-/* Během aktivního resize okna (třídu `resizing` přepíná JS na <html>) vypneme
-   nejdražší efekty — celookenní noise overlay s `mix-blend-mode` a rozmazanou
-   glow za logem — ať se každý snímek rastruje levně a obsah nezaostává za rámem
-   okna (nejvíc znát u pravého/spodního okraje). Specificita s `html` porazí i
-   `[data-theme='graphite'] .noise-overlay`, není třeba !important. */
-html.resizing .noise-overlay,
-html.resizing .titlebar__brand::before {
-  display: none;
-}
-
 /* ---------- Title bar ---------- */
 .titlebar {
   -webkit-app-region: drag;

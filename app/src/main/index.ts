@@ -10,7 +10,15 @@ import { createOverlay, getOverlay, revealOverlay } from './overlay'
 import { destroyReminder } from './reminder'
 import { createTray, destroyTray } from './tray'
 import { initAutoUpdate } from './core/autoupdate'
-import { isMac } from './core/platform'
+import { isMac, isWin } from './core/platform'
+
+// Windows: GPU kompozitor (DirectComposition) při zvětšování okna dočasně
+// „vydláždí" poslední snímek do nově odkryté plochy → viditelný smearing /
+// duplikace obsahu u pravého a spodního okraje během resize. Vypnutí HW
+// akcelerace přepne renderer na software rasterizaci, která tenhle artefakt
+// nedělá. Musí se zavolat PŘED app 'ready'. Appka je jen seznam (žádné
+// video/canvas/3D), takže dopad na běžnou plynulost je zanedbatelný.
+if (isWin) app.disableHardwareAcceleration()
 
 /**
  * macOS: v DEV režimu (spuštěno přes `electron`) nemá běžící proces .app bundle,

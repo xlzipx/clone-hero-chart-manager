@@ -319,26 +319,6 @@ export function App(): JSX.Element {
     }
   }, [loadConfig, applyJobUpdate])
 
-  // Během aktivního resize okna dočasně vypneme drahé efekty (celookenní noise
-  // overlay s mix-blend + rozmazaná glow animace), ať se každý snímek rastruje
-  // levně a obsah nezaostává za rámem okna (hlavně u pravého/spodního okraje).
-  // Třídu `resizing` sundáme ~180 ms po posledním resize eventu.
-  useEffect(() => {
-    const root = document.documentElement
-    let t: number | undefined
-    const onResize = (): void => {
-      root.classList.add('resizing')
-      if (t) window.clearTimeout(t)
-      t = window.setTimeout(() => root.classList.remove('resizing'), 180)
-    }
-    window.addEventListener('resize', onResize)
-    return () => {
-      window.removeEventListener('resize', onResize)
-      if (t) window.clearTimeout(t)
-      root.classList.remove('resizing')
-    }
-  }, [])
-
   // Klik mimo okno s výsledky → odznač vybraný řádek. (Uvnitř tabulky, v modalu
   // ani v našeptávači neodznačujeme.)
   useEffect(() => {
