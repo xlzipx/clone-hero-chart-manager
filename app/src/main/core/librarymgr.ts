@@ -76,6 +76,14 @@ function uniqueDest(dir: string, name: string): string {
   return join(dir, `${stem} (${i})${ext}`)
 }
 
+// Systémové smetí, které OS zakládá do složek a v knihovně nemá co dělat:
+// macOS `.DS_Store` + AppleDouble `._*`, Windows `Thumbs.db` / `desktop.ini`.
+const JUNK_NAMES = new Set(['.ds_store', 'thumbs.db', 'desktop.ini'])
+function isJunkEntry(name: string): boolean {
+  const lower = name.toLowerCase()
+  return JUNK_NAMES.has(lower) || lower.startsWith('._')
+}
+
 export function libList(rel: string): { path: string; entries: LibEntry[] } {
   const abs = safeAbs(rel)
   // Kořen vytvoříme (první spuštění), ale neexistující PODcesty ne — listování
@@ -92,6 +100,7 @@ export function libList(rel: string): { path: string; entries: LibEntry[] } {
   }
   const entries: LibEntry[] = []
   for (const name of names) {
+    if (isJunkEntry(name)) continue // .DS_Store, Thumbs.db, ._* … nezobrazovat
     const full = join(abs, name)
     let st
     try {
