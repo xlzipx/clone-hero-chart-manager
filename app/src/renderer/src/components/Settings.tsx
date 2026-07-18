@@ -207,25 +207,40 @@ export function Settings(): JSX.Element | null {
               si chce knihovnu třídit sám, si to rozklikne. Zavřený stav ukazuje
               aktuální šablonu, ať je vidět i bez otevírání. */}
           <fieldset className="field field--disc">
-            <button
-              type="button"
-              className="disc__head"
-              aria-expanded={tplOpen}
-              onClick={() => setTplOpen((o) => !o)}
-            >
-              <span className="disc__titles">
-                <span className="disc__title">
-                  Chart folder name
-                  <span className="disc__badge">Optional</span>
+            {IS_MAC ? (
+              // macOS: sekci necháváme napevno otevřenou (bez rozklikávání).
+              <div className="disc__head disc__head--static">
+                <span className="disc__titles">
+                  <span className="disc__title">
+                    Chart folder name
+                    <span className="disc__badge">Optional</span>
+                  </span>
+                  <span className="disc__sub">
+                    Naming and sorting of downloaded charts: <code>{draft.folderTemplate}</code>
+                  </span>
                 </span>
-                <span className="disc__sub">
-                  Naming and sorting of downloaded charts: <code>{draft.folderTemplate}</code>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="disc__head"
+                aria-expanded={tplOpen}
+                onClick={() => setTplOpen((o) => !o)}
+              >
+                <span className="disc__titles">
+                  <span className="disc__title">
+                    Chart folder name
+                    <span className="disc__badge">Optional</span>
+                  </span>
+                  <span className="disc__sub">
+                    Naming and sorting of downloaded charts: <code>{draft.folderTemplate}</code>
+                  </span>
                 </span>
-              </span>
-              <Icon name="caret" size={12} className="disc__caret" />
-            </button>
+                <Icon name="caret" size={12} className="disc__caret" />
+              </button>
+            )}
 
-            <div className={`disc ${tplOpen ? 'disc--open' : ''}`}>
+            <div className={`disc ${IS_MAC || tplOpen ? 'disc--open' : ''}`}>
               <div className="disc__inner">
                 <div className="field__row">
                   <input

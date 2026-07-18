@@ -7002,6 +7002,13 @@ button.badge--owned:hover {
 .disc__head:hover {
   background: rgba(255, 255, 255, 0.035);
 }
+/* macOS: sekce je napevno otevřená → hlavička není klikací (žádný kurzor/hover). */
+.disc__head--static {
+  cursor: default;
+}
+.disc__head--static:hover {
+  background: none;
+}
 .disc__titles {
   display: flex;
   flex-direction: column;
