@@ -2,9 +2,11 @@
 
 import { app } from 'electron'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs'
+import { homedir } from 'os'
 import { dirname, join } from 'path'
 import { DEFAULT_FOLDER_TEMPLATE } from '../../shared/foldertemplate'
 import type { AppConfig } from '../../shared/types'
+import { cloneHeroArtifactName, isMac, onyxBinaryName, sevenZipBinaryName } from './platform'
 
 let cached: AppConfig | null = null
 
@@ -76,7 +78,26 @@ function findFile(roots: string[], fileName: string, maxDepth: number): string |
 
 /** Zkusí najít složku hry Clone Hero a vrátí cestu k jejímu Songs adresáři. */
 function detectSongsDir(): string {
+  // macOS: Songs složka je v CH volitelná a lidé ji mají na různých místech.
+  // Projdeme známé kandidáty a vrátíme první, který REÁLNĚ existuje; když nic,
+  // padneme na viditelnou domovskou složku (ne skrytou v Library).
+  if (isMac) {
+    const home = homedir()
+    const macCandidates = [
+      join(home, 'Clone Hero', 'Songs'), // stejné rozložení jako Windows G:\Clone Hero\Songs
+      join(home, 'Documents', 'Clone Hero', 'Songs'),
+      join(home, 'Music', 'Clone Hero', 'Songs'),
+      join(home, 'Downloads', 'Clone Hero', 'Songs'),
+      join(home, 'Applications', 'Clone Hero', 'Songs'),
+      // CH sem ukládá nastavení/skóre; někdy tu bývá i Songs.
+      join(home, 'Library', 'Application Support', 'com.srylain.CloneHero', 'Songs')
+    ]
+    for (const c of macCandidates) if (existsSync(c)) return c
+    return join(home, 'Clone Hero', 'Songs')
+  }
+
   const fallback = 'G:\\Clone Hero\\Songs'
+  const chArtifact = cloneHeroArtifactName() // 'Clone Hero.exe' na Windows
   const candidates: string[] = []
   for (const start of rootCandidates()) {
     let dir = start
@@ -88,7 +109,7 @@ function detectSongsDir(): string {
     }
   }
   for (const dir of candidates) {
-    if (existsSync(join(dir, 'Clone Hero.exe'))) return join(dir, 'Songs')
+    if (existsSync(join(dir, chArtifact))) return join(dir, 'Songs')
     if (existsSync(join(dir, 'Clone Hero_Data')) && existsSync(join(dir, 'Songs'))) {
       return join(dir, 'Songs')
     }
@@ -96,24 +117,29 @@ function detectSongsDir(): string {
   return fallback
 }
 
-/** Najde přibalené onyx.exe (vedle exe ve složce `onyx`), nebo dev cestu. */
+/** Najde přibalenou Onyx binárku (vedle exe ve složce `onyx`), nebo dev cestu. */
 function detectOnyxPath(): string {
   const roots = [
     ...rootCandidates().map((r) => join(r, 'onyx')),
-    ...rootCandidates().map((r) => join(r, 'native', 'onyx'))
+    ...rootCandidates().map((r) => join(r, 'native', 'onyx')),
+    // macOS dev: rozbalený onyx-macos-x64 bundle.
+    ...rootCandidates().map((r) => join(r, 'native', 'onyx-mac'))
   ]
-  return findFile(roots, 'onyx.exe', 3) ?? ''
+  // Hloubka 5: na macu je binárka uvnitř Onyx.app/Contents/MacOS/, a zip se může
+  // rozbalit ještě do vnořené složky — ať to najdeme i tak.
+  return findFile(roots, onyxBinaryName(), 5) ?? ''
 }
 
-/** Najde složku se 7z.exe (vedle exe ve složce `tools`), nebo dev C3 bin. */
+/** Najde složku se 7-Zip CLI (vedle exe ve složce `tools`), nebo dev bin. */
 function detect7zDir(): string {
   const roots = [
     ...rootCandidates().map((r) => join(r, 'tools')),
     ...rootCandidates().map((r) => join(r, 'native', '7zip')),
+    ...rootCandidates().map((r) => join(r, 'native', '7zip-mac')),
     ...rootCandidates().map((r) => join(r, 'C3 CON TOOLS', 'bin')),
     ...rootCandidates()
   ]
-  const hit = findFile(roots, '7z.exe', 2)
+  const hit = findFile(roots, sevenZipBinaryName(), 2)
   return hit ? dirname(hit) : ''
 }
 
@@ -130,11 +156,14 @@ function defaults(): AppConfig {
     // sidebar nevejde a Import playlist tlačítko končí pod foldem. `{...def,
     // ...parsed}` níž zajistí, že kdo má vlastní hodnotu uloženou, tomu zůstane
     // (včetně těch, co historicky zdědili 1.2 — nepřepíšeme je násilím).
-    uiScale: 1.0,
+    // macOS má typicky Retina displej + jiné DPI chování než Windows — 100 % tam
+    // působí o kus větší. Default 0.9 UI na Macu srovná pocitovou velikost.
+    // (Uložená hodnota uživatele má přednost přes `{...def, ...parsed}` níž.)
+    uiScale: isMac ? 0.9 : 1.0,
     hotkeys: {
-      // Show / hide window — Ctrl+I (rychlý "Insert/Invoke" toggle, ergonomický
-      // pro pravou ruku na klávesnici; nepřekrývá běžné herní bindings v CH).
-      toggleOverlay: 'Control+I'
+      // Show / hide window — rychlý toggle. Na macu Command+I (nativní modifikátor),
+      // na Windows Control+I. Nepřekrývá běžné herní bindings v CH.
+      toggleOverlay: isMac ? 'Command+I' : 'Control+I'
     },
     showTips: true, // rotující tipy v liště (uživatel může vypnout)
     showReminder: false, // opt-in

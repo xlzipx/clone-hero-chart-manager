@@ -13,6 +13,7 @@ import type {
   SortKey
 } from '../shared/types'
 import { getConfig, setConfig } from './core/config'
+import { isMac } from './core/platform'
 import { search as searchEnchor } from './core/enchor'
 import { peekFileMeta } from './core/filemeta'
 import {
@@ -256,12 +257,19 @@ export function registerIpc(): void {
   ipcMain.handle('dialog:chooseExe', async () => {
     const win = getOverlay() ?? undefined
     const res = await dialog.showOpenDialog(win as BrowserWindow, {
-      title: 'Select Clone Hero.exe',
-      properties: ['openFile'],
-      filters: [
-        { name: 'Executable', extensions: ['exe'] },
-        { name: 'All files', extensions: ['*'] }
-      ]
+      title: isMac ? 'Select Clone Hero.app' : 'Select Clone Hero.exe',
+      // macOS: .app je „package" (bundle) → openFile ho vybrat umí; nabídneme
+      // i openDirectory pro jistotu. Windows zůstává na výběru .exe.
+      properties: isMac ? ['openFile', 'openDirectory'] : ['openFile'],
+      filters: isMac
+        ? [
+            { name: 'Application', extensions: ['app'] },
+            { name: 'All files', extensions: ['*'] }
+          ]
+        : [
+            { name: 'Executable', extensions: ['exe'] },
+            { name: 'All files', extensions: ['*'] }
+          ]
     })
     return res.canceled || res.filePaths.length === 0 ? null : res.filePaths[0]
   })

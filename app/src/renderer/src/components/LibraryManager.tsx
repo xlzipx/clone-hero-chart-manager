@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { LibEntry, SongDetail } from '../../../shared/types'
 import { errMsg } from '../../../shared/errors'
+import { IS_MAC } from '../platform'
 import { useStore } from '../store'
 import { formatLength, stripTags } from '../utils'
 import { RichText } from './RichText'
@@ -221,7 +222,10 @@ export function LibraryManager(): JSX.Element | null {
       if (tag === 'INPUT' || dialogOpenRef.current) return
       const names = entries.filter((x) => selected.has(x.name)).map((x) => x.name)
       const ctrl = e.ctrlKey || e.metaKey
-      if (e.key === 'Delete' && names.length) {
+      // macOS: hlavní mazací klávesa je Backspace a Finder maže přes ⌘⌫; „Delete"
+      // (forward delete) je fn+⌫. Bereme obojí.
+      const isDelete = e.key === 'Delete' || (IS_MAC && ctrl && e.key === 'Backspace')
+      if (isDelete && names.length) {
         e.preventDefault()
         setDialog({ type: 'delete', names })
       } else if (ctrl && e.key.toLowerCase() === 'a') {
@@ -233,7 +237,8 @@ export function LibraryManager(): JSX.Element | null {
         setClip({ op: 'cut', items: names.map(relOf), names })
       } else if (ctrl && e.key.toLowerCase() === 'v') {
         doPaste()
-      } else if (e.key === 'F2' && names.length === 1) {
+      } else if ((e.key === 'F2' || (IS_MAC && e.key === 'Enter')) && names.length === 1) {
+        // macOS: přejmenování je konvenčně Return (F2 na macu vyžaduje fn).
         setDialog({ type: 'rename', name: names[0] })
         setDialogValue(names[0])
       }
@@ -478,7 +483,8 @@ export function LibraryManager(): JSX.Element | null {
           className="lib__list"
           onContextMenu={(e) => e.target === e.currentTarget && openCtx(e, null)}
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !e.ctrlKey && !e.shiftKey) setSelected(new Set())
+            if (e.target === e.currentTarget && !e.ctrlKey && !e.metaKey && !e.shiftKey)
+              setSelected(new Set())
           }}
         >
           {loading ? (
@@ -525,7 +531,11 @@ export function LibraryManager(): JSX.Element | null {
             {clip ? ` · ${clip.items.length} on clipboard (${clip.op})` : ''}
           </span>
           <div className="lib__spacer" />
-          <span className="lib__hint">Right-click for actions · Ctrl+C/X/V · Del · F2</span>
+          <span className="lib__hint">
+            {IS_MAC
+              ? 'Right-click for actions · ⌘C/X/V · ⌘⌫ · ↩'
+              : 'Right-click for actions · Ctrl+C/X/V · Del · F2'}
+          </span>
         </div>
 
         {/* Context menu */}

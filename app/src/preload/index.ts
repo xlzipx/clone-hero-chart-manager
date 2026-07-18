@@ -28,6 +28,9 @@ import type {
 } from '../shared/types'
 
 const api = {
+  /** OS, na kterém běžíme — renderer podle toho ladí UI (mac vs Windows). */
+  platform: process.platform as NodeJS.Platform,
+
   search: (
     text: string,
     page: number,

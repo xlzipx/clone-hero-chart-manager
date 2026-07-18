@@ -10,6 +10,7 @@
 
 import { BrowserWindow, screen } from 'electron'
 import type { ReminderPosition } from '../shared/types'
+import { isMac } from './core/platform'
 import { getConfig } from './core/config'
 
 // Okno je "canvas" — pill uvnitř má auto šířku podle obsahu a centrujeme ho.
@@ -38,20 +39,29 @@ function positionFor(pos: ReminderPosition): { x: number; y: number } {
   }
 }
 
-/** Formátuje hotkey pro UI (Control+I → ⌃I, F10 → F10). */
+/** Formátuje hotkey pro UI. Na macu nativní symboly s „+" (⌘+I),
+ *  na Windows textové názvy (Ctrl + I). */
 function formatHotkey(accel: string): string {
   if (!accel) return '—'
   return accel
     .split('+')
     .map((p) => {
       const s = p.trim()
-      if (s.toLowerCase() === 'control') return 'Ctrl'
-      if (s.toLowerCase() === 'shift') return 'Shift'
-      if (s.toLowerCase() === 'alt') return 'Alt'
-      if (s.toLowerCase() === 'super' || s.toLowerCase() === 'meta') return 'Win'
+      const l = s.toLowerCase()
+      if (isMac) {
+        if (l === 'command' || l === 'cmd' || l === 'meta' || l === 'super') return '⌘'
+        if (l === 'control' || l === 'ctrl') return '⌃'
+        if (l === 'alt' || l === 'option') return '⌥'
+        if (l === 'shift') return '⇧'
+        return s
+      }
+      if (l === 'control') return 'Ctrl'
+      if (l === 'shift') return 'Shift'
+      if (l === 'alt') return 'Alt'
+      if (l === 'super' || l === 'meta') return 'Win'
       return s
     })
-    .join(' + ')
+    .join(isMac ? '+' : ' + ')
 }
 
 /** Inline HTML pro pill — substituuje aktuální hotkey.

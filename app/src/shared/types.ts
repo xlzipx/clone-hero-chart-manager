@@ -361,6 +361,8 @@ export interface ReleaseNotes {
 
 /** API vystavené do renderer procesu přes contextBridge (window.api). */
 export interface RendererApi {
+  /** OS, na kterém běžíme — renderer podle toho ladí UI (mac vs Windows). */
+  platform: NodeJS.Platform
   search(
     text: string,
     page: number,

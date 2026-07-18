@@ -21,6 +21,7 @@ import {
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
 import { getConfig } from './config'
+import { ensureExecutable } from './platform'
 import { run } from './proc'
 
 export interface ConvertProgress {
@@ -72,9 +73,10 @@ async function onyxConvert(
   const onyx = getConfig().onyxPath
   if (!existsSync(onyx)) {
     throw new Error(
-      `Onyx (onyx.exe) not found (${onyx}). Download the Onyx CLI or set the path in Settings.`
+      `Onyx binary not found (${onyx || 'no path set'}). Download the Onyx CLI or set the path in Settings.`
     )
   }
+  ensureExecutable(onyx)
 
   // Onyx import si cílový adresář vytváří sám → předáme NEexistující podsložku
   // uvnitř dočasného rodiče (mkdtemp jen ten rodič).

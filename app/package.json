@@ -13,7 +13,8 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "dist": "electron-vite build && electron-builder --win nsis",
-    "dist:portable": "electron-vite build && electron-builder --win portable"
+    "dist:portable": "electron-vite build && electron-builder --win portable",
+    "dist:mac": "electron-vite build && electron-builder --mac"
   },
   "build": {
     "appId": "com.zipeek.chm",
@@ -34,37 +35,67 @@
       "build/icon.png",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "../native/onyx/onyx-command-line-20251011-windows-x64",
-        "to": "onyx"
-      },
-      {
-        "from": "../native/7zip/7z.exe",
-        "to": "tools/7z.exe"
-      },
-      {
-        "from": "../native/7zip/7z.dll",
-        "to": "tools/7z.dll"
-      },
-      {
-        "from": "../native/7zip/License.txt",
-        "to": "tools/7-Zip-License.txt"
-      },
-      {
-        "from": "../LICENSE",
-        "to": "LICENSE.txt"
-      },
-      {
-        "from": "../THIRD-PARTY.txt",
-        "to": "THIRD-PARTY.txt"
-      }
-    ],
     "win": {
       "target": [
         "nsis"
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "extraResources": [
+        {
+          "from": "../native/onyx/onyx-command-line-20251011-windows-x64",
+          "to": "onyx"
+        },
+        {
+          "from": "../native/7zip/7z.exe",
+          "to": "tools/7z.exe"
+        },
+        {
+          "from": "../native/7zip/7z.dll",
+          "to": "tools/7z.dll"
+        },
+        {
+          "from": "../native/7zip/License.txt",
+          "to": "tools/7-Zip-License.txt"
+        },
+        {
+          "from": "../LICENSE",
+          "to": "LICENSE.txt"
+        },
+        {
+          "from": "../THIRD-PARTY.txt",
+          "to": "THIRD-PARTY.txt"
+        }
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.music",
+      "icon": "build/icon-1024.png",
+      "identity": null,
+      "extraResources": [
+        {
+          "from": "../native/onyx-mac",
+          "to": "onyx"
+        },
+        {
+          "from": "../native/7zip-mac/7zz",
+          "to": "tools/7zz"
+        },
+        {
+          "from": "../LICENSE",
+          "to": "LICENSE.txt"
+        },
+        {
+          "from": "../THIRD-PARTY.txt",
+          "to": "THIRD-PARTY.txt"
+        }
+      ]
+    },
+    "dmg": {
+      "artifactName": "CHM-${version}-mac-${arch}.dmg"
     },
     "portable": {
       "artifactName": "CHM-Portable-${version}.exe"

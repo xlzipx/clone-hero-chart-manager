@@ -7,6 +7,7 @@ import {
 } from '../../../shared/foldertemplate'
 import type { AppConfig, ReminderPosition } from '../../../shared/types'
 import { useStore } from '../store'
+import { IS_MAC } from '../platform'
 import { HotkeyInput } from './HotkeyInput'
 import { Icon } from './Icon'
 
@@ -206,25 +207,40 @@ export function Settings(): JSX.Element | null {
               si chce knihovnu třídit sám, si to rozklikne. Zavřený stav ukazuje
               aktuální šablonu, ať je vidět i bez otevírání. */}
           <fieldset className="field field--disc">
-            <button
-              type="button"
-              className="disc__head"
-              aria-expanded={tplOpen}
-              onClick={() => setTplOpen((o) => !o)}
-            >
-              <span className="disc__titles">
-                <span className="disc__title">
-                  Chart folder name
-                  <span className="disc__badge">Optional</span>
+            {IS_MAC ? (
+              // macOS: sekci necháváme napevno otevřenou (bez rozklikávání).
+              <div className="disc__head disc__head--static">
+                <span className="disc__titles">
+                  <span className="disc__title">
+                    Chart folder name
+                    <span className="disc__badge">Optional</span>
+                  </span>
+                  <span className="disc__sub">
+                    Naming and sorting of downloaded charts: <code>{draft.folderTemplate}</code>
+                  </span>
                 </span>
-                <span className="disc__sub">
-                  Naming and sorting of downloaded charts: <code>{draft.folderTemplate}</code>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="disc__head"
+                aria-expanded={tplOpen}
+                onClick={() => setTplOpen((o) => !o)}
+              >
+                <span className="disc__titles">
+                  <span className="disc__title">
+                    Chart folder name
+                    <span className="disc__badge">Optional</span>
+                  </span>
+                  <span className="disc__sub">
+                    Naming and sorting of downloaded charts: <code>{draft.folderTemplate}</code>
+                  </span>
                 </span>
-              </span>
-              <Icon name="caret" size={12} className="disc__caret" />
-            </button>
+                <Icon name="caret" size={12} className="disc__caret" />
+              </button>
+            )}
 
-            <div className={`disc ${tplOpen ? 'disc--open' : ''}`}>
+            <div className={`disc ${IS_MAC || tplOpen ? 'disc--open' : ''}`}>
               <div className="disc__inner">
                 <div className="field__row">
                   <input
@@ -305,7 +321,7 @@ export function Settings(): JSX.Element | null {
 
           <label className="field">
             <span>
-              Clone Hero.exe path
+              {IS_MAC ? 'Clone Hero.app path' : 'Clone Hero.exe path'}
               {exeStatus?.path === null && !draft.chExePath ? (
                 <em className="field__warn"> — couldn't auto-detect, set manually</em>
               ) : exeStatus?.autoDetected && !draft.chExePath ? (
@@ -319,54 +335,62 @@ export function Settings(): JSX.Element | null {
                 placeholder={
                   exeStatus?.autoDetected && exeStatus.path
                     ? `Using: ${exeStatus.path}`
-                    : 'e.g. C:\\Games\\Clone Hero\\Clone Hero.exe'
+                    : IS_MAC
+                      ? 'e.g. /Applications/Clone Hero.app'
+                      : 'e.g. C:\\Games\\Clone Hero\\Clone Hero.exe'
                 }
                 value={draft.chExePath}
                 onChange={(e) => setDraft({ ...draft, chExePath: e.target.value })}
               />
-              <button onClick={pickChExe} title="Browse for Clone Hero.exe">
+              <button onClick={pickChExe} title="Browse for Clone Hero">
                 …
               </button>
             </div>
             <p className="field__hint">
               Used by the <strong>Launch Clone Hero</strong> button. Leave blank to use
-              auto-detection (parent of the Songs folder, then known install paths).
+              auto-detection{' '}
+              {IS_MAC
+                ? '(standard /Applications location).'
+                : '(parent of the Songs folder, then known install paths).'}
             </p>
           </label>
 
-          <label className="field">
-            <span>
-              YARG.exe path
-              {yargStatus?.path === null && !draft.yargExePath ? (
-                <em className="field__hint" style={{ marginLeft: 6 }}>
-                  — not detected (set manually if installed)
-                </em>
-              ) : yargStatus?.autoDetected && !draft.yargExePath ? (
-                <em className="field__hint" style={{ marginLeft: 6 }}>
-                  — auto-detected, override below if needed
-                </em>
-              ) : null}
-            </span>
-            <div className="field__row">
-              <input
-                placeholder={
-                  yargStatus?.autoDetected && yargStatus.path
-                    ? `Using: ${yargStatus.path}`
-                    : 'e.g. C:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe'
-                }
-                value={draft.yargExePath}
-                onChange={(e) => setDraft({ ...draft, yargExePath: e.target.value })}
-              />
-              <button onClick={pickYargExe} title="Browse for YARG.exe">
-                …
-              </button>
-            </div>
-            <p className="field__hint">
-              Used by the overlay + hotkey to detect YARG. CHM also brings YARG back to the
-              foreground when you hide this window. YARG reads charts from Clone Hero's Songs
-              folder, so no separate library is needed.
-            </p>
-          </label>
+          {/* YARG má oficiální build jen na Windows — na macu pole skryjeme. */}
+          {!IS_MAC && (
+            <label className="field">
+              <span>
+                YARG.exe path
+                {yargStatus?.path === null && !draft.yargExePath ? (
+                  <em className="field__hint" style={{ marginLeft: 6 }}>
+                    — not detected (set manually if installed)
+                  </em>
+                ) : yargStatus?.autoDetected && !draft.yargExePath ? (
+                  <em className="field__hint" style={{ marginLeft: 6 }}>
+                    — auto-detected, override below if needed
+                  </em>
+                ) : null}
+              </span>
+              <div className="field__row">
+                <input
+                  placeholder={
+                    yargStatus?.autoDetected && yargStatus.path
+                      ? `Using: ${yargStatus.path}`
+                      : 'e.g. C:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe'
+                  }
+                  value={draft.yargExePath}
+                  onChange={(e) => setDraft({ ...draft, yargExePath: e.target.value })}
+                />
+                <button onClick={pickYargExe} title="Browse for YARG.exe">
+                  …
+                </button>
+              </div>
+              <p className="field__hint">
+                Used by the overlay + hotkey to detect YARG. CHM also brings YARG back to the
+                foreground when you hide this window. YARG reads charts from Clone Hero's Songs
+                folder, so no separate library is needed.
+              </p>
+            </label>
+          )}
               </section>
             </div>
 
@@ -476,7 +500,7 @@ export function Settings(): JSX.Element | null {
                   Show / hide window
                   <span
                     className="info"
-                    title="Global hotkey – works even when the game window has focus. Most users don't need it (just Alt+Tab to bring the app forward)."
+                    title={`Global hotkey – works even when the game window has focus. Most users don't need it (just ${IS_MAC ? 'Cmd+Tab' : 'Alt+Tab'} to bring the app forward).`}
                   >
                     <Icon name="info" size={13} />
                   </span>
@@ -490,9 +514,10 @@ export function Settings(): JSX.Element | null {
               </label>
             </div>
             <p className="field__hint">
-              Optional global shortcut to bring the app forward from anywhere. Most users just use
-              Alt+Tab — leave it blank to disable. Click the field and press a key or combo (e.g.{' '}
-              <code>F10</code> or <code>Control+Shift+H</code>); Backspace clears it.
+              Optional global shortcut to bring the app forward from anywhere. Most users just use{' '}
+              {IS_MAC ? 'Cmd+Tab' : 'Alt+Tab'} — leave it blank to disable. Click the field and press
+              a key or combo (e.g. <code>F10</code> or{' '}
+              <code>{IS_MAC ? '⌘⇧H' : 'Control+Shift+H'}</code>); Backspace clears it.
             </p>
           </fieldset>
               </section>

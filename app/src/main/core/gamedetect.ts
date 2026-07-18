@@ -1,13 +1,16 @@
 // Detekce běžících rhythm her (Clone Hero + YARG) — jejich spuštění a focus restore.
 //
-// Implementace je Windows-only (CH na Linuxu/macOS nemá oficiální build,
-// YARG má Linux build, ale podpora multiplatform není v plánu).
+// Windows: plná podpora CH i YARG (tasklist / PowerShell SetForegroundWindow).
+// macOS:   podpora Clone Hero (open / pgrep / osascript). YARG oficiální macOS
+//          build nemá, takže na Macu YARG vypadá jako "nenalezeno".
 
 import { exec, execFile, spawn } from 'child_process'
 import { existsSync, readdirSync, statSync } from 'fs'
+import { homedir } from 'os'
 import { dirname, join } from 'path'
 import { promisify } from 'util'
 import { getConfig } from './config'
+import { isMac, isWin } from './platform'
 import { errMsg } from '../../shared/errors'
 
 const execAsync = promisify(exec)
@@ -15,18 +18,41 @@ const execAsync = promisify(exec)
 /** Známé jména procesů pro každou hru (mohou se v budoucnu rozšířit). */
 const PROC_CH = 'Clone Hero.exe'
 const PROC_YARG = 'YARG.exe'
+/** Jméno procesu CH uvnitř .app bundlu na macOS (Contents/MacOS/Clone Hero). */
+const PROC_CH_MAC = 'Clone Hero'
 
 export type GameId = 'clone-hero' | 'yarg'
 export type RunningGame = GameId | null
 
 // ─────────────────────────────────────────────────────────────────────
-// Auto‑detekce cest k exe
+// Auto‑detekce cest k hernímu artefaktu
 // ─────────────────────────────────────────────────────────────────────
 
-/** Vrátí cestu k Clone Hero.exe (manuální override z configu má přednost). */
+/** macOS: standardní umístění Clone Hero.app. */
+function macChAppCandidates(): string[] {
+  const home = homedir()
+  return [
+    '/Applications/Clone Hero.app',
+    join(home, 'Applications', 'Clone Hero.app'),
+    join(home, 'Clone Hero', 'Clone Hero.app'), // rozložení jako na Windows
+    join(home, 'Downloads', 'Clone Hero.app')
+  ]
+}
+
+/**
+ * Vrátí cestu ke spustitelnému Clone Hero artefaktu (manuální override z configu
+ * má přednost). Na Windows je to `Clone Hero.exe`, na macOS `Clone Hero.app`.
+ */
 export function detectChExe(): string | null {
   const cfg = getConfig()
   if (cfg.chExePath && existsSync(cfg.chExePath)) return cfg.chExePath
+
+  if (isMac) {
+    for (const p of macChAppCandidates()) if (existsSync(p)) return p
+    return null
+  }
+
+  // Windows.
   if (cfg.songsDir) {
     const candidate = join(dirname(cfg.songsDir), 'Clone Hero.exe')
     if (existsSync(candidate)) return candidate
@@ -44,17 +70,15 @@ export function detectChExe(): string | null {
 }
 
 /**
- * Vrátí cestu k YARG.exe.
+ * Vrátí cestu k YARG.exe (jen Windows — YARG nemá oficiální macOS build).
  *
  * YARG launcher rozbaluje konkrétní verze do náhodně pojmenovaných GUID složek
  * pod `…/YARG Installs/<GUID>/installation/YARG.exe`. Hledáme:
  *  1) Manuální override.
- *  2) Sekání podle "YARG Installs" v rodičovských cestách Songs (jen v rare
- *     případě, ale neuškodí to).
- *  3) Známé root paths (G:\YARG\Content, C:\Users\<u>\AppData\Local\Programs\YARG,
- *     C:\Program Files\YARG, atd.) — pro každý hledáme nejnovější GUID/installation/YARG.exe.
+ *  2) Známé root paths — pro každý hledáme nejnovější GUID/installation/YARG.exe.
  */
 export function detectYargExe(): string | null {
+  if (!isWin) return null
   const cfg = getConfig()
   if (cfg.yargExePath && existsSync(cfg.yargExePath)) return cfg.yargExePath
 
@@ -121,7 +145,12 @@ export function yargExeStatus(): { path: string | null; autoDetected: boolean } 
 
 /** Kterou hru aktuálně běží (nebo null). Když by běžely obě, preferujeme CH. */
 export async function runningGame(): Promise<RunningGame> {
-  if (process.platform !== 'win32') return null
+  if (isMac) return runningGameMac()
+  if (isWin) return runningGameWin()
+  return null
+}
+
+async function runningGameWin(): Promise<RunningGame> {
   try {
     // Jeden tasklist call → vrátí všechny procesy s daným IMAGENAME. Voláme
     // postupně, ale s timeoutem 2 s každé.
@@ -143,6 +172,18 @@ export async function runningGame(): Promise<RunningGame> {
   }
 }
 
+async function runningGameMac(): Promise<RunningGame> {
+  try {
+    // pgrep -x: přesná shoda jména procesu. `|| true` v shellu není potřeba —
+    // pgrep vrátí exit 1 když nic nenajde, což promisify(exec) hodí jako reject,
+    // takže to prostě chytneme v catch a vrátíme null.
+    await execAsync(`pgrep -x "${PROC_CH_MAC}"`, { timeout: 2500 })
+    return 'clone-hero'
+  } catch {
+    return null // YARG na macOS neřešíme
+  }
+}
+
 /** Zachování staré API pro zpětnou kompatibilitu (boolean). */
 export async function isGameRunning(): Promise<boolean> {
   return (await runningGame()) !== null
@@ -152,17 +193,24 @@ export async function isGameRunning(): Promise<boolean> {
 // Spuštění / focus restore
 // ─────────────────────────────────────────────────────────────────────
 
-/** Spustí Clone Hero.exe (detach), aby app nečekala. */
+/** Spustí Clone Hero (detach), aby app nečekala. */
 export function launchGame(): { ok: true } | { ok: false; error: string } {
   const exe = detectChExe()
   if (!exe) {
     return {
       ok: false,
-      error:
-        "Couldn't find Clone Hero.exe. Set the correct Songs folder in Settings (Clone Hero.exe is its parent)."
+      error: isMac
+        ? "Couldn't find Clone Hero.app. Install it to /Applications or set the path in Settings."
+        : "Couldn't find Clone Hero.exe. Set the correct Songs folder in Settings (Clone Hero.exe is its parent)."
     }
   }
   try {
+    if (isMac) {
+      // `open` vrátí hned, hru spustí odděleně — přesně to chceme (detach).
+      const child = spawn('open', ['-a', exe], { detached: true, stdio: 'ignore' })
+      child.unref()
+      return { ok: true }
+    }
     const child = spawn(exe, [], {
       cwd: dirname(exe),
       detached: true,
@@ -176,8 +224,11 @@ export function launchGame(): { ok: true } | { ok: false; error: string } {
   }
 }
 
-/** Spustí YARG.exe (detach). */
+/** Spustí YARG (jen Windows). */
 export function launchYarg(): { ok: true } | { ok: false; error: string } {
+  if (!isWin) {
+    return { ok: false, error: 'YARG has no official macOS build — launching it is Windows-only.' }
+  }
   const exe = detectYargExe()
   if (!exe) {
     return {
@@ -202,16 +253,13 @@ export function launchYarg(): { ok: true } | { ok: false; error: string } {
 
 /**
  * Přepne aktuálně běžící hru do popředí. Pokud žádná neběží a CH je detekováno,
- * spustí CH.
- *
- * Když uživatel explicitně chce focus konkrétní hry (např. po stažení), může
- * předat `prefer` parameter.
+ * spustí CH. `prefer` vynutí focus konkrétní hry (např. po stažení).
  */
 export async function bringGameToFront(
   prefer?: GameId
 ): Promise<{ ok: true; game?: GameId } | { ok: false; error: string }> {
-  if (process.platform !== 'win32') {
-    return { ok: false, error: 'Only supported on Windows.' }
+  if (!isWin && !isMac) {
+    return { ok: false, error: 'Only supported on Windows and macOS.' }
   }
 
   // Pokud máme preferenci a ta hra běží, použij ji; jinak co aktuálně běží.
@@ -219,8 +267,6 @@ export async function bringGameToFront(
   const running = await runningGame()
   if (prefer && running === prefer) target = prefer
   else if (running) target = running
-  else if (prefer === 'yarg') target = null
-  else target = null
 
   if (!target) {
     // Žádná neběží → spusť preferovanou (CH default).
@@ -228,8 +274,23 @@ export async function bringGameToFront(
     return launchGame()
   }
 
+  if (isMac) {
+    // Na macu řešíme jen CH (YARG tu neběží).
+    return new Promise((resolve) => {
+      execFile(
+        'osascript',
+        ['-e', `tell application "${PROC_CH_MAC}" to activate`],
+        { timeout: 4000 },
+        (err) => {
+          if (err) resolve({ ok: false, error: err.message })
+          else resolve({ ok: true, game: 'clone-hero' })
+        }
+      )
+    })
+  }
+
+  // Windows: Add-Type definuje Win32 wrappery; ShowWindow(9) = SW_RESTORE.
   const procName = target === 'yarg' ? 'YARG' : 'Clone Hero'
-  // Add-Type definuje Win32 wrappery; ShowWindow(9) = SW_RESTORE (z minimalizace).
   const script = `
 $ErrorActionPreference = 'SilentlyContinue'
 Add-Type -Name W -Namespace U -MemberDefinition '

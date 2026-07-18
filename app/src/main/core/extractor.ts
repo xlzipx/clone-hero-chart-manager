@@ -3,13 +3,16 @@
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { getConfig } from './config'
+import { ensureExecutable, sevenZipBinaryName } from './platform'
 import { run } from './proc'
 
 function sevenZipPath(): string {
-  const exe = join(getConfig().c3BinDir, '7z.exe')
+  const bin = sevenZipBinaryName() // 7z.exe (Windows) / 7zz (macOS, Linux)
+  const exe = join(getConfig().c3BinDir, bin)
   if (!existsSync(exe)) {
-    throw new Error(`7z.exe not found in ${getConfig().c3BinDir} (check the 7-Zip path in Settings)`)
+    throw new Error(`${bin} not found in ${getConfig().c3BinDir} (check the 7-Zip path in Settings)`)
   }
+  ensureExecutable(exe)
   return exe
 }
 

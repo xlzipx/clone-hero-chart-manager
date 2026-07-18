@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { IS_MAC } from '../platform'
 
 interface Props {
   value: string
@@ -6,6 +7,24 @@ interface Props {
 }
 
 const MODS = ['Control', 'Shift', 'Alt', 'Meta']
+
+/** Zobrazení akcelerátoru pro uživatele. Na macu přeložíme Electron tokeny na
+ *  nativní symboly (⌘⌥⌃⇧); uložená hodnota (Electron accelerator) zůstává stejná. */
+const MAC_SYMBOLS: Record<string, string> = {
+  Command: '⌘',
+  Cmd: '⌘',
+  Meta: '⌘',
+  Super: '⌘',
+  Control: '⌃',
+  Ctrl: '⌃',
+  Alt: '⌥',
+  Option: '⌥',
+  Shift: '⇧'
+}
+function displayAccel(accel: string): string {
+  if (!accel || !IS_MAC) return accel
+  return accel.split('+').map((p) => MAC_SYMBOLS[p] ?? p).join('+')
+}
 
 /** Electron globalShortcut povoluje jen ASCII printable znaky + speciální tokeny. */
 function isAsciiPrintable(s: string): boolean {
@@ -26,7 +45,8 @@ function toAccelerator(e: React.KeyboardEvent): { accel: string | null; reason?:
   if (e.ctrlKey) mods.push('Control')
   if (e.altKey) mods.push('Alt')
   if (e.shiftKey) mods.push('Shift')
-  if (e.metaKey) mods.push('Super')
+  // Meta = Command na macu (Electron token „Command"), jinde Windows/Super klávesa.
+  if (e.metaKey) mods.push(IS_MAC ? 'Command' : 'Super')
 
   let main: string
   if (k.length === 1) {
@@ -34,7 +54,7 @@ function toAccelerator(e: React.KeyboardEvent): { accel: string | null; reason?:
     if (!isAsciiPrintable(k)) {
       return {
         accel: null,
-        reason: `“${k}” isn't supported — Electron global shortcuts allow only ASCII keys. Try F-keys (F1–F12) or a combo like Ctrl+Shift+H.`
+        reason: `“${k}” isn't supported — Electron global shortcuts allow only ASCII keys. Try F-keys (F1–F12) or a combo like ${IS_MAC ? '⌘⇧H' : 'Ctrl+Shift+H'}.`
       }
     }
     main = k.toUpperCase()
@@ -67,7 +87,7 @@ export function HotkeyInput({ value, onChange }: Props): JSX.Element {
       <input
         className={`hotkey-input ${invalid ? 'hotkey-input--invalid' : ''}`}
         readOnly
-        value={capturing ? 'Press a key or combo…' : value}
+        value={capturing ? 'Press a key or combo…' : displayAccel(value)}
         placeholder="Click and press a key/combo"
         onFocus={() => {
           setCapturing(true)

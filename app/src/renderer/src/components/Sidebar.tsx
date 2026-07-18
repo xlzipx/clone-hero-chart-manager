@@ -5,6 +5,7 @@ import chLogo from '../assets/CloneHero_Logo.png'
 import spotifyMark from '../assets/Spotify_Primary_Logo.webp'
 import yargLogo from '../assets/YARG_Logo.png'
 import { useStore } from '../store'
+import { IS_MAC } from '../platform'
 import { Icon } from './Icon'
 
 // Verzi, kterou uživatel „zavřel", si pamatujeme, ať ho stejné upozornění neotravuje.
@@ -188,9 +189,11 @@ export function Sidebar(): JSX.Element {
 
   return (
     <aside className="sidebar">
-      <div className="side-launchers">
+      {/* YARG má oficiální build jen na Windows — na macu ukážeme jen Clone Hero
+          (dlaždice díky flex:1 sama zabere celou šířku). */}
+      <div className={`side-launchers ${IS_MAC ? 'side-launchers--solo' : ''}`}>
         {launcher('clone-hero', chLogo)}
-        {launcher('yarg', yargLogo)}
+        {!IS_MAC && launcher('yarg', yargLogo)}
       </div>
 
       <div className="side-sep" aria-hidden="true" />

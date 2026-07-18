@@ -7002,6 +7002,13 @@ button.badge--owned:hover {
 .disc__head:hover {
   background: rgba(255, 255, 255, 0.035);
 }
+/* macOS: sekce je napevno otevřená → hlavička není klikací (žádný kurzor/hover). */
+.disc__head--static {
+  cursor: default;
+}
+.disc__head--static:hover {
+  background: none;
+}
 .disc__titles {
   display: flex;
   flex-direction: column;
@@ -7522,6 +7529,14 @@ button.plrow__na:hover {
 .side-launchers {
   flex-direction: row; /* base bylo column */
   gap: 10px;
+}
+/* macOS: bez YARGu je v řadě jen Clone Hero — vycentruj a nech zhruba čtverec,
+   ať se nerozteče do široké tenké lišty. */
+.side-launchers--solo {
+  justify-content: center;
+}
+.side-launchers--solo .side-launch {
+  flex: 0 1 52%;
 }
 .side-launch {
   flex: 1;

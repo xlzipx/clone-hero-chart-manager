@@ -4,6 +4,7 @@ import redditLogo from '../assets/reddit_logo.png'
 import xLogo from '../assets/X_logo.jpg'
 import zipeekLogo from '../assets/zipeek_logo.webp'
 import { useStore } from '../store'
+import { IS_MAC } from '../platform'
 import { Icon } from './Icon'
 
 const REPO_URL = 'https://github.com/xlzipx/clone-hero-chart-manager'
@@ -73,14 +74,14 @@ export function AboutModal(): JSX.Element | null {
             <div className="about__meta">
               {version ? <span className="about__ver">v{version}</span> : null}
               <span>MIT licence</span>
-              <span>Windows</span>
+              <span>{IS_MAC ? 'macOS' : 'Windows'}</span>
             </div>
           </div>
 
           <p className="about__lead">
-            One place to find, preview, download and organise charts for Clone Hero and YARG.
-            Search two catalogues at once, drop in a Spotify playlist, and keep your Songs folder
-            tidy.
+            One place to find, preview, download and organise charts for{' '}
+            {IS_MAC ? 'Clone Hero' : 'Clone Hero and YARG'}. Search two catalogues at once, drop in
+            a Spotify playlist, and keep your Songs folder tidy.
           </p>
 
           <div className="about__values">
