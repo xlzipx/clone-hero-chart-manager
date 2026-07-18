@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { Icon } from './Icon'
 import { TipsTicker } from './TipsTicker'
@@ -11,9 +12,24 @@ export function TitleBar(): JSX.Element {
   const setShowSettings = useStore((s) => s.setShowSettings)
   const setShowLibrary = useStore((s) => s.setShowLibrary)
   const setShowAbout = useStore((s) => s.setShowAbout)
+  const [maximized, setMaximized] = useState(false)
+
+  // Drž ikonu tlačítka v syncu se skutečným stavem okna (i když se maximalizuje
+  // jinak — Aero Snap, Win+↑, dvojklik): main posílá `overlay:maximized`.
+  useEffect(() => {
+    void window.api.isMaximized().then(setMaximized)
+    return window.api.onMaximizeChange(setMaximized)
+  }, [])
+
+  // Dvojklik na TAŽNOU část titlebaru = maximalizovat/obnovit (jako nativní okno).
+  // Interaktivní prvky (tlačítka, tipy) přeskoč, ať se nepřekrývá s jejich akcí.
+  const onDoubleClick = (e: React.MouseEvent): void => {
+    if ((e.target as HTMLElement).closest('button, a, input, [role="button"]')) return
+    window.api.toggleMaximize()
+  }
 
   return (
-    <div className="titlebar">
+    <div className="titlebar" onDoubleClick={onDoubleClick}>
       {/* Logo = vstup do About. Titlebar je drag oblast, takže tlačítko musí mít
           `no-drag` (v CSS), jinak by ho okno „snědlo" a klik by netrefil. */}
       <button
@@ -54,6 +70,13 @@ export function TitleBar(): JSX.Element {
           onClick={() => window.api.hideOverlay()}
         >
           <Icon name="minimize" size={16} />
+        </button>
+        <button
+          className="titlebar__btn"
+          title={maximized ? 'Restore window' : 'Maximize window'}
+          onClick={() => window.api.toggleMaximize()}
+        >
+          <Icon name={maximized ? 'restore' : 'maximize'} size={15} />
         </button>
         <button
           className="titlebar__btn titlebar__btn--close"

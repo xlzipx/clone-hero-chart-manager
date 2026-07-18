@@ -179,6 +179,13 @@ const api = {
   },
 
   hideOverlay: () => ipcRenderer.send('overlay:hide'),
+  toggleMaximize: () => ipcRenderer.send('overlay:toggleMaximize'),
+  isMaximized: () => ipcRenderer.invoke('overlay:isMaximized') as Promise<boolean>,
+  onMaximizeChange: (cb: (max: boolean) => void) => {
+    const handler = (_e: unknown, max: boolean) => cb(max)
+    ipcRenderer.on('overlay:maximized', handler)
+    return () => ipcRenderer.removeListener('overlay:maximized', handler)
+  },
   quitApp: () => ipcRenderer.send('app:quit'),
   pauseHotkeys: () => ipcRenderer.send('hotkeys:pause'),
   resumeHotkeys: () => ipcRenderer.send('hotkeys:resume'),

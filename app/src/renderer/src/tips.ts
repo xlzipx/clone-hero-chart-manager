@@ -6,11 +6,11 @@
 export const TIPS: string[] = [
   'Hover a song’s album art and press play to preview it before you download.',
   'Leave the search box empty to browse the entire catalogue, no keyword needed.',
-  'Surprise me in the sidebar picks a handful of random charts, filtered to your chosen instrument.',
+  'Surprise me in the sidebar picks a handful of random charts from whatever you’re currently browsing.',
   'Import playlist in the sidebar takes a public Spotify link and finds charts for the whole playlist at once.',
   'Set the database to Both to search RhythmVerse and Chorus Encore at the same time.',
   'Open Filters to narrow by genre, year, decade, length, charter or album on RhythmVerse.',
-  'Genre, year, decade and length filters only work on RhythmVerse; Chorus Encore filters by instrument and difficulty.',
+  'Genre, year, decade and length filters only work on RhythmVerse.',
   'Sort by Recently added for the newest charts, or Most downloaded for the popular ones.',
   'Rock Band CON charts are converted to Clone Hero automatically when you download them.',
   'A chart tagged Official DLC is a paid Rock Band song, so it opens the store instead of downloading.',

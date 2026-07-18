@@ -157,26 +157,27 @@ export function Sidebar(): JSX.Element {
     const launchable = game === 'clone-hero' ? chOk : yargOk
     // „Nelze spustit" jen když hra NEběží (běžící se dá přepnout i bez exe cesty).
     const missing = !isRunning && !launchable
-    const label = busy ? 'Working…' : isRunning ? `Switch to ${gameName(game)}` : `Launch ${gameName(game)}`
+    // V tlačítku je jen logo (bez textu) — název hry je z loga čitelný. Stav (běží /
+    // chybí exe) nese styl čtverce, plný popis akce je v `title` (tooltip).
     const title = missing
       ? `${gameName(game)} executable not found — click to set its path in Settings`
       : isRunning
         ? `${gameName(game)} is running — click to bring it to the front`
-        : label
+        : `Launch ${gameName(game)}`
     return (
       <button
+        key={game}
         className={`side-launch side-launch--${game} ${isRunning ? 'side-launch--running' : ''} ${
           missing ? 'side-launch--missing' : ''
         }`}
-        title={missing ? title : undefined}
+        title={title}
         onClick={() => (missing ? setShowSettings(true) : void launchGame(game))}
         disabled={busy}
       >
         <img className="side-launch__logo" src={logo} alt="" draggable={false} />
-        <span>{label}</span>
         {missing ? (
           <span className="side-launch__warn" aria-label="Executable not found">
-            <Icon name="info" size={14} />
+            <Icon name="info" size={13} />
           </span>
         ) : null}
       </button>
@@ -191,6 +192,8 @@ export function Sidebar(): JSX.Element {
         {launcher('clone-hero', chLogo)}
         {launcher('yarg', yargLogo)}
       </div>
+
+      <div className="side-sep" aria-hidden="true" />
 
       <div className="side-group">
         <div className="side-label">Database</div>
@@ -248,6 +251,8 @@ export function Sidebar(): JSX.Element {
           </div>
         </div>
       ) : null}
+
+      <div className="side-sep side-sep--wide" aria-hidden="true" />
 
       {/* Akční tlačítka pod seznamy. „Surprise me" = náhodný chart (respektuje
           dotaz i filtry). „Import playlist" = dohledat charty z odkazu na playlist. */}

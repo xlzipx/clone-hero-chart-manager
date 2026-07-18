@@ -3,7 +3,7 @@
 import { app, BrowserWindow } from 'electron'
 import { registerIpc, stopGamePoll } from './ipc'
 import { registerHotkeys, unregisterHotkeys } from './hotkeys'
-import { createOverlay, getOverlay } from './overlay'
+import { createOverlay, getOverlay, revealOverlay } from './overlay'
 import { destroyReminder } from './reminder'
 import { createTray, destroyTray } from './tray'
 import { initAutoUpdate } from './core/autoupdate'
@@ -13,11 +13,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    const win = getOverlay()
-    if (win) {
-      win.show()
-      win.focus()
-    }
+    revealOverlay()
   })
 
   app.whenReady().then(() => {

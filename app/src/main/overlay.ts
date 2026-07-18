@@ -26,6 +26,19 @@ export function getOverlay(): BrowserWindow | null {
   return mainWindow
 }
 
+/** Přepne maximalizaci hlavního okna (tlačítko v titlebaru / dvojklik). */
+export function toggleMaximize(): void {
+  const win = mainWindow
+  if (!win) return
+  if (win.isMaximized()) win.unmaximize()
+  else win.maximize()
+}
+
+/** Je hlavní okno maximalizované? (počáteční stav ikony tlačítka). */
+export function isMaximized(): boolean {
+  return mainWindow?.isMaximized() ?? false
+}
+
 /** Živě aplikuje UI scale na hlavní okno (náhled z Nastavení). */
 export function applyUiScale(scale: number): void {
   // Clamp z obou stran — extrémní hodnota z IPC by udělala UI neovladatelné.
@@ -66,9 +79,12 @@ export function createOverlay(): BrowserWindow {
     center: true,
     show: false,
     frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    hasShadow: false, // OS shadow je tvrdý / nehezký u transparent okna – řešíme CSS
+    // NEPRŮHLEDNÉ okno (dřív `transparent: true` kvůli CSS zaobleným rohům). Na
+    // Windows jsou ale transparent/layered okna vyloučená z Aero Snapu i nativní
+    // maximalizace. Neprůhledné okno si Windows převezme nativně: Win11 DWM samo
+    // zaoblí rohy + dá stín, funguje Snap, Win+šipky i maximalizace.
+    backgroundColor: '#0e0e10', // = --bg appky, ať není barevný záblesk před renderem
+    hasShadow: true,
     resizable: true,
     skipTaskbar: false,
     icon: windowIcon(),
@@ -120,25 +136,17 @@ export function createOverlay(): BrowserWindow {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  // Reveal bez „poloprůhledného záseku": u transparent frameless okna dělá
-  // Windows (DWM) při show() pomalé prolnutí, kdy je okno ~1 s poloprůhledné a
-  // prosvítá skrz něj plocha/okno za ním. Řídíme si náběh sami — ukážeme okno
-  // s nulovou krytím (DWM prolnutí tak proběhne neviditelně) a pak ho krátce a
-  // plynule zvýšíme na plnou krytí.
-  win.once('ready-to-show', () => {
-    win.setOpacity(0)
-    win.show()
-    const startedAt = Date.now()
-    const DURATION_MS = 160
-    const fade = (): void => {
-      if (win.isDestroyed()) return
-      const t = Math.min(1, (Date.now() - startedAt) / DURATION_MS)
-      win.setOpacity(t)
-      if (t < 1) setTimeout(fade, 16)
-      else win.setOpacity(1)
-    }
-    fade()
-  })
+  // Neprůhledné okno se ukáže bez triků — DWM u něj nedělá ten „poloprůhledný
+  // zásek" jako u transparentního, takže stačí prostý show() po prvním vykreslení.
+  win.once('ready-to-show', () => win.show())
+
+  // Stav maximalizace posíláme rendereru, ať přepne ikonu tlačítka (maximalizovat
+  // ↔ obnovit). Frameless okno nemá nativní tlačítko, řešíme si ho v UI.
+  const sendMax = (): void => {
+    if (!win.isDestroyed()) win.webContents.send('overlay:maximized', win.isMaximized())
+  }
+  win.on('maximize', sendMax)
+  win.on('unmaximize', sendMax)
 
   win.on('closed', () => {
     mainWindow = null
@@ -155,11 +163,32 @@ export function createOverlay(): BrowserWindow {
  * sám neaktivuje předchozí okno (hru). Uživatel by musel kliknout. Proto
  * při skrytí, pokud Clone Hero běží, ho aktivně přepneme do popředí.
  */
+/**
+ * INSTANTNÍ skrytí — bez DWM fade-out animace. Neprůhledné okno Windows při
+ * `hide()` animuje (zavírací prolnutí), což je u velkého okna trhané. Nastavením
+ * opacity na 0 okno zmizí OKAMŽITĚ (setOpacity není animovaný), takže i kdyby DWM
+ * animaci spustil, není co prolínat. `revealOverlay` pak opacity vrátí na 1 (což
+ * zároveň sundá WS_EX_LAYERED → Aero Snap dál funguje). */
+function hideInstant(win: BrowserWindow): void {
+  win.setOpacity(0)
+  win.hide()
+}
+
+/** Ukáže hlavní okno (opacity zpět na 1 po případném instantním skrytí) + focus. */
+export function revealOverlay(): void {
+  const win = mainWindow
+  if (!win) return
+  hideReminder() // hlavní okno bude vidět → reminder pill je zbytečný
+  win.setOpacity(1)
+  win.show()
+  win.focus()
+}
+
 export async function toggleOverlay(): Promise<void> {
   const win = mainWindow
   if (!win) return
   if (win.isVisible() && win.isFocused()) {
-    win.hide()
+    hideInstant(win)
     // Vrátí focus zpět na hru (pokud běží) — bez tohohle by uživatel musel
     // ručně kliknout na CH/YARG okno. + ukázat reminder pill.
     try {
@@ -172,9 +201,7 @@ export async function toggleOverlay(): Promise<void> {
       /* nevadí — jen UX bonus */
     }
   } else {
-    hideReminder() // hlavní okno bude vidět, reminder je pak zbytečný
-    win.show()
-    win.focus()
+    revealOverlay()
   }
 }
 
@@ -182,7 +209,7 @@ export async function toggleOverlay(): Promise<void> {
 export async function hideOverlay(): Promise<void> {
   const win = mainWindow
   if (!win) return
-  win.hide()
+  hideInstant(win)
   try {
     const game = await runningGame()
     if (game) {

@@ -56,7 +56,7 @@ import { fetchFilterOptions, search as searchRhythmverse } from './core/rhythmve
 import { resolveSpotifyPlaylist } from './core/spotify'
 import { getReleaseNotes, getReleaseNotesSince } from './core/update'
 import { registerHotkeys, unregisterHotkeys } from './hotkeys'
-import { applyUiScale, getOverlay, hideOverlay } from './overlay'
+import { applyUiScale, getOverlay, hideOverlay, isMaximized, toggleMaximize } from './overlay'
 
 let ipcRegistered = false
 let gamePollHandle: NodeJS.Timeout | null = null
@@ -283,6 +283,8 @@ export function registerIpc(): void {
   ipcMain.handle('playlist:resolve', (_e, url: string) => resolveSpotifyPlaylist(url))
 
   ipcMain.on('overlay:hide', () => hideOverlay())
+  ipcMain.on('overlay:toggleMaximize', () => toggleMaximize())
+  ipcMain.handle('overlay:isMaximized', () => isMaximized())
   ipcMain.on('app:quit', () => app.quit())
   ipcMain.on('hotkeys:pause', () => unregisterHotkeys())
   ipcMain.on('hotkeys:resume', () => registerHotkeys())

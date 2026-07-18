@@ -459,6 +459,12 @@ export interface RendererApi {
   /** Odběr změn stavu hry (poll 3s) — vrací která hra běží, nebo null. */
   onGameStatus(cb: (game: 'clone-hero' | 'yarg' | null) => void): () => void
   hideOverlay(): void
+  /** Přepne maximalizaci hlavního okna. */
+  toggleMaximize(): void
+  /** Aktuální stav maximalizace (počáteční ikona tlačítka). */
+  isMaximized(): Promise<boolean>
+  /** Odběr změn stavu maximalizace (přepnutí ikony). Vrací unsubscribe. */
+  onMaximizeChange(cb: (max: boolean) => void): () => void
   quitApp(): void
   /** Dočasně pozastaví globální zkratky (při zachytávání nové zkratky). */
   pauseHotkeys(): void

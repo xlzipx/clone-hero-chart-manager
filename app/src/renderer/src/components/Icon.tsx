@@ -24,6 +24,8 @@ export type IconName =
   | 'settings'
   | 'gamepad'
   | 'minimize'
+  | 'maximize'
+  | 'restore'
   | 'close'
   | 'info'
   | 'more'
@@ -122,6 +124,15 @@ const PATHS: Record<IconName, JSX.Element> = {
     </>
   ),
   minimize: <line x1="6" y1="15" x2="18" y2="15" />,
+  // Prázdný čtverec = maximalizovat.
+  maximize: <rect x="6" y="6" width="12" height="12" rx="2" />,
+  // Dva překryté čtverce = obnovit z maximalizace.
+  restore: (
+    <>
+      <rect x="6" y="8.5" width="9.5" height="9.5" rx="2" />
+      <path d="M9.5 8.5V7.5A2 2 0 0 1 11.5 5.5H16.5A2 2 0 0 1 18.5 7.5V12.5A2 2 0 0 1 16.5 14.5H15.5" />
+    </>
+  ),
   close: (
     <>
       <line x1="6" y1="6" x2="18" y2="18" />

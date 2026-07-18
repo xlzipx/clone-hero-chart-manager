@@ -3,7 +3,7 @@
 import { app, Menu, nativeImage, Tray } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { getOverlay, toggleOverlay } from './overlay'
+import { revealOverlay, toggleOverlay } from './overlay'
 
 let tray: Tray | null = null
 
@@ -27,13 +27,7 @@ export function createTray(): void {
       },
       {
         label: 'Show window',
-        click: () => {
-          const win = getOverlay()
-          if (win) {
-            win.show()
-            win.focus()
-          }
-        }
+        click: () => revealOverlay()
       },
       { type: 'separator' },
       { label: 'Quit', click: () => app.quit() }
