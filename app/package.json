@@ -23,6 +23,7 @@
       "output": "dist",
       "buildResources": "build"
     },
+    "afterPack": "build/adhoc-sign.cjs",
     "publish": [
       {
         "provider": "github",
