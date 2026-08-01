@@ -11,7 +11,10 @@ import { promises as fsp } from 'fs'
 import { basename, join, relative, resolve, sep } from 'path'
 import { getConfig } from './config'
 import { readSongMeta, stripRichTags } from './songmeta'
-import { songHash } from './playlists'
+import { songHashCached } from './playlists'
+
+/** Kolik písní hashovat najednou (viz `IO_CONCURRENCY` ve `filetype.ts`). */
+const HASH_CONCURRENCY = 8
 import { normText } from '../../shared/songid'
 import type { DupExtras, DupGroup, DupSong } from '../../shared/types'
 
@@ -137,9 +140,15 @@ export async function findDuplicates(scope?: string[]): Promise<DupGroup[]> {
 
   for (const candidates of byTitle.values()) {
     if (candidates.length < 2) continue
-    // Hashuj jen tyhle kandidáty.
+    // Hashuj jen tyhle kandidáty. Po dávkách, ne jeden po druhém — hashování
+    // čeká na disk, takže sériově se zbytečně čeká. `songHashCached` navíc
+    // sáhne po MD5 jen u písní, které se od minula změnily.
     const hashes = new Map<RawSong, string | null>()
-    for (const s of candidates) hashes.set(s, await songHash(s.abs))
+    for (let i = 0; i < candidates.length; i += HASH_CONCURRENCY) {
+      const batch = candidates.slice(i, i + HASH_CONCURRENCY)
+      const res = await Promise.all(batch.map((s) => songHashCached(s.abs)))
+      batch.forEach((s, j) => hashes.set(s, res[j]))
+    }
 
     // Identické podskupiny (stejný ne-null hash).
     const byHash = new Map<string, RawSong[]>()

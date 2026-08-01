@@ -269,6 +269,43 @@ async function loadHashCache(): Promise<Map<string, HashCacheEntry>> {
   return hashDiskCache
 }
 
+/**
+ * MD5 písně, ale s využitím perzistentní cache — přepočítá se jen když se
+ * notes soubor od minula změnil (porovnává se mtime + velikost).
+ *
+ * Používá ji indexace setlistů i hledání duplicit. To druhé si dřív volalo
+ * syrový `songHash`, takže při každém spuštění přečetlo celou knihovnu znovu;
+ * u velkých sbírek to byly stovky MB čtení a znatelné čekání.
+ */
+export async function songHashCached(folderAbs: string): Promise<string | null> {
+  const st = await notesStat(folderAbs)
+  if (!st) return null
+  const cache = await loadHashCache()
+  const hit = cache.get(st.path)
+  if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.hash
+  const h = await songHash(folderAbs)
+  if (h) {
+    cache.set(st.path, { mtimeMs: st.mtimeMs, size: st.size, hash: h })
+    scheduleHashCacheSave()
+  }
+  return h
+}
+
+/**
+ * Zápis cache po dávce, ne po každé písni — jinak by se při skenu knihovny
+ * přepisoval celý JSON tisíckrát za sebou.
+ */
+let hashSaveTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleHashCacheSave(): void {
+  if (hashSaveTimer) return
+  hashSaveTimer = setTimeout(() => {
+    hashSaveTimer = null
+    if (hashDiskCache) void saveHashCache(hashDiskCache)
+  }, 2000)
+  // Ať čekající zápis nedrží proces naživu při zavírání appky.
+  hashSaveTimer.unref?.()
+}
+
 /** Uloží hash cache (best-effort; selhání zápisu jen znamená přepočet příště). */
 async function saveHashCache(map: Map<string, HashCacheEntry>): Promise<void> {
   hashDiskCache = map

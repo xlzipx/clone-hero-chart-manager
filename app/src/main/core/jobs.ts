@@ -2,7 +2,7 @@
 
 import { EventEmitter } from 'events'
 import { mkdtempSync, existsSync, mkdirSync, statSync } from 'fs'
-import { copyFile, rm } from 'fs/promises'
+import { copyFile, rm, stat } from 'fs/promises'
 import { tmpdir } from 'os'
 import { basename, join } from 'path'
 import { randomUUID } from 'crypto'
@@ -179,17 +179,15 @@ class JobManager extends EventEmitter {
    *   - složka bez archivů → celá složka (obsahuje volné písně / DTX / CON / .sng).
    * Metadata se odvodí z názvu; cílová podsložka je společná pro celou dávku.
    */
-  enqueueLocalBatch(paths: string[], targetSubfolder?: string): string[] {
+  async enqueueLocalBatch(paths: string[], targetSubfolder?: string): Promise<string[]> {
     const inputs: string[] = []
     for (const p of paths) {
-      let st
-      try {
-        st = statSync(p)
-      } catch {
-        continue
-      }
+      // Async schválně: u přetažené složky se pod tím prochází celý strom a
+      // synchronní verze by na tu dobu zastavila main proces (viz `filetype.ts`).
+      const st = await stat(p).catch(() => null)
+      if (!st) continue
       if (st.isDirectory()) {
-        const archives = findArchiveFiles(p)
+        const archives = await findArchiveFiles(p)
         if (archives.length > 0) inputs.push(...archives)
         else inputs.push(p)
       } else if (st.isFile()) {
@@ -257,7 +255,7 @@ class JobManager extends EventEmitter {
           await copyFile(localPath, downloadPath)
 
           // Pokračuj stejnou cestou jako u stažených souborů.
-          if (isArchiveByMagic(downloadPath)) {
+          if (await isArchiveByMagic(downloadPath)) {
             this.setStage(id, 'extracting', 'Extracting…')
             const exDir = join(tmpRoot, '_extracted')
             mkdirSync(exDir, { recursive: true })
@@ -272,7 +270,7 @@ class JobManager extends EventEmitter {
             mkdirSync(exDir, { recursive: true })
             await extractSng(downloadPath, exDir, `${song.artist} - ${song.title}`)
             workDir = exDir
-          } else if (isHtmlFile(downloadPath)) {
+          } else if (await isHtmlFile(downloadPath)) {
             throw new Error('Dropped file looks like a web page, not a song.')
           }
         }
@@ -303,7 +301,7 @@ class JobManager extends EventEmitter {
 
         // 2) Rozbalení (pokud archiv) — detekce podle obsahu, ne přípony
         // (Google Drive stahuje soubory bez přípony).
-        if (isArchiveByMagic(downloadPath)) {
+        if (await isArchiveByMagic(downloadPath)) {
           this.setStage(id, 'extracting', 'Extracting…')
           const exDir = join(tmpRoot, '_extracted')
           mkdirSync(exDir, { recursive: true })
@@ -317,7 +315,7 @@ class JobManager extends EventEmitter {
           mkdirSync(exDir, { recursive: true })
           await extractSng(downloadPath, exDir, `${song.artist} - ${song.title}`)
           workDir = exDir
-        } else if (isHtmlFile(downloadPath)) {
+        } else if (await isHtmlFile(downloadPath)) {
           throw new Error(
             'The link returned a web page, not a song file. Use the ⋮ menu → Open page in browser to download it manually.'
           )
@@ -326,7 +324,7 @@ class JobManager extends EventEmitter {
 
       this.throwIfCanceled(id) // po stažení/rozbalení, před (dlouhou) konverzí
       // 3) Konverze (pokud potřeba) — nejdřív CON, jinak zkus DTXMania.
-      const conFiles = findConFiles(workDir)
+      const conFiles = await findConFiles(workDir)
       let installSource = workDir
       if (conFiles.length > 0) {
         this.setStage(
@@ -353,7 +351,7 @@ class JobManager extends EventEmitter {
         }
         installSource = convOut
       } else {
-        const dtxEntries = findDtxEntries(workDir)
+        const dtxEntries = await findDtxEntries(workDir)
         if (dtxEntries.length > 0) {
           this.setStage(
             id,
