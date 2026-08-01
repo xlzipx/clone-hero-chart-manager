@@ -29,12 +29,23 @@ export function ReportBug(): JSX.Element {
   )
 }
 
-/** Vytvoří seznam stránek s výpustkami: [1,2,3,'…',9]. */
+/**
+ * Kolik stránek nabídnout na KAŽDOU stranu od aktuální. Dřív to byla jednička,
+ * takže u velkých katalogů se dalo posouvat prakticky jen po jedné stránce.
+ */
+const PAGE_WINDOW = 3
+/** Kolik čísel se vejde souvisle, než má smysl je zkracovat výpustkou. */
+const PAGE_SOLID = PAGE_WINDOW * 2 + 3
+
+/** Vytvoří seznam stránek s výpustkami: [1,'…',7,8,9,10,11,12,13,'…',826]. */
 function pageList(current: number, total: number): (number | '…')[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
-  const set = new Set<number>([1, total, current, current - 1, current + 1])
-  if (current <= 3) [2, 3].forEach((n) => set.add(n))
-  if (current >= total - 2) [total - 1, total - 2].forEach((n) => set.add(n))
+  if (total <= PAGE_SOLID) return Array.from({ length: total }, (_, i) => i + 1)
+  const set = new Set<number>([1, total])
+  for (let i = current - PAGE_WINDOW; i <= current + PAGE_WINDOW; i++) set.add(i)
+  // U kraje se okno „opře" o začátek/konec — doplň chybějící čísla na druhou
+  // stranu, ať je řada pořád stejně dlouhá a tlačítka neposkakují.
+  if (current <= PAGE_WINDOW + 1) for (let i = 2; i <= PAGE_SOLID; i++) set.add(i)
+  if (current >= total - PAGE_WINDOW) for (let i = total - PAGE_SOLID + 1; i < total; i++) set.add(i)
   const nums = [...set].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b)
   const out: (number | '…')[] = []
   let prev = 0
