@@ -571,7 +571,7 @@ body {
   line-height: 1;
   border-radius: 9px;
   border: 1px solid var(--border-strong);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel);
   color: var(--text);
   cursor: pointer;
   transition:
@@ -1026,7 +1026,7 @@ body {
   padding: 0 5px;
   border-radius: 9px;
   background: var(--accent);
-  color: #131315;
+  color: var(--on-pill);
   font-size: 11px;
   font-weight: 700;
 }
@@ -1161,7 +1161,7 @@ body {
   padding: 13px 16px;
   border: 1px solid var(--border);
   border-radius: var(--r-md, 10px);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--panel);
   font-size: 13px;
   color: var(--text-faint);
 }
@@ -1178,7 +1178,7 @@ body {
   border-radius: 10px;
   border: none;
   background: var(--accent);
-  color: #131315;
+  color: var(--on-pill);
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
@@ -1837,7 +1837,7 @@ body {
   padding: 7px 14px;
   border-radius: 999px;
   border: 1px solid var(--border-strong);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel);
   color: var(--text-dim);
   font-size: 13px;
   cursor: pointer;
@@ -2467,7 +2467,7 @@ body {
 }
 .pager__bug:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--panel-hover);
 }
 /* Bílá (barva textu), ne původní černá kresba — jinak by na tmavém zanikla. */
 .pager__bugicon {
@@ -3169,7 +3169,10 @@ body {
 
 /* ---------- Target folder modal ---------- */
 .modal--folder {
-  width: 500px;
+  /* Širší okno: seznam složek je hlavní obsah a u delších názvů (s počtem
+     písní vpravo) se do 500 px mačkal. `vw` drží okno v rozumné šířce i na
+     malém displeji. */
+  width: min(720px, 88vw);
 }
 .folder-song {
   font-size: 13px;
@@ -3189,8 +3192,23 @@ body {
 .folder-filter:focus {
   border-color: var(--accent);
 }
+/* Název ať zabere zbytek řádku a v případě potřeby se usekne — počet vpravo
+   tak zůstane zarovnaný u okraje a nepřeskakuje podle délky názvu. */
+.folder-item__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Odznak s počtem písní si okno půjčuje z Library manageru (`lib__tag--count`),
+   ať jsou oba pohledy stejné — vlastní varianta by se časem rozešla. */
+.folder-item .lib__tag {
+  flex: none;
+}
+
 .folder-list {
-  max-height: 300px;
+  max-height: 46vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -3658,7 +3676,7 @@ body {
 }
 .pldlg__item:hover:not(:disabled) {
   border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--panel-hover);
 }
 .pldlg__count {
   color: var(--text-faint);
@@ -3681,7 +3699,7 @@ body {
   border-radius: 10px;
   padding: 8px 11px;
   margin: 8px 0;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--panel);
 }
 .dup__grouphead {
   display: flex;
@@ -3745,7 +3763,7 @@ body {
   margin: 2px 0 8px 30px;
   padding: 10px 12px;
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--panel);
   border: 1px solid var(--border-strong);
 }
 .dup__detail--loading {
@@ -3772,7 +3790,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel);
   color: var(--text-faint);
 }
 .dup__detailmeta {
@@ -3939,7 +3957,7 @@ body {
   padding: 3px 9px;
   border-radius: 999px;
   border: 1px solid rgba(148, 170, 220, 0.22);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--panel);
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -3974,7 +3992,7 @@ body {
   padding: 11px 14px;
   border-radius: 10px;
   border: 1px solid rgba(148, 170, 220, 0.3);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel);
   color: var(--text);
   font-size: 13.5px;
   font-weight: 600;
@@ -4145,7 +4163,7 @@ body {
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 .about__social:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--panel-hover);
   border-color: rgba(148, 170, 220, 0.35);
   color: var(--text);
 }
@@ -4225,7 +4243,7 @@ body {
   transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
 }
 .dup__startopt:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--panel-hover);
   border-color: rgba(148, 170, 220, 0.35);
   color: var(--text);
   transform: translateY(-1px);
@@ -4286,7 +4304,7 @@ body {
   transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
 }
 .dup__scopebtn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--panel-hover);
   color: var(--text);
 }
 /* Zúžený rozsah = akcent. Musí být na první pohled jasné, že se NEprohledává
@@ -4497,7 +4515,7 @@ body {
 .plm__songs {
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--panel);
   overflow-y: auto;
   min-height: 0;
 }
@@ -4513,7 +4531,7 @@ body {
   border-bottom: 1px solid var(--border);
 }
 .plm__list:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel);
 }
 .plm__list--sel {
   background: rgba(var(--accent-rgb), 0.14);
@@ -4578,7 +4596,7 @@ body {
   cursor: pointer;
 }
 .plm__song:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel);
 }
 .plm__songtext {
   display: flex;
@@ -4815,7 +4833,7 @@ body {
   border-radius: 11px;
   cursor: pointer;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--panel);
   color: var(--text);
   font-size: 13px;
   font-weight: 600;
@@ -4860,7 +4878,7 @@ body {
   border-radius: 12px;
   cursor: pointer;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--panel);
   color: var(--text);
   text-align: left;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
@@ -5115,7 +5133,7 @@ body {
   padding: 14px 18px;
   border-radius: 16px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--panel);
   display: flex;
   align-items: stretch;
   gap: 26px;
@@ -5369,7 +5387,7 @@ body {
   position: relative;
   overflow: hidden;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--panel-hover);
 }
 .sk::after {
   content: '';
@@ -5690,7 +5708,7 @@ body {
 
 /* Search: input a tlačítko V JEDNOM orámovaném kontejneru. */
 .content .searchbar__row--input {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 10px;
@@ -6140,7 +6158,7 @@ body {
 /* „Check for updates": bez ohraničení, jen plochý podklad (jako launch tlačítka). */
 .side-update {
   border: none;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel);
 }
 .side-update:hover:not(:disabled) {
   border: none;
@@ -6432,7 +6450,7 @@ body {
    Křížek se při hoveru zalije červeně (plná výplň, ne obrys). */
 .titlebar__btn {
   border: none;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--panel-hover);
 }
 .titlebar__btn:hover {
   background: rgba(255, 255, 255, 0.1);
@@ -6618,6 +6636,23 @@ body {
   --text: #eaeaee;
   --text-dim: #8b8b92;
   --text-faint: #57575d;
+  /* ── Jeden recept na každý druh plochy ──────────────────────────────
+     Grafit měl svůj systém (vyvýšená pilulka, světlá pilulka, plovoucí
+     plocha), ale opsaný na deseti místech — a kopie se postupně rozešly
+     o jednotky v kanálech (#1b1c1f vs #1b1c20, #151618 vs #161618).
+     Odstíny jsou proto tady JEDNOU a pravidla se na ně odkazují; změna
+     vzhledu se pak propíše všude a nemůže zůstat půl appky pozadu. */
+  --pill: linear-gradient(180deg, #26272c 0%, #1a1b1e 100%);
+  --pill-hi: linear-gradient(180deg, #2d2e33 0%, #202126 100%);
+  --pill-primary: linear-gradient(180deg, #f3f3f6 0%, #d4d4d8 100%);
+  --pill-primary-hi: linear-gradient(180deg, #ffffff 0%, #dcdce0 100%);
+  /* Text na světlé pilulce — tmavý grafit, ne čistá čerň (ta na bílé „řeže"). */
+  --on-pill: #131315;
+  /* Plovoucí plochy: dropdowny, ⋮ menu, našeptávač. */
+  --menu-bg: linear-gradient(180deg, #1b1c20 0%, #141517 100%);
+  /* Plocha s obsahem (výsledky, tabulka) — dřív dvě skoro shodné hodnoty. */
+  --content-bg: #161719;
+
   /* Základní plochy (modaly používají var(--bg-solid)) → grafit. */
   --bg: #0e0e10;
   --bg-solid: #17181b;
@@ -6644,10 +6679,10 @@ body {
    světlejší, ať se od něj lehce odliší a nesplyne v jednu tmavou masu.
    Zůstává plná barva → vrstva je neprůhledná (viz komentář u `.results`). */
 [data-theme='graphite'] .results {
-  background: #161618;
+  background: var(--content-bg);
 }
 [data-theme='graphite'] .tablewrap {
-  background: #151618;
+  background: var(--content-bg);
 }
 /* Zaškrtávací boxíky (multi-select, duplikáty, panel) — v nezaškrtnutém stavu
    vyryté dírky jako u difficulty; zaškrtnuté = vyplněné akcentem a vyvýšené. */
@@ -6661,24 +6696,24 @@ body {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 [data-theme='graphite'] .suggest {
-  background: linear-gradient(180deg, #1b1c20 0%, #141517 100%);
+  background: var(--menu-bg);
 }
 
 /* Launch tlačítka → grafitové vyvýšené pilulky. */
 [data-theme='graphite'] .side-launch--clone-hero {
-  background: linear-gradient(180deg, #26272c 0%, #1a1b1e 100%);
+  background: var(--pill);
   color: var(--text);
 }
 [data-theme='graphite'] .side-launch--clone-hero:hover:not(:disabled) {
-  background: linear-gradient(180deg, #2d2e33 0%, #202126 100%);
+  background: var(--pill-hi);
 }
 [data-theme='graphite'] .side-launch--yarg {
   /* Sjednoceno s Clone Hero — dřív byl YARG o odstín tmavší. */
-  background: linear-gradient(180deg, #26272c 0%, #1a1b1e 100%);
+  background: var(--pill);
   color: var(--text);
 }
 [data-theme='graphite'] .side-launch--yarg:hover:not(:disabled) {
-  background: linear-gradient(180deg, #2d2e33 0%, #202126 100%);
+  background: var(--pill-hi);
   color: var(--text);
 }
 
@@ -6689,8 +6724,8 @@ body {
 [data-theme='graphite'] .btn-primary,
 [data-theme='graphite'] .batchbar__dl,
 [data-theme='graphite'] .pgnum--active {
-  background: linear-gradient(180deg, #f3f3f6 0%, #d4d4d8 100%);
-  color: #131315;
+  background: var(--pill-primary);
+  color: var(--on-pill);
 }
 [data-theme='graphite'] .titlebar__library:hover,
 [data-theme='graphite'] .searchbar__go:hover,
@@ -6698,8 +6733,8 @@ body {
 [data-theme='graphite'] .btn-primary:hover,
 [data-theme='graphite'] .batchbar__dl:hover,
 [data-theme='graphite'] .pgnum--active:hover {
-  background: linear-gradient(180deg, #ffffff 0%, #dcdce0 100%);
-  color: #131315;
+  background: var(--pill-primary-hi);
+  color: var(--on-pill);
 }
 [data-theme='graphite'] .titlebar__library:active,
 [data-theme='graphite'] .searchbar__go:active,
@@ -6784,35 +6819,35 @@ body {
 [data-theme='graphite'] .rowmenu__menu,
 [data-theme='graphite'] .ctxmenu,
 [data-theme='graphite'] .lib__dialog {
-  background: #1b1c20;
+  background: var(--box);
 }
 
 /* Vybraná položka dropdownu a zaškrtnutý checkbox mají v grafitu SVĚTLÉ pozadí
    (--accent-grad) → text/fajfka musí být TMAVÁ, jinak bílá na bílé zmizí. */
 [data-theme='graphite'] .dd__item--sel,
 [data-theme='graphite'] .chk input:checked + .chk__box {
-  color: #131315;
+  color: var(--on-pill);
 }
 /* Hotkey checkbox (.check) používá fajfku z border: solid #fff → v grafitu
    na světlém boxu zmizí; přebarvíme ji na tmavou. */
 [data-theme='graphite'] .check input[type='checkbox']:checked::after {
-  border-color: #131315;
+  border-color: var(--on-pill);
 }
 
 /* Filter-chip „×" na hover má světlé pozadí (--accent-2) → tmavý křížek. */
 [data-theme='graphite'] .filterchip__x:hover {
-  color: #131315;
+  color: var(--on-pill);
 }
 
 /* Tlačítko v update kartě → světlá pilulka (jako ostatní primární). „Ready"
    stav zůstává zelený (status). */
 [data-theme='graphite'] .side-update-card__btn {
-  background: linear-gradient(180deg, #f3f3f6 0%, #d4d4d8 100%);
-  color: #131315;
+  background: var(--pill-primary);
+  color: var(--on-pill);
 }
 [data-theme='graphite'] .side-update-card__btn:hover {
-  background: linear-gradient(180deg, #ffffff 0%, #dcdce0 100%);
-  color: #131315;
+  background: var(--pill-primary-hi);
+  color: var(--on-pill);
 }
 [data-theme='graphite'] .side-update-card--ready .side-update-card__btn {
   background: #22a883;
@@ -6837,7 +6872,7 @@ body {
 [data-theme='graphite'] .dd__btn,
 [data-theme='graphite'] .side-update,
 [data-theme='graphite'] .theme-opt {
-  background: linear-gradient(180deg, #26272c 0%, #191a1d 100%) !important;
+  background: var(--pill) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.55),
     0 5px 12px rgba(0, 0, 0, 0.3) !important;
   border: 1px solid rgba(0, 0, 0, 0.4) !important;
@@ -6849,7 +6884,7 @@ body {
 [data-theme='graphite'] .dd__btn:hover:not(:disabled),
 [data-theme='graphite'] .side-update:hover:not(:disabled),
 [data-theme='graphite'] .theme-opt:hover {
-  background: linear-gradient(180deg, #2e2f34 0%, #202126 100%) !important;
+  background: var(--pill-hi) !important;
 }
 /* Křížek: hover se zalije červeně (jako v běžných oknech). Musí být ZA grafitovým
    !important hoverem výše a taky s !important, aby ho přebil (stejná specificita). */
@@ -6907,8 +6942,8 @@ body {
 }
 [data-theme='graphite'] .song:hover .dl-btn:not(.dl-btn--store),
 [data-theme='graphite'] .dl-btn:not(.dl-btn--store):hover {
-  background: linear-gradient(180deg, #f3f3f6 0%, #d4d4d8 100%);
-  color: #131315;
+  background: var(--pill-primary);
+  color: var(--on-pill);
   border-color: transparent;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.75),
@@ -7504,7 +7539,7 @@ button.badge--owned:hover {
   border: 1px solid transparent;
 }
 .plrow--matched {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--panel);
 }
 .plrow--notfound {
   opacity: 0.5;
@@ -7670,7 +7705,7 @@ button.plrow__na:hover {
   cursor: pointer;
 }
 .plver:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--panel-hover);
 }
 .plver--on {
   color: var(--text);
