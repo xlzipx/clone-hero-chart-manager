@@ -11,7 +11,7 @@ import type {
   SortKey
 } from '../../shared/types'
 import { SORT_DEFAULT_DIR } from '../../shared/types'
-import { mergeBoth } from '../../shared/songid'
+import { mergeBoth, songKey } from '../../shared/songid'
 import { asError, errMsg } from '../../shared/errors'
 import {
   ENCORE_PER_PAGE_MAX,
@@ -972,7 +972,14 @@ export const useStore = create<AppState>((set, get) => {
       // znovu a znovu. Když má pool méně než N (drobný katalog / úzký filtr),
       // vezmi vše, co je — nedopisuj to opakovanými picky.
       const WANT = 5
-      const shuffled = [...pool].sort(() => Math.random() - 0.5)
+      // Co už v knihovně je, nenabízet — losování má sloužit k objevování, ne
+      // ukazovat, co si uživatel dávno stáhl. Kdyby po odfiltrování nezbylo nic
+      // (úzký filtr nebo malý katalog, kde má všechno), radši nabídni původní
+      // výběr než prázdnou obrazovku.
+      const { ownedKeys } = get()
+      const fresh = pool.filter((s) => !ownedKeys.has(songKey(s.artist, s.title)))
+      const candidates = fresh.length > 0 ? fresh : pool
+      const shuffled = [...candidates].sort(() => Math.random() - 0.5)
       const picks = shuffled.slice(0, Math.min(WANT, shuffled.length))
       set({
         results: picks,

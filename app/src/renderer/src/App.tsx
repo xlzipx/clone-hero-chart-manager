@@ -659,16 +659,17 @@ export function App(): JSX.Element {
 
       {source.length > 0 && !surprise ? (
         <Pager visibleCount={visible.length} matchTotal={deep ? filteredAll.length : undefined} />
-      ) : loading && !surprise ? (
-        // Pager bez obsahu — drží jen spodní odsazení, ať shimmer zůstane v okně
-        // výsledků. Ikona hlášení chyby zůstává i tady, ať při přepínání databáze
-        // neproblikává pryč.
-        <div className="pager pager--skeleton">
+      ) : (
+        // Stránkovat není co (načítání, náhodný výběr, prázdný start), ale spodní
+        // lišta zůstává — ikona hlášení chyby nesmí mizet a zase se objevovat
+        // podle toho, co je zrovna na obrazovce. Během načítání navíc drží výšku,
+        // ať shimmer neposkakuje.
+        <div className={`pager ${loading ? 'pager--skeleton' : ''}`}>
           <div className="pager__right">
             <ReportBug />
           </div>
         </div>
-      ) : null}
+      )}
         </main>
       </div>
 
