@@ -12,7 +12,7 @@ import type {
 } from '../../shared/types'
 import { SORT_DEFAULT_DIR } from '../../shared/types'
 import { mergeBoth, songKey } from '../../shared/songid'
-import { asError, errMsg } from '../../shared/errors'
+import { asError, errMsg, userMsg } from '../../shared/errors'
 import {
   ENCORE_PER_PAGE_MAX,
   RV_CHUNK,
@@ -520,7 +520,7 @@ export const useStore = create<AppState>((set, get) => {
       const jobId = await window.api.enqueueDownload(song, subfolder)
       set((s) => ({ enqueuedKeys: { ...s.enqueuedKeys, [song.key]: jobId } }))
     } catch (e) {
-      set({ error: errMsg(e) })
+      set({ error: userMsg(e) })
     }
   }
 
@@ -606,7 +606,7 @@ export const useStore = create<AppState>((set, get) => {
       set({
         deepLoading: false,
         loading: false,
-        error: errMsg(e)
+        error: userMsg(e)
       })
     }
   }
@@ -997,7 +997,7 @@ export const useStore = create<AppState>((set, get) => {
       })
     } catch (e) {
       if (myReq !== searchSeq) return
-      set({ loading: false, surprise: false, error: errMsg(e) })
+      set({ loading: false, surprise: false, error: userMsg(e) })
     }
   },
   /** Kanonický „clear all" — vyčistí VŠECHNY filtry (nástroj, obtížnost,
@@ -1140,7 +1140,7 @@ export const useStore = create<AppState>((set, get) => {
       })
     } catch (e) {
       if (myReq !== searchSeq) return
-      set({ loading: false, error: errMsg(e) })
+      set({ loading: false, error: userMsg(e) })
     }
   },
 
@@ -1237,7 +1237,7 @@ export const useStore = create<AppState>((set, get) => {
         return { enqueuedKeys }
       })
     } catch (e) {
-      set({ error: errMsg(e) })
+      set({ error: userMsg(e) })
     }
   },
   cancelLocalBatch: () => set({ pendingLocalBatch: null }),
@@ -1326,7 +1326,7 @@ export const useStore = create<AppState>((set, get) => {
       )
       set((s) => ({ enqueuedKeys: { ...s.enqueuedKeys, [localSong.key]: jobId } }))
     } catch (e) {
-      set({ error: errMsg(e) })
+      set({ error: userMsg(e) })
     }
   },
 
