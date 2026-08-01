@@ -166,7 +166,10 @@ function SongRowBase({
           ? 'No preview found for this song'
           : pvState === 'error'
             ? 'Preview failed — click to retry'
-            : 'Play a 30s preview (official recording, not the chart audio)'
+            : owned
+              ? // Máme ji staženou → hraje se zvuk chartu, ne spárovaná ukázka.
+                'Play a 30s preview of your downloaded copy'
+              : 'Play a 30s preview (official recording, not the chart audio)'
 
   return (
     <div

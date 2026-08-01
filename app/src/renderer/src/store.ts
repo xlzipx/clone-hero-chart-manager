@@ -697,6 +697,58 @@ export const useStore = create<AppState>((set, get) => {
     }
   }
 
+  /**
+   * Přehraje zvuk písně ležící v knihovně (u stopově dělených chartů všechny
+   * stopy naráz, ať je mix úplný). Vrací `false`, když ve složce žádné audio
+   * není — volající pak může zkusit jiný zdroj.
+   *
+   * Stav (`previewKey`, `loading`) si nastavuje VOLAJÍCÍ. Právě proto to je
+   * samostatná funkce: používá ji jak tlačítko v Library manageru, tak ukázka
+   * u výsledků hledání, která tudy zkusí sáhnout dřív, než půjde na internet.
+   */
+  const playLocalTracks = async (key: string, rel: string): Promise<boolean> => {
+    const audio = await window.api.songAudio(rel)
+    // Přepnuto jinam → tvař se jako hotovo, ať volající nezkouší další zdroj.
+    if (get().previewKey !== key) return true
+    if (audio.tracks.length === 0) return false
+
+    const els = audio.tracks.map((t) => {
+      const el = new Audio()
+      el.preload = 'auto'
+      // Každou stopu na stejnou hlasitost: stopy dohromady tvoří původní mix,
+      // takže rovnoměrné ztlumení zachová poměry a jen ztiší celek.
+      el.volume = PREVIEW_VOLUME
+      el.src = t.url
+      return el
+    })
+    localEls = els
+
+    const start = (audio.previewStartMs ?? 0) / 1000
+    // Počkej, až je každá stopa připravená a najetá na start. Bez toho by se
+    // spustily nestejně a mix by se rozjel.
+    await Promise.all(els.map((el) => seekReady(el, start)))
+    if (get().previewKey !== key) {
+      stopLocalAudio()
+      return true
+    }
+
+    progressEl = els[0]
+    localWindow = { start: els[0].currentTime, len: LOCAL_PREVIEW_SEC }
+    // Spustit v jednom kroku, ať stopy nezačnou posunuté.
+    await Promise.all(els.map((el) => el.play().catch(() => undefined)))
+    if (get().previewKey !== key) {
+      stopLocalAudio()
+      return true
+    }
+    set({ previewState: 'playing' })
+
+    // Lokální soubor je celá píseň → ukázku sami utneme po 30 s.
+    localTimer = window.setTimeout(() => {
+      if (get().previewKey === key) get().stopPreview()
+    }, LOCAL_PREVIEW_SEC * 1000)
+    return true
+  }
+
   /** Po změně filtrů zapne/vypne deep režim (a případně spustí sken). */
   const syncDeepMode = (): void => {
     // Po změně instrument/obtížnost filtru jen přenačti — `doSearch` sám vybere
@@ -786,47 +838,8 @@ export const useStore = create<AppState>((set, get) => {
     set({ previewKey: key, previewState: 'loading', previewLabel: null })
 
     try {
-      const audio = await window.api.songAudio(rel)
-      if (get().previewKey !== key) return // uživatel mezitím přepnul
-      if (audio.tracks.length === 0) {
-        set({ previewState: 'unavailable' })
-        return
-      }
-
-      const els = audio.tracks.map((t) => {
-        const el = new Audio()
-        el.preload = 'auto'
-        // Každou stopu na stejnou hlasitost: stopy dohromady tvoří původní mix,
-        // takže rovnoměrné ztlumení zachová poměry a jen ztiší celek.
-        el.volume = PREVIEW_VOLUME
-        el.src = t.url
-        return el
-      })
-      localEls = els
-
-      const start = (audio.previewStartMs ?? 0) / 1000
-      // Počkej, až je každá stopa připravená a najetá na start. Bez toho by se
-      // spustily nestejně a mix by se rozjel.
-      await Promise.all(els.map((el) => seekReady(el, start)))
-      if (get().previewKey !== key) {
-        stopLocalAudio()
-        return
-      }
-
-      progressEl = els[0]
-      localWindow = { start: els[0].currentTime, len: LOCAL_PREVIEW_SEC }
-      // Spustit v jednom kroku, ať stopy nezačnou posunuté.
-      await Promise.all(els.map((el) => el.play().catch(() => undefined)))
-      if (get().previewKey !== key) {
-        stopLocalAudio()
-        return
-      }
-      set({ previewState: 'playing' })
-
-      // Lokální soubor je celá píseň → ukázku sami utneme po 30 s.
-      localTimer = window.setTimeout(() => {
-        if (get().previewKey === key) get().stopPreview()
-      }, LOCAL_PREVIEW_SEC * 1000)
+      const played = await playLocalTracks(key, rel)
+      if (!played && get().previewKey === key) set({ previewState: 'unavailable' })
     } catch {
       if (get().previewKey === key) set({ previewState: 'error' })
     }
@@ -845,6 +858,26 @@ export const useStore = create<AppState>((set, get) => {
     // Zastav cokoli, co zrovna hraje, a přepni cíl.
     stopPreviewAudio()
     set({ previewKey: key, previewState: 'loading', previewLabel: null })
+
+    // Máme píseň v knihovně? Pak hraj rovnou z disku. Je to SKUTEČNÝ zvuk
+    // chartu, ne spárovaná ukázka, a funguje i tam, kde iTunes ani Deezer nic
+    // nenajdou (fanouškovské kousky, herní hudba, remixy). Pozor: knihovna se
+    // páruje na interpret+název, takže u jiné verze téže písně zazní ta tvoje.
+    if (get().ownedKeys.has(songKey(song.artist, song.title))) {
+      try {
+        const rels = await window.api.ownedFolders(song.artist, song.title)
+        if (get().previewKey !== key) return
+        if (rels.length > 0) {
+          set({ previewLabel: 'your copy' })
+          if (await playLocalTracks(key, rels[0])) return
+          // Ve složce nebylo audio → spadni na online ukázku.
+          set({ previewLabel: null })
+        }
+      } catch {
+        /* nevadí — zkusíme online ukázku */
+      }
+      if (get().previewKey !== key) return
+    }
 
     const ensureAudio = (): HTMLAudioElement => {
       if (!previewAudio) {
