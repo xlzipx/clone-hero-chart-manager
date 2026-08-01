@@ -1769,6 +1769,13 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: 6px 10px 10px;
+  /* Stejná plocha jako sidebar (`--bg-side`). Vedle vzhledu to má i technický
+   * přínos: scrollovací kontejner má vlastní kompozitní vrstvu a plné pozadí
+   * z ní dělá NEPRŮHLEDNOU — kompozitor ji pak nemusí míchat s tím, co je pod
+   * ní. Pozor na `var(--bg)`: `.content` je průhledná a prosvítá jí přechod
+   * okna, který se dolů ztmavuje, takže plochá `--bg` by tu vystoupila jako
+   * světlejší flek. */
+  background: var(--bg-side);
 }
 .state {
   display: flex;
@@ -1880,9 +1887,20 @@ body {
   border: 1px solid transparent;
   transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease,
     transform 0.16s cubic-bezier(0.34, 1.3, 0.5, 1);
-  /* `contain: layout` izoluje layout výpočty bez clippingu obsahu –
-   * `paint` jsme měli, ale ten by uřízl absolutně-poziciované ⋮ menu pod řádkem. */
+  /* `contain: layout` izoluje layout výpočty bez clippingu obsahu. */
   contain: layout;
+  /* Řádky mimo výřez se nerozkládají ani nekreslí. Při tažení za okraj okna je
+   * to hlavní úspora: jinak se překresluje celý seznam včetně toho, co není
+   * vidět, renderer nestihne dodat snímek a kompozitor mezitím roztáhne ten
+   * poslední (= duchové na hraně). `contain-intrinsic-size` drží odhad výšky,
+   * ať neposkakuje scrollbar; `auto` znamená, že si prohlížeč po prvním
+   * vykreslení zapamatuje skutečnou.
+   *
+   * Paint containment, které `content-visibility` zapíná, tu dřív použít nešlo
+   * kvůli ⋮ menu — jenže to se mezitím přesunulo do portálu (`createPortal`
+   * + `position: fixed`), takže ho řádek už neuřízne. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 84px;
   animation: rowIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .song:nth-child(1) { animation-delay: 0ms; }
@@ -2324,6 +2342,9 @@ body {
   gap: 12px;
   padding: 10px 16px;
   border-top: 1px solid var(--border);
+  /* ZÁMĚRNĚ bez vlastního pozadí: `.app` má v grafitu svislý přechod, který se
+   * dole ztmavuje (#0e0e10 → #0a0a0c). Plochá `var(--bg)` je horní barva toho
+   * přechodu, takže by lišta úplně dole vystoupila jako světlejší pruh. */
   font-size: 12.5px;
   color: var(--text-dim);
 }
@@ -6618,6 +6639,12 @@ body {
 }
 [data-theme='graphite'] .sidebar {
   background: linear-gradient(180deg, #151517 0%, #111113 100%);
+}
+/* Plocha s výsledky: vychází ze sidebaru (`--bg-side` = #121214), ale o ~20 %
+   světlejší, ať se od něj lehce odliší a nesplyne v jednu tmavou masu.
+   Zůstává plná barva → vrstva je neprůhledná (viz komentář u `.results`). */
+[data-theme='graphite'] .results {
+  background: #161618;
 }
 [data-theme='graphite'] .tablewrap {
   background: #151618;

@@ -6,6 +6,7 @@ import type { MenuItemConstructorOptions } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { getConfig } from './core/config'
+import { isWin } from './core/platform'
 import { bringGameToFront, runningGame } from './core/gamedetect'
 import { hideReminder, showReminder } from './reminder'
 
@@ -78,7 +79,18 @@ export function createOverlay(): BrowserWindow {
     minHeight: minH,
     center: true,
     show: false,
-    frame: false,
+    /**
+     * Windows: `titleBarStyle: 'hidden'` nechá okno s NATIVNÍM rámem, jen bez
+     * titulkového pruhu. Tím zůstane na rychlé cestě DWM při změně velikosti —
+     * `frame: false` si nerámovou oblast obsluhuje sám a obsah pak při tažení
+     * za okraj dobíhá za rámem (duchové na pravé a spodní hraně).
+     * Vlastní tlačítka minimalizovat/maximalizovat/zavřít fungují dál, protože
+     * `titleBarOverlay` nezapínáme → žádná systémová tlačítka se nekreslí.
+     *
+     * macOS: tam by `hidden` odhalil systémová kolečka (semafor) v levém rohu,
+     * takže zůstává frameless jako dosud.
+     */
+    ...(isWin ? { titleBarStyle: 'hidden' as const } : { frame: false }),
     // NEPRŮHLEDNÉ okno (dřív `transparent: true` kvůli CSS zaobleným rohům). Na
     // Windows jsou ale transparent/layered okna vyloučená z Aero Snapu i nativní
     // maximalizace. Neprůhledné okno si Windows převezme nativně: Win11 DWM samo

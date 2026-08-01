@@ -157,10 +157,24 @@ export function TipsTicker(): JSX.Element {
   useEffect(() => {
     const root = rootRef.current
     if (!root) return undefined
-    const ro = new ResizeObserver(() => refit())
+    // Při tažení za okraj okna chodí ResizeObserver prakticky v každém snímku.
+    // Přeměřovat pokaždé je zbytečná práce navíc v už tak zatíženém pipeline —
+    // sloučíme je do JEDNOHO přeměření na snímek (další volání se zahodí,
+    // protože stav mezitím stejně nikdo nevidí).
+    let raf = 0
+    const ro = new ResizeObserver(() => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        refit()
+      })
+    })
     ro.observe(root)
     refit() // počáteční stav
-    return () => ro.disconnect()
+    return () => {
+      if (raf) cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
   }, [])
 
   const onToggle = (): void => {
