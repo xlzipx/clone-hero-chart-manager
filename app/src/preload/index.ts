@@ -14,6 +14,7 @@ import type {
   PlaylistResolveResult,
   PlaylistSong,
   PreviewResult,
+  SngPreview,
   SongAudio,
   ReleaseNotes,
   RhythmVerseSystem,
@@ -158,6 +159,8 @@ const api = {
   /** 30s zvuková ukázka spárovaná podle interpreta + názvu. */
   preview: (artist: string, title: string) =>
     ipcRenderer.invoke('preview:get', artist, title) as Promise<PreviewResult>,
+  sngPreview: (url: string) =>
+    ipcRenderer.invoke('preview:sng', url) as Promise<SngPreview | null>,
   songAudio: (rel: string) =>
     ipcRenderer.invoke('preview:songAudio', rel) as Promise<SongAudio>,
 

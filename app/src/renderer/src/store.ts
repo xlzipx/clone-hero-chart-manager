@@ -85,6 +85,8 @@ interface AppState {
   // Výběr cílové podsložky při stahování
   pendingSong: SongResult | null
   folders: string[]
+  /** Počty písní v nabízených složkách (dotahují se na pozadí; prázdné = ještě nedorazily). */
+  folderCounts: Record<string, number>
   foldersLoading: boolean
   lastSubfolder: string
 
@@ -394,8 +396,41 @@ let localTimer: number | null = null
 let localWindow: { start: number; len: number } | null = null
 /** Element, ze kterého se čte postup (lokálně první stopa, jinak online ukázka). */
 let progressEl: HTMLAudioElement | null = null
+/**
+ * Ukázka slepená z `.sng` nemá použitelné `duration` ani nulový začátek —
+ * první zvuková stránka nese pozici z prostředka skladby, takže přehrávač
+ * hlásí `currentTime` klidně 90 s. Postup u ní proto měříme hodinami.
+ */
+let clockWindow: { startedAt: number; len: number } | null = null
+/** Klíče ukázek, které jsou takhle slepené (platí i při přehrání z cache). */
+const previewSpliced = new Set<string>()
 /** Délka ukázky — stejná jako u online (iTunes/Deezer posílají 30s klip). */
 const LOCAL_PREVIEW_SEC = 30
+
+/**
+ * Uloží blob ukázky do cache a při přeplnění uvolní nejstarší. NIKDY nezahodí
+ * ten právě hrající — jinak by se odvolala jeho URL a zvuk by spadl na chybu.
+ */
+function cachePreviewBlob(
+  key: string,
+  url: string,
+  label: string | null,
+  playingKey: string | null
+): void {
+  if (previewBlobCache.size >= PREVIEW_BLOB_MAX) {
+    for (const oldest of previewBlobCache.keys()) {
+      if (oldest === playingKey || oldest === key) continue
+      const oldUrl = previewBlobCache.get(oldest)
+      if (oldUrl) URL.revokeObjectURL(oldUrl)
+      previewBlobCache.delete(oldest)
+      previewLabelCache.delete(oldest)
+      previewSpliced.delete(oldest)
+      break
+    }
+  }
+  previewBlobCache.set(key, url)
+  previewLabelCache.set(key, label)
+}
 
 /** Přístup k sdílenému audio elementu (pro progress ring v aktivním řádku). */
 export function getPreviewAudioEl(): HTMLAudioElement | null {
@@ -407,6 +442,12 @@ export function getPreviewAudioEl(): HTMLAudioElement | null {
  * délka celé písně, takže by kroužek sotva popolezl.
  */
 export function getPreviewProgress(): number {
+  // Slepená ukázka: `currentTime` ani `duration` se nedají použít (viz
+  // `clockWindow`), takže se počítá uplynulý čas. Blob je v paměti, takže
+  // se nedobufferovává a hodiny sedí s tím, co je slyšet.
+  if (clockWindow) {
+    return Math.max(0, Math.min(1, (Date.now() - clockWindow.startedAt) / (clockWindow.len * 1000)))
+  }
   const el = progressEl
   if (!el) return 0
   if (localWindow) {
@@ -473,6 +514,7 @@ function stopLocalAudio(): void {
 
 function stopPreviewAudio(): void {
   stopLocalAudio()
+  clockWindow = null
   if (previewAudio) {
     previewAudio.pause()
     try {
@@ -549,6 +591,14 @@ export const useStore = create<AppState>((set, get) => {
     try {
       const folders = await window.api.listSongFolders()
       set({ folders, foldersLoading: false })
+      // Počty písní dotáhni AŽ POTOM a na pozadí — je to rekurzivní čtení disku,
+      // takže by jinak zdrželo zobrazení seznamu. Odznaky doskočí, jak dorazí.
+      void window.api
+        .libFolderCounts('')
+        .then((counts) => set({ folderCounts: counts }))
+        .catch(() => {
+          /* nevadí — nabídka bude prostě bez počtů */
+        })
     } catch {
       set({ folders: [], foldersLoading: false })
     }
@@ -798,6 +848,7 @@ export const useStore = create<AppState>((set, get) => {
   marketplacePrompt: null,
   pendingSong: null,
   folders: [],
+  folderCounts: {},
   foldersLoading: false,
   lastSubfolder: '',
   selectedKeys: [],
@@ -901,6 +952,14 @@ export const useStore = create<AppState>((set, get) => {
       a.src = blobUrl
       progressEl = a // kroužek čte postup odsud
       set({ previewState: 'playing', previewLabel: label })
+      // Slepená ukázka nemá konec ani spolehlivou délku — utneme ji sami po
+      // 30 s, ať se chová stejně jako klip z iTunes, a postup měříme hodinami.
+      if (previewSpliced.has(key)) {
+        clockWindow = { startedAt: Date.now(), len: LOCAL_PREVIEW_SEC }
+        localTimer = window.setTimeout(() => {
+          if (get().previewKey === key) get().stopPreview()
+        }, LOCAL_PREVIEW_SEC * 1000)
+      }
       void a.play().catch(() => {
         if (get().previewKey === key) set({ previewState: 'error' })
       })
@@ -916,6 +975,29 @@ export const useStore = create<AppState>((set, get) => {
       return
     }
 
+    // Chart z Encore? Ten hostuje `.sng` přímo a server umí Range požadavky,
+    // takže jde vytáhnout kousek SKUTEČNÉHO zvuku (~0,5 MB z desítek MB) místo
+    // spárované nahrávky. Zní pak přesně to, co se stáhne — včetně coverů
+    // a fanouškovských verzí, které hudební služby vůbec nemají.
+    if (song.downloadUrl && /\.sng($|\?)/i.test(song.downloadUrl)) {
+      try {
+        const real = await window.api.sngPreview(song.downloadUrl)
+        if (get().previewKey !== key) return
+        if (real) {
+          const url = URL.createObjectURL(new Blob([real.data], { type: real.mime }))
+          // Označ jako slepenou, ať `play()` nasadí vlastní 30s okno — platí
+          // to i při pozdějším přehrání z cache.
+          previewSpliced.add(key)
+          cachePreviewBlob(key, url, 'chart audio', get().previewKey)
+          play(url, 'chart audio')
+          return
+        }
+      } catch {
+        /* nevadí — spadneme na spárovanou ukázku */
+      }
+      if (get().previewKey !== key) return
+    }
+
     try {
       const res = await window.api.preview(song.artist, song.title)
       if (get().previewKey !== key) return // přepnuto během stahování
@@ -925,25 +1007,11 @@ export const useStore = create<AppState>((set, get) => {
       }
       const blob = new Blob([res.data], { type: res.mime || 'audio/mpeg' })
       const url = URL.createObjectURL(blob)
-      // Strop cache: uvolni nejstarší blob, ale NIKDY ten právě hrající — jinak
-      // by se revoknul URL přehrávané ukázky a zvuk by spadl na error.
-      if (previewBlobCache.size >= PREVIEW_BLOB_MAX) {
-        const playingKey = get().previewKey
-        for (const oldest of previewBlobCache.keys()) {
-          if (oldest === playingKey) continue
-          const oldUrl = previewBlobCache.get(oldest)
-          if (oldUrl) URL.revokeObjectURL(oldUrl)
-          previewBlobCache.delete(oldest)
-          previewLabelCache.delete(oldest)
-          break
-        }
-      }
-      previewBlobCache.set(key, url)
       const label =
         res.matchedArtist && res.matchedTitle
           ? `${res.matchedArtist} - ${res.matchedTitle}`
           : null
-      previewLabelCache.set(key, label)
+      cachePreviewBlob(key, url, label, get().previewKey)
       play(url, label)
     } catch {
       if (get().previewKey === key) set({ previewState: 'error' })

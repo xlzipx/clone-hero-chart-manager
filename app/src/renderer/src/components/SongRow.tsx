@@ -157,6 +157,10 @@ function SongRowBase({
     return () => el.removeEventListener('timeupdate', update)
   }, [pvActive, pvState])
 
+  // Encore hostuje chart jako `.sng` přímo, takže z něj jde vytáhnout kousek
+  // skutečného zvuku. Podle toho se liší, co tlačítko slibuje.
+  const sngHosted = /\.sng($|\?)/i.test(song.downloadUrl ?? '')
+
   const pvTitle =
     pvState === 'playing'
       ? `Playing preview${previewLabel ? `: ${previewLabel}` : ''} — click to stop`
@@ -167,9 +171,14 @@ function SongRowBase({
           : pvState === 'error'
             ? 'Preview failed — click to retry'
             : owned
-              ? // Máme ji staženou → hraje se zvuk chartu, ne spárovaná ukázka.
+              ? // Máme ji staženou → hraje se zvuk chartu z disku.
                 'Play a 30s preview of your downloaded copy'
-              : 'Play a 30s preview (official recording, not the chart audio)'
+              : // Encore hostuje `.sng` přímo, takže se vytáhne kus SKUTEČNÉHO
+                // zvuku chartu. Jinde zbývá spárovaná studiová nahrávka, což
+                // je potřeba říct — může to být jiná verze než chart.
+                sngHosted
+                ? 'Play a 30s preview of the actual chart audio'
+                : 'Play a 30s preview (official recording, not the chart audio)'
 
   return (
     <div

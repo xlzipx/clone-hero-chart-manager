@@ -501,6 +501,8 @@ export interface RendererApi {
   preview(artist: string, title: string): Promise<PreviewResult>
   /** Zvuk už stažené písně (stopy + odkud pouštět ukázku). `rel` je cesta v knihovně. */
   songAudio(rel: string): Promise<SongAudio>
+  /** Skutečná ukázka přímo z chartu na Encore. `null` = nepovedlo se, zkus online. */
+  sngPreview(url: string): Promise<SngPreview | null>
 }
 
 /** Výsledek hledání zvukové ukázky (30s klip oficiální nahrávky). */
@@ -517,6 +519,17 @@ export interface PreviewResult {
   source?: 'itunes' | 'deezer'
   /** Důvod při ok=false: 'notfound' = nespárováno, 'error' = síť/stažení selhalo. */
   reason?: 'notfound' | 'error'
+}
+
+/**
+ * Skutečná ukázka vytažená přímo z `.sng` na Chorus Encore (ne spárovaný klip
+ * z hudební služby). Bajty jdou rovnou do přehrávače, nikam se neukládají.
+ */
+export interface SngPreview {
+  data: ArrayBuffer
+  mime: string
+  /** true = hraje se od začátku skladby (chart neměl `preview_start_time`). */
+  fromStart: boolean
 }
 
 /** Jedna zvuková stopa písně v knihovně (URL na vlastním schématu `chm-audio://`). */

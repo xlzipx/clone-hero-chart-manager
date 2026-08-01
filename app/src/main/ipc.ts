@@ -54,6 +54,7 @@ import type { SongMeta } from '../shared/types'
 import { invalidateLibraryIndex } from './core/playlists'
 import { getPreview } from './core/preview'
 import { getSongAudio } from './core/localaudio'
+import { getSngPreview } from './core/sngpreview'
 import { fetchFilterOptions, search as searchRhythmverse } from './core/rhythmverse'
 import { resolveSpotifyPlaylist } from './core/spotify'
 import { getReleaseNotes, getReleaseNotesSince } from './core/update'
@@ -142,6 +143,8 @@ export function registerIpc(): void {
   ipcMain.handle('preview:get', (_e, artist: string, title: string) => getPreview(artist, title))
   // Cestu si `getSongAudio` sám ověří proti složce knihovny (renderer jí nesmí věřit).
   ipcMain.handle('preview:songAudio', (_e, rel: string) => getSongAudio(rel))
+  // Skutečná ukázka z .sng na Encore (Range požadavky, nic se neukládá).
+  ipcMain.handle('preview:sng', (_e, url: string) => getSngPreview(url))
 
   ipcMain.handle('jobs:enqueue', (_e, song: SongResult, targetSubfolder?: string) =>
     jobManager.enqueue(song, targetSubfolder)
