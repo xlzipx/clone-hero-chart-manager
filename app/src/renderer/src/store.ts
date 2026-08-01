@@ -338,6 +338,40 @@ async function rvPageItems(
 }
 
 // ── Přehrávač zvukových ukázek (jeden sdílený na celou appku) ──────────────
+// ── Cache stránek deep scanu ─────────────────────────────────────────────
+// Deep scan stahuje desítky stránek, ale obtížnostní tier se filtruje až
+// LOKÁLNĚ (server ho neumí). Přepnutí obtížnosti je tedy pro server TENTÝŽ
+// dotaz — klíč proto skládáme jen z toho, co se na server reálně posílá.
+// Tier v něm být NESMÍ, jinak by cache minula přesně v tom případě, kvůli
+// kterému vznikla.
+interface DeepPage {
+  songs: SongResult[]
+  /** `totalFiltered` z odpovědi — určuje, kolik stránek se ještě má stáhnout. */
+  total: number
+}
+const deepPageCache = new Map<string, DeepPage>()
+/** Strop v počtu stránek. Jeden sken je max 40, takže se vejde ~5 dotazů. */
+const DEEP_CACHE_MAX = 200
+
+function deepCacheGet(key: string): DeepPage | undefined {
+  const hit = deepPageCache.get(key)
+  if (hit) {
+    deepPageCache.delete(key) // obnov LRU pořadí (použité = nejnovější)
+    deepPageCache.set(key, hit)
+  }
+  return hit
+}
+
+function deepCacheSet(key: string, page: DeepPage): void {
+  deepPageCache.delete(key)
+  deepPageCache.set(key, page)
+  while (deepPageCache.size > DEEP_CACHE_MAX) {
+    const oldest = deepPageCache.keys().next().value
+    if (oldest === undefined) break
+    deepPageCache.delete(oldest)
+  }
+}
+
 // Jeden <Audio> element + cache blob URL podle klíče písně, ať se stejná ukázka
 // nestahuje dvakrát. Blob cache má strop (ukázka ~0,5 MB), starší se uvolní.
 let previewAudio: HTMLAudioElement | null = null
@@ -493,6 +527,13 @@ export const useStore = create<AppState>((set, get) => {
 
   /** Strop deep scanu: 40 stránek. Chrání před stahováním celé DB (~93k). */
   const DEEP_MAX_PAGES = 40
+  /**
+   * Kolik stránek stahovat naráz. Dřív se čekalo na každou zvlášť, takže
+   * 40 stránek znamenalo 40 čekání na síť za sebou a linka byla skoro celou
+   * dobu nečinná. Čtyři je kompromis — znatelně rychlejší, ale pořád
+   * ohleduplné k API (při větším náporu začne RhythmVerse omezovat).
+   */
+  const DEEP_PARALLEL = 4
   /** Sken tahá po 100 (ne po `records`) → 40 stránek = 4000 písní pokrytí při
    *  stejném počtu requestů. Zobrazení pak stránkuje lokálně po `records`. */
   const DEEP_FETCH = 100
@@ -569,38 +610,83 @@ export const useStore = create<AppState>((set, get) => {
       surprise: false
     })
     try {
-      let totalPages = 1
-      for (let p = 1; p <= Math.min(totalPages, DEEP_MAX_PAGES); p++) {
-        const res = await window.api.search(
-          query.trim(),
-          p,
-          DEEP_FETCH,
-          system,
-          database,
-          buildServerFilters(),
-          get().sort,
-          get().sortDir
-        )
-        if (myReq !== searchSeq) return // mezitím odstartovalo novější hledání
-        const total = res.totalFiltered || res.songs.length
-        totalPages = Math.max(1, Math.ceil(total / DEEP_FETCH))
-        set((s) => {
+      const q = query.trim()
+      const filters = buildServerFilters()
+      const { sort, sortDir } = get()
+      // Klíč cache = PŘESNĚ to, co jde na server. Obtížnostní tier tu schválně
+      // není (filtruje se lokálně), takže jeho změna sáhne do cache místo sítě.
+      const keyFor = (p: number): string =>
+        JSON.stringify([q, p, database, system, filters ?? null, sort, sortDir])
+
+      const fetchPage = async (p: number): Promise<DeepPage> => {
+        const key = keyFor(p)
+        const hit = deepCacheGet(key)
+        if (hit) return hit
+        const res = await window.api.search(q, p, DEEP_FETCH, system, database, filters, sort, sortDir)
+        const page: DeepPage = { songs: res.songs, total: res.totalFiltered || res.songs.length }
+        deepCacheSet(key, page)
+        return page
+      }
+
+      // Stránky držíme podle ČÍSLA: paralelně dorazí zpřeházené, ale pořadí
+      // výsledků musí zůstat takové, v jakém je poslal server (jinak by se
+      // rozpadlo řazení).
+      const pages: (SongResult[] | undefined)[] = []
+      let rawTotalPages = 1
+      let lastPage = 1
+      let total = 0
+
+      const publish = (): void => {
+        const seen = new Set<string>()
+        const merged: SongResult[] = []
+        let scanned = 0
+        for (let p = 1; p <= lastPage; p++) {
+          const chunk = pages[p]
+          if (!chunk) continue
+          scanned++
           // Dedup napříč stránkami (v „Both" může tatáž píseň přijít z RV i
           // Encore na různých stránkách; IPC dedupuje jen v rámci jedné stránky).
-          const seen = new Set(s.deepSongs.map((x) => x.key))
-          const merged = s.deepSongs.concat(res.songs.filter((x) => !seen.has(x.key)))
-          return {
-            deepSongs: merged,
-            deepScannedPages: p,
-            deepTotalPages: Math.min(totalPages, DEEP_MAX_PAGES),
-            totalFiltered: total,
-            loading: false // od první stránky ukazujeme přibývající shody živě
+          for (const s of chunk) {
+            if (seen.has(s.key)) continue
+            seen.add(s.key)
+            merged.push(s)
           }
+        }
+        set({
+          deepSongs: merged,
+          deepScannedPages: scanned,
+          deepTotalPages: lastPage,
+          totalFiltered: total,
+          loading: false // od první stránky ukazujeme přibývající shody živě
         })
-        if (res.songs.length === 0) break
       }
+
+      // První stránka musí doběhnout sama — teprve z ní víme, kolik jich je.
+      const first = await fetchPage(1)
+      if (myReq !== searchSeq) return // mezitím odstartovalo novější hledání
+      total = first.total
+      rawTotalPages = Math.max(1, Math.ceil(total / DEEP_FETCH))
+      lastPage = Math.min(rawTotalPages, DEEP_MAX_PAGES)
+      pages[1] = first.songs
+      publish()
+
+      // Zbytek po dávkách. Tady je ta úspora: místo 40 čekání na síť za sebou
+      // jich je 10 po čtyřech.
+      for (let start = 2; start <= lastPage; start += DEEP_PARALLEL) {
+        const batch: number[] = []
+        for (let p = start; p < start + DEEP_PARALLEL && p <= lastPage; p++) batch.push(p)
+        const res = await Promise.all(batch.map(fetchPage))
+        if (myReq !== searchSeq) return
+        batch.forEach((p, i) => {
+          pages[p] = res[i].songs
+        })
+        publish()
+        // Prázdná stránka = katalog došel dřív, než tvrdil `total`.
+        if (res.some((r) => r.songs.length === 0)) break
+      }
+
       if (myReq !== searchSeq) return
-      set({ deepLoading: false, deepCapHit: totalPages > DEEP_MAX_PAGES })
+      set({ deepLoading: false, deepCapHit: rawTotalPages > DEEP_MAX_PAGES })
     } catch (e) {
       if (myReq !== searchSeq) return
       set({
