@@ -123,6 +123,12 @@ export function LibraryManager(): JSX.Element | null {
   // ne ta, jejíž odpověď náhodou doběhne později. Stejný token kryje i detail
   // písně (pomalé čtení obalu nesmí zobrazit detail písně A nad složkou B).
   const loadSeq = useRef(0)
+  /**
+   * Počty písní podle cesty ke složce. Držíme je i po odchodu jinam: dotažení
+   * je rekurzivní čtení disku, takže při návratu do už navštívené složky by
+   * odznaky na okamžik spadly zpátky na „FOLDER", než data dorazí znovu.
+   */
+  const countsCache = useRef<Map<string, Record<string, number>>>(new Map())
 
   const load = async (rel: string): Promise<void> => {
     const my = ++loadSeq.current
@@ -136,9 +142,11 @@ export function LibraryManager(): JSX.Element | null {
       setSelected(new Set())
       setAnchor(null)
       // Počty písní ve složkách dotáhni na pozadí (rekurzivní čtení disku) — výpis
-      // se ukáže hned a odznaky „N songs" naskočí, jakmile dorazí.
-      setFolderCounts({})
+      // se ukáže hned a odznaky „N songs" naskočí, jakmile dorazí. Při návratu
+      // do už navštívené složky ukaž rovnou zapamatované, ať odznaky neproblikají.
+      setFolderCounts(countsCache.current.get(res.path) ?? {})
       void window.api.libFolderCounts(res.path).then((c) => {
+        countsCache.current.set(res.path, c)
         if (my === loadSeq.current) setFolderCounts(c)
       })
       // Je aktuální složka píseň? (obsahuje song.ini / notes.chart / notes.mid) →

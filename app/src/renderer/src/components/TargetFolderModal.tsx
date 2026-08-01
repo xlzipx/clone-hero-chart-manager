@@ -7,6 +7,7 @@ export function TargetFolderModal(): JSX.Element | null {
   const pendingBatch = useStore((s) => s.pendingBatch)
   const pendingLocalBatch = useStore((s) => s.pendingLocalBatch)
   const folders = useStore((s) => s.folders)
+  const folderCounts = useStore((s) => s.folderCounts)
   const foldersLoading = useStore((s) => s.foldersLoading)
   const lastSubfolder = useStore((s) => s.lastSubfolder)
   const confirmDownload = useStore((s) => s.confirmDownload)
@@ -151,7 +152,17 @@ export function TargetFolderModal(): JSX.Element | null {
                     else void confirmDownload(f)
                   }}
                 >
-                  <Icon name="folder" size={15} /> {f}
+                  <Icon name="folder" size={15} />
+                  <span className="folder-item__name">{f}</span>
+                  {/* Kolik písní už uvnitř je. Schválně TÝŽ odznak jako v Library
+                      manageru (`lib__tag--count`) — jinak by se ty dva pohledy
+                      vizuálně rozešly. Dotahuje se na pozadí, takže dokud
+                      nedorazí, prostě chybí. */}
+                  {folderCounts[f] ? (
+                    <span className="lib__tag lib__tag--count">
+                      {folderCounts[f]} {folderCounts[f] === 1 ? 'song' : 'songs'}
+                    </span>
+                  ) : null}
                 </button>
               ))
             )}
