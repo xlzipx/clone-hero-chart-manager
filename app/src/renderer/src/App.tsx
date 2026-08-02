@@ -289,6 +289,8 @@ export function App(): JSX.Element {
       }
     })()
     const offJob = window.api.onJobUpdate(applyJobUpdate)
+    // Stav lokálního katalogu (sync progress + kdy je použitelný pro filtry).
+    useStore.getState().watchCatalog()
     // Seed rozdělané fronty: po reloadu rendereru je store.jobs prázdný a úloha
     // se sparse updaty (např. converting) by byla neviditelná do dalšího ticku.
     void window.api
@@ -448,25 +450,6 @@ export function App(): JSX.Element {
         <main className="content">
       <TitleBar />
       <FilterBar />
-
-      {database !== 'enchor' && system !== 'ch' ? (
-        <div className="rec-hint">
-          <Icon name="info" size={14} />
-          <span>
-            For the most reliable downloads, use the <strong>Clone Hero</strong> tab. Phase Shift /
-            Rock Band charts are often hosted on MEGA or Mediafire and may need manual download.
-          </span>
-        </div>
-      ) : null}
-      {database === 'enchor' ? (
-        <div className="rec-hint">
-          <Icon name="info" size={14} />
-          <span>
-            <strong>Chorus Encore</strong>: curated Clone Hero charts. Most download directly as
-            a <code>.sng</code> from Encore, so usually no Google Drive or MEGA step.
-          </span>
-        </div>
-      ) : null}
 
       <SearchBar />
 
