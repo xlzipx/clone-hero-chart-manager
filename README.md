@@ -53,18 +53,26 @@ clicks — a whole setlist from a playlist you already love. See
 - **Browse the whole catalog** — leave the search box empty and the app
   loads the entire library (140k+ files on RhythmVerse, 90k+ on Encore) so you
   can page through everything, not just what a keyword matches.
+- **Instant, offline‑first catalog** — CHM keeps a local index of both
+  databases (a snapshot ships with the installer, then a quick background check
+  at startup and every half hour keeps it current). Browsing, paging, sorting
+  and every filter respond instantly instead of waiting on the sites — and
+  filters run across the **entire catalog of both databases**, not just the page
+  you're looking at. No setup; it just works from the first launch.
 - **Type‑ahead suggestions** — debounced top‑results dropdown appears as
   you type, with album thumbnails and prefix highlighting.
 - **Instrument & difficulty** — large round instrument buttons (guitar,
   bass, drums, keys, vocals) and a difficulty range picker (`MIN`–`MAX` or
   exact dots) to narrow results.
-- **Advanced filters** — an expandable Filters panel. On RhythmVerse,
-  filter by **genre**, **release year** and **song length** server‑side across
-  the whole catalog; on either database, refine the loaded results by
-  **charter** / **album** and hide songs you already own.
-- **Sort** the whole catalog server‑side by title, artist, length, **most
-  downloaded** or **recently added** (the default), each with an ascending /
-  descending toggle. Leave it untouched for the source's own relevance order.
+- **Advanced filters** — an expandable Filters panel: **genre**, **release
+  year**, **decade**, **song length**, **charter** and **album**, plus a "hide
+  songs I already have" toggle. Backed by the local catalog, every filter works
+  across the **whole catalog of both databases** at once — including charter and
+  album, which the sites' own APIs can't search — and results come back
+  instantly.
+- **Sort** the whole catalog by title, artist, length, **most downloaded** or
+  **recently added** (the default), each with an ascending / descending toggle.
+  Leave it untouched for the source's own relevance order.
 - **Surprise me** — one button in the sidebar picks **five** random charts out
   of everything you're currently browsing, respecting your instrument filter;
   click again for five more.
@@ -207,6 +215,8 @@ Clone Hero Song Downloader/
       core/
         rhythmverse.ts           RhythmVerse API client
         enchor.ts                Chorus Encore API client
+        catalog.ts               local SQLite catalog (SQL queries + Both dedup)
+        catalogsync.ts           background delta sync + bundled-seed unpack
         spotify.ts               Spotify playlist resolver (Worker + embed fallback)
         preview.ts               30s audio preview lookup (iTunes / Deezer)
         gameformats.ts           format / conversion-needed detection
@@ -223,6 +233,7 @@ Clone Hero Song Downloader/
         librarymgr.ts            in-app file manager for Songs
         jobs.ts                  queue: download → extract → convert → install
         config.ts                persistent settings + path auto-detection
+      tools/seedgen.ts           builds the bundled catalog snapshot (build time)
     src/preload/index.ts         contextBridge API (window.api)
     src/renderer/                React UI (search, list, difficulties, queue, settings)
   native/onyx/                   Onyx CLI (CON→CH converter)
@@ -240,11 +251,12 @@ Clone Hero Song Downloader/
 ### Windows — Installer (recommended)
 
 Download **`CHM-Setup-<version>.exe`** and run it. The installer is around
-120 MB because everything the app needs — the **Onyx** converter, **modern
-7‑Zip 24.09** (with RAR5 support) and **parse‑sng** — is bundled inside,
-so there are no extra downloads. The installer creates Start‑menu and
-desktop shortcuts and registers an entry under *Apps & Features* named
-**Clone Hero Chart Manager**.
+180 MB because everything the app needs is bundled inside — the **Onyx**
+converter, **modern 7‑Zip 24.09** (with RAR5 support), **parse‑sng**, and a
+snapshot of the **local catalog** so search and filters work the instant you
+open the app — so there are no extra downloads. The installer creates
+Start‑menu and desktop shortcuts and registers an entry under *Apps & Features*
+named **Clone Hero Chart Manager**.
 
 ### Windows — Portable
 
@@ -315,6 +327,11 @@ Both platforms write into **`app/dist/`** — those are the files published to
 [GitHub Releases](https://github.com/xlzipx/clone-hero-chart-manager/releases)
 (the Windows installer also emits `latest.yml` / `.blockmap` for auto‑update).
 
+The `dist` scripts first build the bundled catalog snapshot
+(`app/build/catalog-seed.db.gz`) by crawling both databases once — that step
+needs network access and takes a few minutes; the result is cached for a week,
+so back‑to‑back builds skip it. Run it on its own with `npm run seed`.
+
 Requirements to build: Node.js 20+ (tested on 24), plus the bundled tools
 present locally under `native/`:
 
@@ -342,7 +359,8 @@ anywhere" bundle for sharing.
   results page.
 - Leave the search box empty to **browse the whole catalog**, or use the
   **instrument circles**, **difficulty range** and the **Filters** panel
-  (genre, release year, song length, charter, album) to narrow results.
+  (genre, release year, decade, song length, charter, album) to narrow results —
+  every filter covers the whole catalog of both databases, instantly.
 - In the left sidebar, hit **Surprise me** for five random picks, or **Import
   playlist** to pull in a whole Spotify playlist at once.
 - Click **Download** on a row → pick a target subfolder inside `Songs` (or
