@@ -83,7 +83,9 @@ function FilterSelect({
   )
 }
 
-/** Textové zúžení (charter / album) — filtruje NAČTENÉ výsledky (contains). */
+/** Textové zúžení (charter / album). S hotovým lokálním katalogem prohledává
+ *  CELÉ katalogy obou DB (store → catalogQuery); do té doby jen zužuje načtené
+ *  výsledky (klientský contains v App.tsx). */
 function FilterText({
   label,
   value,
@@ -130,8 +132,20 @@ export function FilterPanel(): JSX.Element {
   const setCharter = useStore((s) => s.setCharterFilter)
   const setAlbum = useStore((s) => s.setAlbumFilter)
   const setHideOwned = useStore((s) => s.setHideOwned)
+  const catalog = useStore((s) => s.catalogStatus)
 
-  const encoreOnly = database === 'enchor'
+  // S hotovým lokálním katalogem umí žánr/rok/dekádu/délku i Chorus Encore
+  // (filtruje se lokálně přes celý katalog) → banner „jen RhythmVerse" pryč.
+  // Použitelnost je PER-ZDROJ: stačí dokončení Encore části, nečeká se na
+  // RhythmVerse (zdroje se stahují paralelně, každý naskočí sám za sebe).
+  const enReady = !!catalog?.sources.en.ready
+  const dbReady =
+    database === 'enchor'
+      ? enReady
+      : database === 'rhythmverse'
+        ? !!catalog?.sources.rv.ready
+        : !!catalog?.sources.rv.ready && enReady
+  const encoreOnly = database === 'enchor' && !enReady
   const anyBrowse = !!(
     filters.genre?.length ||
     filters.year?.length ||
@@ -169,10 +183,21 @@ export function FilterPanel(): JSX.Element {
       {encoreOnly ? (
         <div className="filterpanel__encore">
           <Icon name="info" size={16} />
-          <span>
-            Genre, year, decade and length browsing uses <strong>RhythmVerse</strong>. Chorus Encore
-            filters by instrument (buttons above).
-          </span>
+          {catalog?.state === 'syncing' ? (
+            // Katalog se právě staví (jednorázově pár minut) → řekni, že filtry
+            // doskočí samy, s průběhem ENCORE části. Řádka dole u charter/album
+            // ukazuje TENTÝŽ per-databázový průběh, ať čísla sedí vedle sebe.
+            <span>
+              Filters will work for <strong>Chorus Encore</strong> once the local catalog is built
+              — <strong>{Math.round((catalog.sources.en.progress ?? 0) * 100)}%</strong> done.
+              Until then they browse RhythmVerse only.
+            </span>
+          ) : (
+            <span>
+              Genre, year, decade and length browsing uses <strong>RhythmVerse</strong>. Chorus
+              Encore filters by instrument (buttons above).
+            </span>
+          )}
           <button
             type="button"
             className="filterpanel__switch"
@@ -221,6 +246,24 @@ export function FilterPanel(): JSX.Element {
         <FilterText label="Charter" value={charter} placeholder="e.g. Chezy" onChange={setCharter} />
         <FilterText label="Album" value={album} placeholder="e.g. Meteora" onChange={setAlbum} />
       </div>
+
+      {/* Průběh stavby katalogu — JEN dokud pro vybranou databázi neběží
+          naplno (hotový stav se nehlásí, prostě to funguje). Do té doby
+          charter/album jen zužují načtenou stránku (staré chování). Procento
+          je PER-DATABÁZE (stejné číslo jako v Encore banneru výš). */}
+      {!dbReady && catalog?.state === 'syncing' ? (
+        <div className="filterpanel__cat">
+          Building local catalog…{' '}
+          {Math.round(
+            (database === 'enchor'
+              ? catalog.sources.en.progress
+              : database === 'rhythmverse'
+                ? catalog.sources.rv.progress
+                : (catalog.progress ?? 0)) * 100
+          )}
+          % — until it finishes, charter and album only narrow the loaded page.
+        </div>
+      ) : null}
 
       <div className="filterpanel__foot">
         <label className="chk filterpanel__owned">

@@ -1,7 +1,7 @@
 // Vstupní bod main procesu.
 
 import { app, BrowserWindow } from 'electron'
-import { existsSync } from 'fs'
+import { existsSync, rmSync } from 'fs'
 import { join } from 'path'
 import { registerIpc, stopGamePoll } from './ipc'
 import { registerHotkeys, unregisterHotkeys } from './hotkeys'
@@ -12,6 +12,8 @@ import { createTray, destroyTray } from './tray'
 import { initAutoUpdate } from './core/autoupdate'
 import { isMac, isWin } from './core/platform'
 import { handleAudioProtocol, registerAudioScheme } from './core/localaudio'
+import { closeCatalog, ensureCatalogSeed, initCatalog } from './core/catalog'
+import { scheduleCatalogSync, stopCatalogSync } from './core/catalogsync'
 
 /**
  * Windows: při tažení za okraj se rám okna zvětší okamžitě, ale obsah dobíhá a
@@ -59,6 +61,34 @@ if (!app.requestSingleInstanceLock()) {
     registerHotkeys()
     initAutoUpdate(getOverlay)
 
+    // Lokální katalog metadat: při PRVNÍM spuštění rozbalit přibalený seed
+    // (instalátor nese snapshot celého katalogu → nemusí se stahovat z API),
+    // pak otevřít DB a naplánovat sync (delta dožene novinky od buildu).
+    // Selhání nesmí shodit appku — bez katalogu vše funguje přes živá API.
+    void (async () => {
+      const dbPath = join(app.getPath('userData'), 'catalog.db')
+      // Zabalená appka má seed v resources; v DEV ukazuje resourcesPath do
+      // Electronu → seed se bere přímo z build/ (tam ho generuje seed skript).
+      const seedGz = app.isPackaged
+        ? join(process.resourcesPath, 'catalog-seed.db.gz')
+        : join(app.getAppPath(), 'build', 'catalog-seed.db.gz')
+      await ensureCatalogSeed(dbPath, seedGz)
+      try {
+        initCatalog(dbPath)
+      } catch (err) {
+        // Poškozená DB (přerušený zápis, vadný seed…) → smazat a načisto.
+        console.warn('[catalog] open failed, recreating:', err)
+        try {
+          for (const suf of ['', '-wal', '-shm']) rmSync(dbPath + suf, { force: true })
+          initCatalog(dbPath)
+        } catch (err2) {
+          console.warn('[catalog] init failed:', err2)
+          return
+        }
+      }
+      scheduleCatalogSync((s) => getOverlay()?.webContents.send('catalog:status', s))
+    })()
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createOverlay()
     })
@@ -67,6 +97,8 @@ if (!app.requestSingleInstanceLock()) {
   app.on('will-quit', () => {
     unregisterHotkeys()
     stopGamePoll()
+    stopCatalogSync()
+    closeCatalog()
     destroyTray()
     destroyReminder()
   })

@@ -14,6 +14,9 @@ import type {
 } from '../shared/types'
 import { getConfig, setConfig } from './core/config'
 import { isMac } from './core/platform'
+import { queryCatalog } from './core/catalog'
+import { getCatalogStatus } from './core/catalogsync'
+import type { CatalogQuery } from '../shared/types'
 import { search as searchEnchor } from './core/enchor'
 import { peekFileMeta } from './core/filemeta'
 import {
@@ -138,6 +141,22 @@ export function registerIpc(): void {
     (_e, system?: RhythmVerseSystem): Promise<FilterOptions> =>
       fetchFilterOptions(system ?? 'ch')
   )
+
+  // ---- Lokální katalog metadat ----
+  ipcMain.handle('catalog:status', () => getCatalogStatus())
+  ipcMain.handle('catalog:query', (_e, q: CatalogQuery): SearchResponse => {
+    // Použitelnost je PER-ZDROJ: Encore se staví první a jeho dotazy musí
+    // projít, i když se RhythmVerse část ještě stahuje.
+    const src = getCatalogStatus().sources
+    const ok =
+      q.database === 'enchor'
+        ? src.en.ready
+        : q.database === 'rhythmverse'
+          ? src.rv.ready
+          : src.rv.ready && src.en.ready
+    if (!ok) throw new Error('Catalog is not ready yet')
+    return queryCatalog(q)
+  })
 
   // 30s zvuková ukázka (poslech před stažením) — spáruje se v main procesu.
   ipcMain.handle('preview:get', (_e, artist: string, title: string) => getPreview(artist, title))

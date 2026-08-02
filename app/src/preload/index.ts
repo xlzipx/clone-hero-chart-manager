@@ -3,6 +3,8 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   AppConfig,
+  CatalogQuery,
+  CatalogStatus,
   Database,
   DownloadJob,
   DupGroup,
@@ -56,6 +58,16 @@ const api = {
     ) as Promise<SearchResponse>,
   getFilterOptions: (system?: RhythmVerseSystem) =>
     ipcRenderer.invoke('search:filterOptions', system) as Promise<FilterOptions>,
+
+  // ---- Lokální katalog metadat ----
+  catalogStatus: () => ipcRenderer.invoke('catalog:status') as Promise<CatalogStatus>,
+  onCatalogStatus: (cb: (s: CatalogStatus) => void) => {
+    const handler = (_e: unknown, s: CatalogStatus): void => cb(s)
+    ipcRenderer.on('catalog:status', handler)
+    return () => ipcRenderer.removeListener('catalog:status', handler)
+  },
+  catalogQuery: (q: CatalogQuery) =>
+    ipcRenderer.invoke('catalog:query', q) as Promise<SearchResponse>,
 
   /** Načte skladby z odkazu na playlist (v1: veřejný Spotify přes embed). */
   resolvePlaylist: (url: string) =>

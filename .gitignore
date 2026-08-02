@@ -36,3 +36,6 @@ how it works video/
 
 # Náhodné screenshoty
 pages/Screenshot*.png
+
+# Seed lokalniho katalogu (generuje build/build-catalog-seed.cjs, ~40 MB - negitovat)
+app/build/catalog-seed.db.gz

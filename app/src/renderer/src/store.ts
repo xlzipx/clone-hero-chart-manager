@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type {
   AppConfig,
+  CatalogStatus,
   Database,
   DownloadJob,
   FilterOptions,
@@ -127,6 +128,10 @@ interface AppState {
   filterOptions: FilterOptions | null
   /** Je advanced panel otevřený? */
   showFilters: boolean
+  /** Stav lokálního katalogu metadat (null dokud nedorazí první status). */
+  catalogStatus: CatalogStatus | null
+  /** Napojí odběr stavu katalogu (volat jednou při mountu App). */
+  watchCatalog: () => void
 
   // ── Zvuková ukázka (poslech před stažením) ───────────────────────────────
   /** Klíč písně, jejíž ukázka je právě aktivní (načítá se / hraje). */
@@ -280,6 +285,16 @@ let ownedReloadTimer: ReturnType<typeof setTimeout> | null = null
  * (Stejný vzor jako typeahead v SearchBar.)
  */
 let searchSeq = 0
+
+/** Debounce přehledání při psaní do charter/album filtru (katalogový režim). */
+let refineTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleRefineSearch(get: () => AppState): void {
+  if (refineTimer !== null) clearTimeout(refineTimer)
+  refineTimer = setTimeout(() => {
+    refineTimer = null
+    void get().doSearch(1)
+  }, 300)
+}
 
 // Cache velkých serverových „chunků" RhythmVerse pro hluboké stránky (za 249.
 // stranou). Klíč `sig` = kontext (dotaz/systém/řazení/filtry); při jeho změně se
@@ -539,6 +554,39 @@ export const useStore = create<AppState>((set, get) => {
     return tierNarrowed || encoreMultiInstrument
   }
 
+  /**
+   * Kdy jít přes LOKÁLNÍ KATALOG místo živých API. Jen tam, kde je API slabé —
+   * běžné hledání/procházení zůstává živé (nejčerstvější data, relevance):
+   *  - charter/album filtr: API ho neumí vůbec (dřív jen zužoval načtenou stránku)
+   *  - tier rozsah / Encore multi-nástroj: dřív pomalý deep scan po stránkách
+   *  - žánr/rok/dekáda/délka mimo čisté RhythmVerse: server je umí jen pro RV
+   *    (Both se degradoval na RV-only a Encore je ignoroval)
+   */
+  /** Je katalog použitelný pro PRÁVĚ VYBRANOU databázi? Per-zdroj — Encore se
+   *  staví první, takže jeho záložka naskočí dřív než RV/Both. */
+  const catalogUsableForDb = (): boolean => {
+    const s = get()
+    const src = s.catalogStatus?.sources
+    if (!src) return false
+    if (s.database === 'enchor') return src.en.ready
+    if (s.database === 'rhythmverse') return src.rv.ready
+    return src.en.ready && src.rv.ready
+  }
+
+  const catalogEligible = (): boolean => {
+    const s = get()
+    if (!catalogUsableForDb()) return false
+    if (s.charterFilter.trim() || s.albumFilter.trim()) return true
+    if (needsDeepScan()) return true
+    const f = s.filters
+    const rvOnly = !!(f.genre?.length || f.year?.length || f.decade?.length || f.songLength?.length)
+    if (rvOnly && s.database !== 'rhythmverse') return true
+    // Celé PROCHÁZENÍ (prázdný dotaz) lokálně: stránkování, instrument filtr
+    // i řazení jsou pak instantní (~10–100 ms místo ~1 s síťové stránky).
+    // Textové hledání zůstává na živém API kvůli relevanci a čerstvosti.
+    return !s.query.trim()
+  }
+
   /** „Browse" režim: otevřený filtr panel NEBO nastavený advanced filtr. Pak se
    *  jede serverovým procházením katalogu (RhythmVerse `list` / Encore prázdný
    *  dotaz) se serverovými filtry, ne klientský deep scan. */
@@ -755,6 +803,63 @@ export const useStore = create<AppState>((set, get) => {
   }
 
   /**
+   * Hledání přes lokální katalog (viz catalogEligible). Jedna rychlá SQL
+   * stránka místo deep scanu / degradovaného Both — s plným pokrytím filtrů
+   * u obou databází. Výsledek se tváří jako běžná serverová stránka.
+   */
+  const catalogSearch = async (page: number): Promise<void> => {
+    get().stopPreview()
+    const myReq = ++searchSeq
+    set({ loading: true, error: null, ...(get().surprise ? { results: [], surprise: false } : {}) })
+    try {
+      const s = get()
+      const f = s.filters
+      // Katalog ukládá zobrazované řetězce žánrů — RV id přelož přes číselník
+      // (bez načtených voleb nech id; Encore žánry jsou stejně volný text).
+      const opts = s.filterOptions
+      const genreLabels = f.genre?.map(
+        (id) => opts?.genre.find((o) => o.id === id)?.label ?? id
+      )
+      const res = await window.api.catalogQuery({
+        text: s.query.trim() || undefined,
+        database: s.database,
+        system: s.system,
+        genreLabels,
+        year: f.year,
+        decade: f.decade,
+        songLength: f.songLength,
+        charter: s.charterFilter.trim() || undefined,
+        album: s.albumFilter.trim() || undefined,
+        instruments: s.instrumentFilters,
+        diffMin: s.diffMin,
+        diffMax: s.diffMax,
+        sort: s.sort,
+        sortDir: s.sortDir,
+        page,
+        records: s.records
+      })
+      if (myReq !== searchSeq) return
+      set({
+        results: res.songs,
+        totalFiltered: res.totalFiltered,
+        resultCount: res.resultCount ?? res.totalFiltered,
+        page,
+        loading: false,
+        selectedIndex: -1,
+        selectedKeys: [],
+        deep: false,
+        deepSongs: [],
+        deepLoading: false,
+        deepCapHit: false,
+        surprise: false
+      })
+    } catch (e) {
+      if (myReq !== searchSeq) return
+      set({ loading: false, error: userMsg(e) })
+    }
+  }
+
+  /**
    * Přehraje zvuk písně ležící v knihovně (u stopově dělených chartů všechny
    * stopy naráz, ať je mix úplný). Vrací `false`, když ve složce žádné audio
    * není — volající pak může zkusit jiný zdroj.
@@ -871,6 +976,7 @@ export const useStore = create<AppState>((set, get) => {
   deepCapHit: false,
   filters: {},
   filterOptions: null,
+  catalogStatus: null,
   // Úvodní obrazovka = rovnou procházení katalogu, ale panel filtrů ZAVŘENÝ
   // (browse jede i tak — prázdný dotaz = katalog). Otevře se až na klik „Filters".
   showFilters: false,
@@ -1086,8 +1192,45 @@ export const useStore = create<AppState>((set, get) => {
     }))
     syncDeepMode()
   },
-  setCharterFilter: (v) => set({ charterFilter: v, selectedIndex: -1 }),
-  setAlbumFilter: (v) => set({ albumFilter: v, selectedIndex: -1 }),
+  watchCatalog: () => {
+    void window.api
+      .catalogStatus()
+      .then((s) => set({ catalogStatus: s }))
+      .catch(() => {
+        /* main bez katalogu (např. selhal init) → zůstane null a jede se API */
+      })
+    window.api.onCatalogStatus((s) => {
+      const prev = get().catalogStatus
+      set({ catalogStatus: s })
+      // Doběhl sync (změna lastSync) → katalogem zobrazené výsledky můžou být
+      // zastaralé (typicky „nejnovější" z přibaleného seedu hned po instalaci).
+      // Tiše přenačti AKTUÁLNÍ stránku — ale jen když do ničeho nešaháme:
+      // nic vybraného, nehraje ukázka, neběží jiné hledání, žádné losování.
+      const st = get()
+      if (
+        prev !== null &&
+        s.lastSync !== prev.lastSync &&
+        catalogEligible() &&
+        !st.loading &&
+        !st.surprise &&
+        st.selectedKeys.length === 0 &&
+        st.previewKey === null
+      ) {
+        void st.doSearch(st.page)
+      }
+    })
+  },
+  // S katalogem je charter/album skutečný filtr přes celou DB → přehledat
+  // (debounce, ať se nehledá na každý stisk). Bez katalogu zůstává původní
+  // chování: jen klientské zúžení načtené stránky v App.tsx.
+  setCharterFilter: (v) => {
+    set({ charterFilter: v, selectedIndex: -1 })
+    if (catalogUsableForDb()) scheduleRefineSearch(get)
+  },
+  setAlbumFilter: (v) => {
+    set({ albumFilter: v, selectedIndex: -1 })
+    if (catalogUsableForDb()) scheduleRefineSearch(get)
+  },
   setHideOwned: (v) => set({ hideOwned: v, selectedIndex: -1 }),
   loadOwnedKeys: async () => {
     try {
@@ -1256,9 +1399,15 @@ export const useStore = create<AppState>((set, get) => {
       set({ results: [], totalFiltered: 0, error: null, loading: false, deep: false, deepSongs: [], surprise: false })
       return
     }
+    // Lokální katalog přednostně — pokrývá vše, co server neumí (charter/album,
+    // tier, Encore žánr…), jednou rychlou SQL stránkou místo deep scanu.
+    if (catalogEligible()) {
+      return catalogSearch(page)
+    }
     // Jen to, co server neumí (tier / Encore multi-nástroj) → deep scan.
     // Jeden nástroj i víc nástrojů na RhythmVerse zvládne server (AND) → jde
     // normální serverové stránkování s plným pokrytím a bez záplavy requestů.
+    // (Fallback pro dobu, než je katalog poprvé synchronizovaný.)
     if (needsDeepScan()) {
       return deepScan()
     }

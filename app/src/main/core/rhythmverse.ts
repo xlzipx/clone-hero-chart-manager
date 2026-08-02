@@ -275,6 +275,80 @@ export async function search(
   }
 }
 
+// ── Katalogové stránkování (pro lokální katalog, viz catalogsync.ts) ──────
+
+/** Jedna stránka katalogu pro sync. */
+export interface CatalogPageResult {
+  items: { uid: string; modifiedMs: number; song: SongResult }[]
+  found: number
+}
+
+/**
+ * Velikost katalogové stránky. RhythmVerse stránkuje jen do ~249. strany BEZ
+ * ohledu na `records` (ověřeno živě) → 700/str. × 249 = 174k pokryje celý
+ * katalog „all" (~140k) s rezervou.
+ */
+export const RV_CATALOG_RECORDS = 700
+
+/** `update_date` („YYYY-MM-DD HH:MM:SS") → ms epoch. Server timezone neznáme —
+ *  bereme jako UTC; katalog čas používá jen na řazení/kurzor, ne k zobrazení. */
+function parseRvDate(s: unknown): number {
+  if (typeof s !== 'string' || !s || s.startsWith('0000')) return 0
+  const t = Date.parse(s.replace(' ', 'T') + 'Z')
+  return Number.isFinite(t) ? t : 0
+}
+
+/**
+ * Stránka CELÉHO katalogu (system `all`) seřazená od NEJNOVĚJI změněných
+ * (`update_date` DESC) — plný i delta sync z jednoho místa. Záložky systémů
+ * (CH/PS/RB) se pak řeší lokálním filtrem podle `gameformat` (mapa slug →
+ * format ověřená živě: ch→'ch', ps→'ps', rb3→'rb3*').
+ */
+export async function fetchCatalogPage(page: number): Promise<CatalogPageResult> {
+  const body = new URLSearchParams()
+  body.set('data_type', 'full')
+  body.set('records', String(RV_CATALOG_RECORDS))
+  body.set('page', String(page))
+  body.append('sort[0][sort_by]', 'update_date')
+  body.append('sort[0][sort_order]', 'DESC')
+
+  const res = await fetch(`${BASE}/api/all/songfiles/list`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json, text/javascript, */*; q=0.01',
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      'X-Requested-With': 'XMLHttpRequest',
+      'User-Agent': UA_HEADER
+    },
+    body: body.toString(),
+    // Velká stránka (700 záznamů) trvá ~4 s; bez timeoutu by jeden zamrzlý
+    // request zastavil build katalogu donekonečna.
+    signal: AbortSignal.timeout(45_000)
+  })
+  if (!res.ok) throw new Error(`RhythmVerse API vrátilo HTTP ${res.status}`)
+  const json: any = await res.json()
+  if (json.status !== 'success' || !json.data) {
+    throw new Error('RhythmVerse API: neplatná odpověď')
+  }
+  const rawSongs: any[] = Array.isArray(json.data.songs) ? json.data.songs : []
+  const items: CatalogPageResult['items'] = []
+  const seen = new Set<string>()
+  for (const s of rawSongs) {
+    const f = s?.file ?? {}
+    const song = normalizeSong(s)
+    // PS3 zahazujeme stejně jako živé vyhledávání (šifrované, jen matou).
+    if (isPs3Format(song.gameFormat)) continue
+    const uid = String(f.file_id ?? song.key)
+    if (!uid || seen.has(uid)) continue
+    seen.add(uid)
+    items.push({ uid, modifiedMs: parseRvDate(f.update_date), song })
+  }
+  return {
+    items,
+    found: num(json.data.records?.total_filtered) ?? items.length
+  }
+}
+
 // ── Číselník filtrů (pro advanced panel) ──────────────────────────────────
 
 const UA_HEADER =

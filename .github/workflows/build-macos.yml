@@ -28,6 +28,12 @@ jobs:
         working-directory: app
         run: npm ci
 
+      # Seed lokálního katalogu (snapshot obou databází, ~7 min) — přibalí se
+      # do dmg, aby uživatel při prvním spuštění nemusel katalog stahovat z API.
+      - name: Build catalog seed
+        working-directory: app
+        run: node build/build-catalog-seed.cjs
+
       - name: Fetch macOS native binaries (Onyx + 7-Zip)
         run: |
           set -euo pipefail

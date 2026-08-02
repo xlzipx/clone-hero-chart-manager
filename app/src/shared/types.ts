@@ -159,6 +159,66 @@ export interface FilterOptions {
   songLength: FilterOption[]
 }
 
+/**
+ * Stav lokálního katalogu metadat (SQLite index obou databází pro rychlé
+ * filtrování bez sítě — viz main/core/catalog.ts).
+ *  - empty   = ještě neproběhl žádný úplný sync (katalog se nepoužívá)
+ *  - syncing = právě probíhá stahování/aktualizace (progress 0..1)
+ *  - ready   = úplný sync hotový, katalog se používá pro dotazy
+ */
+/** Stav jednoho zdroje katalogu. `ready` = plný build doběhl → tenhle zdroj
+ *  lze dotazovat (nezávisle na druhém — Encore se staví první a naskočí dřív). */
+export interface CatalogSourceStatus {
+  ready: boolean
+  /** Průběh plného buildu 0..1 (mimo build drží 1). */
+  progress: number
+}
+
+export interface CatalogStatus {
+  state: 'empty' | 'syncing' | 'ready'
+  /** True = OBA zdroje hotové. Per-zdroj použitelnost viz `sources` (Encore
+   *  bývá hotový dřív). Zůstává true i během delta syncu (state='syncing'). */
+  usable: boolean
+  /** Kombinovaný průběh běžícího syncu 0..1 (mimo `syncing` drží 1). */
+  progress: number
+  /** Per-zdroj stav (rv = RhythmVerse, en = Chorus Encore). */
+  sources: { rv: CatalogSourceStatus; en: CatalogSourceStatus }
+  /** Počty řádků per zdroj. */
+  counts: { rv: number; en: number }
+  /** Čas posledního DOKONČENÉHO syncu (ms epoch), null = nikdy. */
+  lastSync: number | null
+}
+
+/**
+ * Dotaz do lokálního katalogu. Významově kopíruje parametry `search` + klientské
+ * filtry, které server neumí (charter/album/tier) — katalog je umí všechny,
+ * protože má celé katalogy obou DB lokálně.
+ */
+export interface CatalogQuery {
+  /** Fulltext přes title+artist+album (každé slovo musí sedět někde). */
+  text?: string
+  database: Database
+  /** Omezuje jen RhythmVerse řádky (Encore je vždy CH) — stejně jako živé API. */
+  system: RhythmVerseSystem
+  /** Labely žánrů (katalog ukládá zobrazované řetězce, ne RV id). */
+  genreLabels?: string[]
+  year?: string[]
+  decade?: string[]
+  songLength?: string[]
+  /** Podřetězec jména chartera (case-insensitive, bez <color=…> tagů). */
+  charter?: string
+  /** Podřetězec názvu alba. */
+  album?: string
+  /** Vybrané nástroje — každý musí být nacharovaný a v tier rozsahu. */
+  instruments?: string[]
+  diffMin?: number
+  diffMax?: number
+  sort?: SortKey
+  sortDir?: SortDir
+  page: number
+  records: number
+}
+
 export type JobStage =
   | 'queued'
   | 'resolving'
@@ -497,6 +557,13 @@ export interface RendererApi {
    * uživatel od svého updatu minul), jinak posledních `max` vydání.
    */
   getReleaseNotesSince(since?: string, max?: number): Promise<ReleaseNotes[]>
+  // ---- Lokální katalog metadat ----
+  /** Aktuální stav katalogu (empty/syncing/ready + progress + počty). */
+  catalogStatus(): Promise<CatalogStatus>
+  /** Odběr změn stavu katalogu (průběh syncu, dokončení). Vrací unsubscribe. */
+  onCatalogStatus(cb: (s: CatalogStatus) => void): () => void
+  /** Dotaz do lokálního katalogu (jen když je `ready`; jinak vyhodí chybu). */
+  catalogQuery(q: CatalogQuery): Promise<SearchResponse>
   /** 30s zvuková ukázka spárovaná podle interpreta + názvu (iTunes → Deezer). */
   preview(artist: string, title: string): Promise<PreviewResult>
   /** Zvuk už stažené písně (stopy + odkud pouštět ukázku). `rel` je cesta v knihovně. */

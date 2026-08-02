@@ -6,19 +6,22 @@
   "author": "ZIPEEK",
   "license": "MIT",
   "scripts": {
+    "postinstall": "node build/fetch-sqlite-prebuild.cjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "dist": "electron-vite build && electron-builder --win nsis",
-    "dist:portable": "electron-vite build && electron-builder --win portable",
-    "dist:mac": "electron-vite build && electron-builder --mac"
+    "seed": "node build/build-catalog-seed.cjs",
+    "dist": "node build/build-catalog-seed.cjs && electron-vite build && electron-builder --win nsis",
+    "dist:portable": "node build/build-catalog-seed.cjs && electron-vite build && electron-builder --win portable",
+    "dist:mac": "node build/build-catalog-seed.cjs && electron-vite build && electron-builder --mac"
   },
   "build": {
     "appId": "com.zipeek.chm",
     "productName": "Clone Hero Chart Manager",
+    "npmRebuild": false,
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -42,6 +45,10 @@
       ],
       "icon": "build/icon.ico",
       "extraResources": [
+        {
+          "from": "build/catalog-seed.db.gz",
+          "to": "catalog-seed.db.gz"
+        },
         {
           "from": "../native/onyx/onyx-command-line-20251011-windows-x64",
           "to": "onyx"
@@ -78,6 +85,10 @@
       "identity": null,
       "extraResources": [
         {
+          "from": "build/catalog-seed.db.gz",
+          "to": "catalog-seed.db.gz"
+        },
+        {
           "from": "../native/onyx-mac",
           "to": "onyx"
         },
@@ -113,12 +124,14 @@
     }
   },
   "dependencies": {
+    "better-sqlite3": "^12.4.1",
     "electron-updater": "^6.8.9",
     "parse-sng": "^4.0.3",
     "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
@@ -131,5 +144,8 @@
     "react-dom": "^18.3.1",
     "typescript": "^5.7.2",
     "vite": "^5.4.11"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.4.1": true
   }
 }

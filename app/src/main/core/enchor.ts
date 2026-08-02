@@ -43,7 +43,10 @@ async function postSearch(body: unknown, retries = 2): Promise<Response> {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      // Bez timeoutu umí jeden zamrzlý request zastavit celý sériový build
+      // katalogu (progress pak „visí" na jednom čísle donekonečna).
+      signal: AbortSignal.timeout(30_000)
     })
     if (res.ok || (res.status !== 503 && res.status !== 429) || attempt >= retries) return res
     await new Promise((r) => setTimeout(r, 350 * (attempt + 1)))
@@ -73,6 +76,7 @@ interface EnchorChart {
   diff_guitarghl?: number
   diff_bassghl?: number
   diff_rhythm?: number
+  modifiedTime?: string | null
   notesData?: {
     instruments?: string[]
   }
@@ -145,6 +149,49 @@ function normalize(c: EnchorChart): SongResult {
       ? `https://drive.google.com/open?id=${c.parentFolderId}`
       : null
   }
+}
+
+/** Jedna stránka katalogu pro sync (viz catalogsync.ts). */
+export interface CatalogPageResult {
+  items: { uid: string; modifiedMs: number; song: SongResult }[]
+  /** Celkový počet chartů v katalogu (pro progress). */
+  found: number
+}
+
+/** Strop `per_page` Encore API (300+ vrací HTTP 400, ověřeno živě). */
+export const ENCHOR_CATALOG_PER_PAGE = 250
+
+/**
+ * Stránka celého katalogu seřazená od NEJNOVĚJI změněných (`modifiedTime`
+ * desc) — pro plný i delta sync lokálního katalogu. POZOR: volat výhradně
+ * SÉRIOVĚ — Encore souběžné požadavky shazuje na 503 (viz postSearch retry).
+ */
+export async function fetchCatalogPage(page: number): Promise<CatalogPageResult> {
+  const res = await postSearch({
+    search: '',
+    page,
+    per_page: ENCHOR_CATALOG_PER_PAGE,
+    sort: { type: 'modifiedTime', direction: 'desc' }
+  })
+  if (!res.ok) throw new Error(`Chorus Encore API returned HTTP ${res.status}`)
+  const json: { found?: number; data?: EnchorChart[] } = await res.json()
+  const rows = Array.isArray(json.data) ? json.data : []
+  const items: CatalogPageResult['items'] = []
+  const seen = new Set<string>()
+  for (const c of rows) {
+    // uid = chartId (stabilní i při updatu chartu — md5 se updatem MĚNÍ,
+    // takže upsert podle chartId starou verzi přepíše místo zdvojení).
+    const uid = String(c.chartId ?? c.md5 ?? '')
+    if (!uid || seen.has(uid)) continue
+    seen.add(uid)
+    const t = c.modifiedTime ? Date.parse(c.modifiedTime) : NaN
+    items.push({
+      uid,
+      modifiedMs: Number.isFinite(t) ? t : 0,
+      song: normalize(c)
+    })
+  }
+  return { items, found: typeof json.found === 'number' ? json.found : 0 }
 }
 
 /**
