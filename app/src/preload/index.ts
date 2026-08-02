@@ -68,6 +68,8 @@ const api = {
   },
   catalogQuery: (q: CatalogQuery) =>
     ipcRenderer.invoke('catalog:query', q) as Promise<SearchResponse>,
+  catalogSetOwned: (keys: string[]) =>
+    ipcRenderer.invoke('catalog:setOwned', keys) as Promise<void>,
 
   /** Načte skladby z odkazu na playlist (v1: veřejný Spotify přes embed). */
   resolvePlaylist: (url: string) =>
@@ -247,7 +249,9 @@ const api = {
   getReleaseNotes: (version?: string) =>
     ipcRenderer.invoke('app:releaseNotes', version) as Promise<ReleaseNotes | null>,
   getReleaseNotesSince: (since?: string, max?: number) =>
-    ipcRenderer.invoke('app:releaseNotesSince', since, max) as Promise<ReleaseNotes[]>
+    ipcRenderer.invoke('app:releaseNotesSince', since, max) as Promise<ReleaseNotes[]>,
+  getReleaseNotesMilestone: () =>
+    ipcRenderer.invoke('app:releaseNotesMilestone') as Promise<ReleaseNotes[]>
 }
 
 contextBridge.exposeInMainWorld('api', api)

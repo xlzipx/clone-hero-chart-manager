@@ -54,9 +54,13 @@ export function App(): JSX.Element {
   const diffMax = useStore((s) => s.diffMax)
   const charterFilter = useStore((s) => s.charterFilter)
   const albumFilter = useStore((s) => s.albumFilter)
+  const reductions = useStore((s) => s.reductions)
+  const directOnly = useStore((s) => s.directOnly)
+  const setDirectOnly = useStore((s) => s.setDirectOnly)
   const advFilters = useStore((s) => s.filters)
   const ownedKeys = useStore((s) => s.ownedKeys)
   const hideOwned = useStore((s) => s.hideOwned)
+  const setHideOwned = useStore((s) => s.setHideOwned)
   const sort = useStore((s) => s.sort)
   const surprise = useStore((s) => s.surprise)
 
@@ -99,6 +103,13 @@ export function App(): JSX.Element {
       // stripTags: filtr musí matchovat čistý text, ne <color=…> značky.
       if (cf && !stripTags(song.charter ?? '').toLowerCase().includes(cf)) return false
       if (af && !(song.album ?? '').toLowerCase().includes(af)) return false
+      // Redukce: expert = jen Expert-only, full = jen E/M/H/X. Neznámé (null,
+      // typicky nesynchronizovaný chart) při aktivním filtru vypadne.
+      if (reductions === 'expert' && song.expertOnly !== true) return false
+      if (reductions === 'full' && song.expertOnly !== false) return false
+      // „Direct downloads only" — skryj official DLC a ruční hostitele (MEGA…);
+      // stejné pravidlo jako tlačítko Download vs „Get on …" v řádku.
+      if (directOnly && !isAutoDownloadable(song)) return false
       if (hideOwned && ownedKeys.has(songKey(song.artist, song.title))) return false
       return true
     })
@@ -124,6 +135,8 @@ export function App(): JSX.Element {
     diffMax,
     charterFilter,
     albumFilter,
+    reductions,
+    directOnly,
     hideOwned,
     ownedKeys,
     sort
@@ -449,6 +462,8 @@ export function App(): JSX.Element {
   const filtersNarrow =
     !!charterFilter.trim() ||
     !!albumFilter.trim() ||
+    reductions !== 'any' ||
+    directOnly ||
     hideOwned ||
     instrumentFilters.length > 0 ||
     diffMin > 0 ||
@@ -473,6 +488,7 @@ export function App(): JSX.Element {
 
       {source.length > 0 && !error ? (
         <div className="resultsbar">
+          <div className="resultsbar__lead">
           {checkableSongs.length > 0 ? (
             <label className="chk chk--selectall" title="Select all downloadable songs">
               <input type="checkbox" checked={allChecked} onChange={toggleSelectAll} />
@@ -519,6 +535,38 @@ export function App(): JSX.Element {
               </>
             )}
           </span>
+          {/* Nejčastější přepínače přímo v liště (bez otevírání Filters).
+              „Direct downloads only" jen u RhythmVerse/Both — Encore je vždy
+              přímé .sng. Vypnout jde vždy přes Clear filters v panelu, i kdyby
+              některý přepínač vynuloval výsledky a lišta zmizela. */}
+          <label className="chk resultsbar__toggle" title="Hide charts already in your library">
+            <input
+              type="checkbox"
+              checked={hideOwned}
+              onChange={(e) => setHideOwned(e.target.checked)}
+            />
+            <span className="chk__box">
+              <Icon name="check" size={12} />
+            </span>
+            <span>Hide owned</span>
+          </label>
+          {database !== 'enchor' ? (
+            <label
+              className="chk resultsbar__toggle"
+              title="Show only charts you can download in one click (hide official DLC and MEGA/Mediafire)"
+            >
+              <input
+                type="checkbox"
+                checked={directOnly}
+                onChange={(e) => setDirectOnly(e.target.checked)}
+              />
+              <span className="chk__box">
+                <Icon name="check" size={12} />
+              </span>
+              <span>Direct downloads only</span>
+            </label>
+          ) : null}
+          </div>
           <div className="resultsbar__right">
             {/* Hromadná lišta má smysl až od 2 vybraných; u jedné stačí Download na řádku. */}
             {selectedCount > 1 ? (

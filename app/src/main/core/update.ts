@@ -41,6 +41,31 @@ export async function getReleaseNotesSince(
   sinceVersion?: string,
   max = 8
 ): Promise<ReleaseNotes[]> {
+  const notes = await fetchAllReleaseNotes()
+  const filtered = sinceVersion ? notes.filter((n) => isNewer(n.version, sinceVersion)) : notes
+  return filtered.slice(0, max)
+}
+
+/**
+ * Poznámky ke VŠEM vydáním AKTUÁLNÍ řady (od milníku `major.minor.0` po
+ * NAINSTALOVANOU verzi včetně). Pro popup „What's new" po kliknutí na verzi —
+ * ukáže souhrn všeho, co v této minor řadě přibylo (např. 1.3.0 → 1.3.8), ne
+ * jen poslední patch. Ohraničeno nainstalovanou verzí, takže neukáže novější
+ * releasy z GitHubu (ty patří do „Update available", ne do „co mám").
+ */
+export async function getReleaseNotesMilestone(): Promise<ReleaseNotes[]> {
+  const current = app.getVersion().replace(/^v/i, '')
+  const parts = parseVersion(current)
+  const milestone = `${parts[0] ?? 0}.${parts[1] ?? 0}.0`
+  const notes = await fetchAllReleaseNotes()
+  return notes.filter(
+    // version >= milestone (není starší) A version <= current (není novější)
+    (n) => !isNewer(milestone, n.version) && !isNewer(n.version, current)
+  )
+}
+
+/** Stáhne a znormalizuje posledních 30 releasů (nejnovější první). Sdílené. */
+async function fetchAllReleaseNotes(): Promise<ReleaseNotes[]> {
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, {
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': `CHM/${app.getVersion()}` }
@@ -67,13 +92,11 @@ export async function getReleaseNotesSince(
           date: r.published_at
         }
       })
-    // Pro jistotu seřaď podle verze (nejnovější první). Validní komparátor
-    // (vrací i 0 při shodě), ať je řazení stabilní.
+    // Nejnovější první; validní komparátor (0 při shodě) pro stabilní řazení.
     notes.sort((a, b) =>
       isNewer(a.version, b.version) ? -1 : isNewer(b.version, a.version) ? 1 : 0
     )
-    const filtered = sinceVersion ? notes.filter((n) => isNewer(n.version, sinceVersion)) : notes
-    return filtered.slice(0, max)
+    return notes
   } catch {
     return []
   }

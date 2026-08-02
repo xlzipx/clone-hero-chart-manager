@@ -44,6 +44,14 @@ const PERIODIC_MS = 30 * 60 * 1000
 const STARTUP_DELAY_MS = 8000
 /** Za jak dlouho zkusit sync znovu, když selhal (ne až za celou periodu). */
 const FAIL_RETRY_MS = 5 * 60 * 1000
+/**
+ * Verze DAT v katalogu. Zvýšit, když změna v parsování potřebuje re-fetch už
+ * uložených řádků (nová/opravená pole) — např. přidání expert_only u Encore z
+ * notesData. Na mismatch se u hotového katalogu vynulují kurzory → příští sync
+ * projede vše a doplní pole IN PLACE, aniž by shodil `full_done` (dotazy jedou
+ * dál na stávajících datech). Historie: 1 = původní, 2 = Encore expert_only.
+ */
+const DATA_VERSION = '2'
 /** Kolikrát zopakovat JEDNU stránku po síťové chybě/timeoutu, než se zdroj vzdá. */
 const PAGE_RETRIES = 2
 
@@ -97,6 +105,23 @@ function statusFromDb(): CatalogStatus {
 
 function emit(): void {
   notify?.(getCatalogStatus())
+}
+
+/**
+ * Změna DATA_VERSION u JIŽ hotového katalogu → vynuluj kurzory, ať příští
+ * průchod projede vše a doplní nová/opravená pole IN PLACE. `full_done` se
+ * NEsahá, takže filtry mezitím jedou dál na stávajících datech (žádný výpadek).
+ * data_version se posune až PO úspěšném dokončení syncu (v syncCatalog), aby
+ * přerušený backfill příště pokračoval. U čerstvého katalogu (nic hotového)
+ * nedělá nic — plný build stejně natáhne vše. Vrací true, když reset proběhl. */
+export function maybeBackfillForDataVersion(): boolean {
+  if (catalog.getMeta('data_version') === DATA_VERSION) return false
+  const rvReady = catalog.getMeta('full_done:rv') === '1'
+  const enReady = catalog.getMeta('full_done:en') === '1'
+  if (!rvReady && !enReady) return false
+  catalog.setMeta('cursor:rv', '0')
+  catalog.setMeta('cursor:en', '0')
+  return true
 }
 
 /** Stránkovací funkce zdroje (enchor/rhythmverse mají identický tvar). */
@@ -214,6 +239,7 @@ async function syncSource(src: Source, concurrency: number): Promise<void> {
 export async function syncCatalog(): Promise<void> {
   if (syncing) return
   syncing = true
+  maybeBackfillForDataVersion()
   const st = getCatalogStatus()
   srcProgress.en = st.sources.en.ready ? 1 : 0
   srcProgress.rv = st.sources.rv.ready ? 1 : 0
@@ -231,6 +257,9 @@ export async function syncCatalog(): Promise<void> {
   })
   if (okAll) {
     catalog.setMeta('last_sync', String(Date.now()))
+    // Data jsou teď kompletní v aktuální verzi parsování → zaznamenej, ať se
+    // backfill příště neopakuje.
+    catalog.setMeta('data_version', DATA_VERSION)
   } else {
     // Přechodný výpadek (síť, server) → nečekat celou periodu; build mezitím
     // stojí na uložené stránce a retry na ni naváže.

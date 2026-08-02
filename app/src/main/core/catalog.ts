@@ -20,7 +20,7 @@ import type {
   SortKey
 } from '../../shared/types'
 import { SORT_DEFAULT_DIR } from '../../shared/types'
-import { mergeKey } from '../../shared/songid'
+import { mergeKey, mergeKeyRaw, songKey } from '../../shared/songid'
 import { stripRichTags } from './songmeta'
 
 /** Zdroj řádku v katalogu. */
@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS charts (
   charter TEXT,
   charter_plain TEXT COLLATE NOCASE,
   merge_key TEXT NOT NULL DEFAULT '',
+  norm_key TEXT NOT NULL DEFAULT '',
   host TEXT,
   gameformat TEXT,
   gameformats TEXT NOT NULL DEFAULT '[]',
@@ -106,6 +107,11 @@ export function initCatalog(dbPath: string): void {
   db.pragma('journal_mode = WAL')
   db.pragma('synchronous = NORMAL')
   db.exec(SCHEMA)
+  // Sada normalizovaných klíčů písní, které už uživatel má v knihovně — pro
+  // filtr „Hide owned" napříč CELÝM katalogem (ne jen načtenou stránkou).
+  // TEMP = jen pro tuto session, neukládá se do souboru katalogu; plní ji
+  // renderer přes catalog:setOwned, jakmile načte owned index.
+  db.exec('CREATE TEMP TABLE IF NOT EXISTS owned_keys (k TEXT PRIMARY KEY)')
   migrate(db)
 }
 
@@ -117,35 +123,89 @@ function migrate(d: Database.Database): void {
   if (!cols.includes('merge_key')) {
     d.exec(`ALTER TABLE charts ADD COLUMN merge_key TEXT NOT NULL DEFAULT ''`)
   }
+  if (!cols.includes('norm_key')) {
+    d.exec(`ALTER TABLE charts ADD COLUMN norm_key TEXT NOT NULL DEFAULT ''`)
+  }
   // Indexy až TADY (ne ve SCHEMA) — na staré DB by odkazovaly na sloupec,
   // který vznikne teprve migrací o řádek výš. Pro čerstvou DB jsou no-op.
   // (merge_key, src) pokrývá NOT EXISTS sondu dedupu „Both"; `modified` bez
-  // src umožňuje řadit newest-first globálně (složený (src,modified) to neumí).
+  // src umožňuje řadit newest-first globálně (složený (src,modified) to neumí);
+  // norm_key indexuje filtr „Hide owned" (NOT EXISTS proti owned_keys).
   d.exec('CREATE INDEX IF NOT EXISTS idx_charts_mergekey_src ON charts(merge_key, src)')
   d.exec('CREATE INDEX IF NOT EXISTS idx_charts_modified_all ON charts(modified)')
-  // Dopočet prázdných merge_key (nový sloupec i případný přerušený dopočet).
-  // mergeKey je JS funkce (sdílená s mergeBoth) → řádky projít v JS; ~235k
+  d.exec('CREATE INDEX IF NOT EXISTS idx_charts_normkey ON charts(norm_key)')
+  // Přepočet klíčů. Oba jdou spočítat z už uložených sloupců → BEZ re-fetche
+  // z API. mergeKey/songKey jsou JS funkce (sdílené) → řádky projít v JS; ~235k
   // řádků zabere jednotky sekund JEDNORÁZOVĚ při prvním otevření po migraci.
-  const missing = (
-    d.prepare(`SELECT COUNT(*) n FROM charts WHERE merge_key = ''`).get() as { n: number }
-  ).n
-  if (missing === 0) return
-  const rows = d
-    .prepare(`SELECT rowid, artist, title, charter FROM charts WHERE merge_key = ''`)
-    .all() as { rowid: number; artist: string; title: string; charter: string | null }[]
-  const upd = d.prepare('UPDATE charts SET merge_key = ? WHERE rowid = ?')
-  const run = d.transaction(() => {
-    for (const r of rows) {
-      upd.run(mergeKeyOf(r.artist, r.title, r.charter), r.rowid)
-    }
-  })
-  run()
-  console.log(`[catalog] migrated merge_key for ${rows.length} rows`)
+  //
+  // merge_key má VERZI: když se změní jeho vzorec (např. přidání podpisu
+  // obtížností), přepočítají se VŠECHNY řádky, ne jen prázdné. norm_key vzorec
+  // stabilní → stačí dopočíst prázdné.
+  const MERGE_KEY_VERSION = '2' // 1 = artist|title|charter, 2 = + podpis obtížností
+  const storedVer = (
+    d.prepare(`SELECT value v FROM meta WHERE key = 'merge_key_version'`).get() as
+      | { v: string }
+      | undefined
+  )?.v
+  const recomputeMerge = storedVer !== MERGE_KEY_VERSION
+  const where = recomputeMerge ? '1=1' : `merge_key = '' OR norm_key = ''`
+  const missing = (d.prepare(`SELECT COUNT(*) n FROM charts WHERE ${where}`).get() as { n: number })
+    .n
+  if (missing > 0) {
+    const rows = d
+      .prepare(
+        `SELECT rowid, artist, title, charter, expert_only,
+          d_guitar, d_bass, d_drums, d_vocals, d_keys, d_proguitar, d_probass,
+          d_prokeys, d_guitarghl, d_bassghl, d_band
+         FROM charts WHERE ${where}`
+      )
+      .all() as Record<string, number | string | null>[]
+    const upd = d.prepare('UPDATE charts SET merge_key = ?, norm_key = ? WHERE rowid = ?')
+    const run = d.transaction(() => {
+      for (const r of rows) {
+        const tiers = [
+          r.d_guitar,
+          r.d_bass,
+          r.d_drums,
+          r.d_vocals,
+          r.d_keys,
+          r.d_proguitar,
+          r.d_probass,
+          r.d_prokeys,
+          r.d_guitarghl,
+          r.d_bassghl,
+          r.d_band
+        ] as (number | null)[]
+        const artist = String(r.artist)
+        const title = String(r.title)
+        const charter = (r.charter as string | null) ?? null
+        const eo = r.expert_only === null ? null : r.expert_only === 1
+        upd.run(mergeKeyRaw(artist, title, charter, tiers, eo), songKey(artist, title), r.rowid)
+      }
+    })
+    run()
+    console.log(`[catalog] migrated keys for ${rows.length} rows`)
+  }
+  // Verzi zapiš VŽDY (i u prázdné/čerstvé DB) — aby ji nesl i přibalený seed
+  // a nové instalace nemusely zbytečně přepočítávat klíče, co už jsou v2.
+  d.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('merge_key_version', ?)`).run(
+    MERGE_KEY_VERSION
+  )
 }
 
-/** mergeKey ze sloupců (sdílená sémantika s shared/songid.mergeKey). */
-function mergeKeyOf(artist: string, title: string, charter: string | null): string {
-  return mergeKey({ artist, title, charter } as Parameters<typeof mergeKey>[0])
+/** Nastaví sadu vlastněných písní (normalizované songKey) pro filtr „Hide
+ *  owned" napříč celým katalogem. Volá renderer přes IPC, když se owned index
+ *  načte/změní. Prázdné pole = nic vlastněného. */
+export function setOwnedKeys(keys: string[]): void {
+  const d = need()
+  const ins = d.prepare('INSERT OR IGNORE INTO owned_keys (k) VALUES (?)')
+  const run = d.transaction((ks: string[]) => {
+    d.exec('DELETE FROM owned_keys')
+    for (const k of ks) ins.run(k)
+  })
+  run(keys)
+  // Počty u „Hide owned" dotazů závisí na téhle sadě → zneplatnit cache.
+  countCache.clear()
 }
 
 /** Zavře DB (při ukončení appky — ať WAL soubor korektně dosedne). Checkpoint
@@ -217,10 +277,10 @@ const INSERT_SQL = `INSERT OR REPLACE INTO charts (
   length_s, art,
   d_guitar, d_bass, d_drums, d_vocals, d_keys, d_proguitar, d_probass,
   d_prokeys, d_guitarghl, d_bassghl, d_band,
-  expert_only, charter, charter_plain, merge_key, host, gameformat, gameformats,
+  expert_only, charter, charter_plain, merge_key, norm_key, host, gameformat, gameformats,
   needs_conversion, official, download_url, download_page_url, external_url,
   drive_folder_url, size_bytes, downloads, modified
-) VALUES (${new Array(39).fill('?').join(', ')})`
+) VALUES (${new Array(40).fill('?').join(', ')})`
 
 function toRow(it: CatalogItem): unknown[] {
   const s = it.song
@@ -242,6 +302,7 @@ function toRow(it: CatalogItem): unknown[] {
     s.charter,
     s.charter ? stripRichTags(s.charter) : null,
     mergeKey(s),
+    songKey(s.artist, s.title),
     s.source,
     s.gameFormat,
     JSON.stringify(s.gameFormats),
@@ -482,6 +543,50 @@ export function queryCatalog(q: CatalogQuery): SearchResponse {
   if (album) {
     where.push(`album LIKE ? ESCAPE '\\'`)
     args.push(likeArg(album))
+  }
+
+  // Redukce (Expert-only vs E/M/H/X). expert_only: 1 = jen Expert, 0 = má
+  // E/M/H, NULL = neznámé (to při filtru vypadne — nemá smysl ukazovat).
+  if (q.reductions === 'expert') where.push(`expert_only = 1`)
+  else if (q.reductions === 'full') where.push(`expert_only = 0`)
+
+  // „Hide owned" napříč celým katalogem — vyřaď řádky, jejichž normalizovaný
+  // klíč artist|title je v owned_keys (naplní renderer přes setOwnedKeys).
+  if (q.excludeOwned) {
+    where.push(`NOT EXISTS (SELECT 1 FROM owned_keys o WHERE o.k = norm_key)`)
+  }
+
+  // „Direct downloads only": jen to, co jde stáhnout jedním klikem. Kopíruje
+  // isAutoDownloadable/detectManualHost z rendereru — vylučuje official DLC,
+  // položky bez URL a hostitele bez spolehlivého auto-stažení (MEGA/Mediafire/
+  // zkracovače). Řetězce jsou konstanty (bez user vstupu → bez injection).
+  // Prakticky se týká jen RhythmVerse; Encore je vždy přímé .sng (toggle je
+  // proto v UI schovaný na Encore).
+  if (q.directOnly) {
+    const url = `COALESCE(NULLIF(download_url, ''), NULLIF(download_page_url, ''))`
+    where.push(`official = 0`)
+    where.push(`${url} IS NOT NULL`)
+    for (const h of ['mega', 'mediafire']) {
+      where.push(`LOWER(COALESCE(host, '')) NOT LIKE '%${h}%'`)
+    }
+    const manualUrl = [
+      'mega.nz',
+      'mega.co.nz',
+      'mega.io',
+      'mediafire.com',
+      'bit.ly',
+      'tinyurl.com',
+      't.co',
+      'goo.gl',
+      'ow.ly',
+      'buff.ly',
+      'is.gd',
+      'v.gd',
+      'cutt.ly',
+      'shorturl.at',
+      'rb.gy'
+    ]
+    for (const u of manualUrl) where.push(`LOWER(${url}) NOT LIKE '%${u}%'`)
   }
 
   // Tier rozsah + nástroje — stejná sémantika jako klientský filtr v App.tsx:

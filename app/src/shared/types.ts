@@ -213,6 +213,12 @@ export interface CatalogQuery {
   instruments?: string[]
   diffMin?: number
   diffMax?: number
+  /** Filtr redukcí: 'expert' = jen Expert-only charty, 'full' = jen E/M/H/X. */
+  reductions?: 'expert' | 'full'
+  /** Jen přímo stažitelné (bez official DLC a MEGA/Mediafire/zkracovačů). */
+  directOnly?: boolean
+  /** Skrýt písně, které už uživatel má v knihovně (dle setOwnedKeys). */
+  excludeOwned?: boolean
   sort?: SortKey
   sortDir?: SortDir
   page: number
@@ -557,6 +563,8 @@ export interface RendererApi {
    * uživatel od svého updatu minul), jinak posledních `max` vydání.
    */
   getReleaseNotesSince(since?: string, max?: number): Promise<ReleaseNotes[]>
+  /** Poznámky ke všem vydáním aktuální minor řady (od x.y.0 po nainstalovanou). */
+  getReleaseNotesMilestone(): Promise<ReleaseNotes[]>
   // ---- Lokální katalog metadat ----
   /** Aktuální stav katalogu (empty/syncing/ready + progress + počty). */
   catalogStatus(): Promise<CatalogStatus>
@@ -564,6 +572,8 @@ export interface RendererApi {
   onCatalogStatus(cb: (s: CatalogStatus) => void): () => void
   /** Dotaz do lokálního katalogu (jen když je `ready`; jinak vyhodí chybu). */
   catalogQuery(q: CatalogQuery): Promise<SearchResponse>
+  /** Nastaví normalizované klíče vlastněných písní pro katalogový „Hide owned". */
+  catalogSetOwned(keys: string[]): Promise<void>
   /** 30s zvuková ukázka spárovaná podle interpreta + názvu (iTunes → Deezer). */
   preview(artist: string, title: string): Promise<PreviewResult>
   /** Zvuk už stažené písně (stopy + odkud pouštět ukázku). `rel` je cesta v knihovně. */

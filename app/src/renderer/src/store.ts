@@ -63,6 +63,10 @@ interface AppState {
   // Zpřesňující filtry přes načtené výsledky (contains, case-insensitive)
   charterFilter: string
   albumFilter: string
+  // Filtr redukcí: 'any' = bez omezení, 'expert' = jen Expert-only, 'full' = jen E/M/H/X
+  reductions: 'any' | 'expert' | 'full'
+  // Jen přímo stažitelné (skryje official DLC a MEGA/Mediafire) — týká se hlavně RhythmVerse
+  directOnly: boolean
   // „Už mám v knihovně" — normalizované klíče písní + přepínač skrytí
   ownedKeys: Set<string>
   hideOwned: boolean
@@ -156,6 +160,8 @@ interface AppState {
   setDiffRange: (min: number, max: number) => void
   setCharterFilter: (v: string) => void
   setAlbumFilter: (v: string) => void
+  setReductions: (v: 'any' | 'expert' | 'full') => void
+  setDirectOnly: (v: boolean) => void
   setHideOwned: (v: boolean) => void
   loadOwnedKeys: () => Promise<void>
   setSort: (s: SortKey) => void
@@ -577,6 +583,9 @@ export const useStore = create<AppState>((set, get) => {
     const s = get()
     if (!catalogUsableForDb()) return false
     if (s.charterFilter.trim() || s.albumFilter.trim()) return true
+    if (s.reductions !== 'any') return true
+    if (s.directOnly) return true
+    if (s.hideOwned) return true
     if (needsDeepScan()) return true
     const f = s.filters
     const rvOnly = !!(f.genre?.length || f.year?.length || f.decade?.length || f.songLength?.length)
@@ -830,6 +839,9 @@ export const useStore = create<AppState>((set, get) => {
         songLength: f.songLength,
         charter: s.charterFilter.trim() || undefined,
         album: s.albumFilter.trim() || undefined,
+        reductions: s.reductions === 'any' ? undefined : s.reductions,
+        directOnly: s.directOnly || undefined,
+        excludeOwned: s.hideOwned || undefined,
         instruments: s.instrumentFilters,
         diffMin: s.diffMin,
         diffMax: s.diffMax,
@@ -948,6 +960,8 @@ export const useStore = create<AppState>((set, get) => {
   diffMax: 6,
   charterFilter: '',
   albumFilter: '',
+  reductions: 'any',
+  directOnly: false,
   ownedKeys: new Set<string>(),
   hideOwned: false,
   // Default = 'newest': první stránka se přirozeně mění, jak přibývají charty.
@@ -1202,6 +1216,12 @@ export const useStore = create<AppState>((set, get) => {
     window.api.onCatalogStatus((s) => {
       const prev = get().catalogStatus
       set({ catalogStatus: s })
+      // Katalog se právě stal použitelným (init/build dokončen) → znovu pošli
+      // owned klíče. Pojistka proti závodu: loadOwnedKeys při startu mohl
+      // catalogSetOwned zavolat dřív, než byla DB inicializovaná (no-op).
+      if (s.usable && !(prev?.usable ?? false)) {
+        void window.api.catalogSetOwned([...get().ownedKeys]).catch(() => {})
+      }
       // Doběhl sync (změna lastSync) → katalogem zobrazené výsledky můžou být
       // zastaralé (typicky „nejnovější" z přibaleného seedu hned po instalaci).
       // Tiše přenačti AKTUÁLNÍ stránku — ale jen když do ničeho nešaháme:
@@ -1231,11 +1251,27 @@ export const useStore = create<AppState>((set, get) => {
     set({ albumFilter: v, selectedIndex: -1 })
     if (catalogUsableForDb()) scheduleRefineSearch(get)
   },
-  setHideOwned: (v) => set({ hideOwned: v, selectedIndex: -1 }),
+  setReductions: (v) => {
+    set({ reductions: v, selectedIndex: -1 })
+    void get().doSearch(1)
+  },
+  setDirectOnly: (v) => {
+    set({ directOnly: v, selectedIndex: -1 })
+    void get().doSearch(1)
+  },
+  setHideOwned: (v) => {
+    set({ hideOwned: v, selectedIndex: -1 })
+    // S katalogem filtruje přes celou DB → přehledej. Bez katalogu doSearch
+    // stejně skončí na živém API a App.tsx to dorovná client refinem.
+    void get().doSearch(1)
+  },
   loadOwnedKeys: async () => {
     try {
       const keys = await window.api.ownedSongKeys()
       set({ ownedKeys: new Set(keys) })
+      // Předej sadu i katalogu, ať „Hide owned" filtruje přes CELÝ katalog
+      // (ne jen načtenou stránku). Selhání není fatální — spadne na client refine.
+      void window.api.catalogSetOwned(keys).catch(() => {})
     } catch {
       /* nevadí — nápověda „In library" prostě nebude */
     }
@@ -1347,6 +1383,8 @@ export const useStore = create<AppState>((set, get) => {
       diffMax: 6,
       charterFilter: '',
       albumFilter: '',
+      reductions: 'any',
+      directOnly: false,
       hideOwned: false,
       filters: {},
       selectedIndex: -1

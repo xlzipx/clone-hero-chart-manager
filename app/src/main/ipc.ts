@@ -14,7 +14,7 @@ import type {
 } from '../shared/types'
 import { getConfig, setConfig } from './core/config'
 import { isMac } from './core/platform'
-import { queryCatalog } from './core/catalog'
+import { queryCatalog, setOwnedKeys as setCatalogOwned } from './core/catalog'
 import { getCatalogStatus } from './core/catalogsync'
 import type { CatalogQuery } from '../shared/types'
 import { search as searchEnchor } from './core/enchor'
@@ -60,7 +60,7 @@ import { getSongAudio } from './core/localaudio'
 import { getSngPreview } from './core/sngpreview'
 import { fetchFilterOptions, search as searchRhythmverse } from './core/rhythmverse'
 import { resolveSpotifyPlaylist } from './core/spotify'
-import { getReleaseNotes, getReleaseNotesSince } from './core/update'
+import { getReleaseNotes, getReleaseNotesSince, getReleaseNotesMilestone } from './core/update'
 import { registerHotkeys, unregisterHotkeys } from './hotkeys'
 import { applyUiScale, getOverlay, hideOverlay, isMaximized, toggleMaximize } from './overlay'
 
@@ -156,6 +156,15 @@ export function registerIpc(): void {
           : src.rv.ready && src.en.ready
     if (!ok) throw new Error('Catalog is not ready yet')
     return queryCatalog(q)
+  })
+  ipcMain.handle('catalog:setOwned', (_e, keys: string[]) => {
+    try {
+      setCatalogOwned(Array.isArray(keys) ? keys : [])
+    } catch (err) {
+      // Katalog nemusí být inicializovaný (selhal init) — „Hide owned" pak
+      // spadne na klientský refine nad stránkou, appka běží dál.
+      console.warn('[catalog] setOwned failed:', err)
+    }
   })
 
   // 30s zvuková ukázka (poslech před stažením) — spáruje se v main procesu.
@@ -329,6 +338,7 @@ export function registerIpc(): void {
   ipcMain.handle('app:releaseNotesSince', (_e, since?: string, max?: number) =>
     getReleaseNotesSince(since, max)
   )
+  ipcMain.handle('app:releaseNotesMilestone', () => getReleaseNotesMilestone())
 
   // Přeposílání průběhu úloh do renderer procesu.
   jobManager.on('update', (job) => {

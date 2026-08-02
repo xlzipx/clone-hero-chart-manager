@@ -79,7 +79,27 @@ interface EnchorChart {
   modifiedTime?: string | null
   notesData?: {
     instruments?: string[]
+    /** Reálně nacharované obtížnosti per nástroj: difficulty = easy/medium/hard/expert. */
+    noteCounts?: { instrument?: string; difficulty?: string; count?: number }[]
   }
+}
+
+/**
+ * Je chart jen na Expert? Z `notesData.noteCounts`, kde Encore vypisuje KAŽDOU
+ * reálně nacharovanou obtížnost každého nástroje ("easy"/"medium"/"hard"/
+ * "expert") — ověřeno živě. Stejná sémantika jako `computeExpertOnly` v
+ * rhythmverse.ts, ať odznaky sedí napříč oběma databázemi:
+ *  - true  = žádný nástroj nemá E/M/H (existuje jen Expert)
+ *  - false = aspoň jeden nástroj má nižší obtížnost (E/M/H/X)
+ *  - null  = nic nacharováno / data chybí
+ */
+function encoreExpertOnly(nd: EnchorChart['notesData']): boolean | null {
+  const counts = nd?.noteCounts
+  if (!Array.isArray(counts) || counts.length === 0) return null
+  const anyReduction = counts.some(
+    (e) => e?.difficulty === 'easy' || e?.difficulty === 'medium' || e?.difficulty === 'hard'
+  )
+  return !anyReduction
 }
 
 function diff(v: unknown): number | undefined {
@@ -124,8 +144,8 @@ function normalize(c: EnchorChart): SongResult {
     lengthSeconds: lenMs != null ? Math.round(lenMs / 1000) : null,
     albumArtUrl: artMd5 ? `${FILES}/${artMd5}.jpg` : null,
     difficulties: mapDifficulties(c),
-    // Chorus Encore nehlásí spolehlivě dostupné obtížnosti → neznámé.
-    expertOnly: null,
+    // Expert-only vs E/M/H/X z notesData.noteCounts (viz encoreExpertOnly).
+    expertOnly: encoreExpertOnly(c.notesData),
     // Charter jde do UI SYROVĚ (vč. <color=…> tagů) — renderer je vykreslí
     // barevně jako hra (RichText). Stripovat jen tam, kde je třeba čistý text.
     charter: c.charter ?? null,

@@ -129,9 +129,11 @@ export function FilterPanel(): JSX.Element {
   const charter = useStore((s) => s.charterFilter)
   const album = useStore((s) => s.albumFilter)
   const hideOwned = useStore((s) => s.hideOwned)
+  const reductions = useStore((s) => s.reductions)
+  const directOnly = useStore((s) => s.directOnly)
   const setCharter = useStore((s) => s.setCharterFilter)
   const setAlbum = useStore((s) => s.setAlbumFilter)
-  const setHideOwned = useStore((s) => s.setHideOwned)
+  const setReductions = useStore((s) => s.setReductions)
   const catalog = useStore((s) => s.catalogStatus)
 
   // S hotovým lokálním katalogem umí žánr/rok/dekádu/délku i Chorus Encore
@@ -152,7 +154,7 @@ export function FilterPanel(): JSX.Element {
     filters.decade?.length ||
     filters.songLength?.length
   )
-  const anyRefine = !!(charter || album || hideOwned)
+  const anyRefine = !!(charter || album || hideOwned) || reductions !== 'any' || directOnly
   const anyActive = anyBrowse || anyRefine
 
   const one = (key: 'genre' | 'year' | 'decade' | 'songLength'): string => filters[key]?.[0] ?? ''
@@ -245,6 +247,30 @@ export function FilterPanel(): JSX.Element {
       <div className="filterpanel__grid filterpanel__grid--refine">
         <FilterText label="Charter" value={charter} placeholder="e.g. Chezy" onChange={setCharter} />
         <FilterText label="Album" value={album} placeholder="e.g. Meteora" onChange={setAlbum} />
+        {/* Redukce (Expert-only vs E/M/H/X) VEDLE Charter/Album ve stejné
+            řadě, ať panel neroste na výšku. Přepínače vypadají jako odznaky
+            u řádku výsledků; klik na aktivní ho vypne. */}
+        <div className="filterfield">
+          <span className="filterfield__label">Difficulty levels</span>
+          <div className="reduc">
+            <button
+              type="button"
+              className={`reduc__opt reduc__opt--expert ${reductions === 'expert' ? 'is-on' : ''}`}
+              aria-pressed={reductions === 'expert'}
+              onClick={() => setReductions(reductions === 'expert' ? 'any' : 'expert')}
+            >
+              Expert only
+            </button>
+            <button
+              type="button"
+              className={`reduc__opt reduc__opt--full ${reductions === 'full' ? 'is-on' : ''}`}
+              aria-pressed={reductions === 'full'}
+              onClick={() => setReductions(reductions === 'full' ? 'any' : 'full')}
+            >
+              E/M/H/X
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Průběh stavby katalogu — JEN dokud pro vybranou databázi neběží
@@ -265,24 +291,16 @@ export function FilterPanel(): JSX.Element {
         </div>
       ) : null}
 
-      <div className="filterpanel__foot">
-        <label className="chk filterpanel__owned">
-          <input
-            type="checkbox"
-            checked={hideOwned}
-            onChange={(e) => setHideOwned(e.target.checked)}
-          />
-          <span className="chk__box">
-            <Icon name="check" size={12} />
-          </span>
-          <span>Hide songs I already have</span>
-        </label>
-        {anyActive ? (
+      {/* „Hide songs I already have" a „Direct downloads only" žijí přímo
+          v liště výsledků (vždy po ruce bez otevírání Filters) — viz App.tsx.
+          Tady zůstává jen Clear filters (reset resetuje i ty přepínače). */}
+      {anyActive ? (
+        <div className="filterpanel__foot">
           <button type="button" className="filterpanel__clear" onClick={clearAll}>
             <Icon name="close" size={12} /> Clear filters
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       </div>
     </div>
   )

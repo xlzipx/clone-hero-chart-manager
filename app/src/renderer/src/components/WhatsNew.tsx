@@ -89,12 +89,12 @@ export function WhatsNew(): JSX.Element | null {
     setReleases([])
     let cancelled = false
     // Po updatu (since != null): vše novější než minulá verze, max 8.
-    // Ruční otevření (since == null): patch notes NAINSTALOVANÉ verze — ne
-    // nejnovější z GitHubu. Kdo zůstal na starší verzi, musí vidět poznámky
-    // ke své, ne k té, kterou nemá.
+    // Ruční otevření (since == null): souhrn CELÉ aktuální minor řady — od
+    // milníku x.y.0 po NAINSTALOVANOU verzi (např. 1.3.0 → 1.3.8), ne jen
+    // poslední patch a ne novější releasy z GitHubu (ty patří do „Update").
     const load = since
       ? window.api.getReleaseNotesSince(since, 8)
-      : window.api.getReleaseNotes().then((n) => (n ? [n] : []))
+      : window.api.getReleaseNotesMilestone()
     void load
       .then((list) => {
         if (!cancelled) setReleases(list)
@@ -115,12 +115,17 @@ export function WhatsNew(): JSX.Element | null {
   // Nadpis: po updatu z konkrétní verze to řekni, při ručním otevření pojmenuj
   // verzi, kterou uživatel opravdu má (ne tu nejnovější na GitHubu).
   const multi = releases.length > 1
+  // Ruční otevření ukazuje celou minor řadu → titulek pojmenuj sérií (v1.3),
+  // ne jednu verzi. Při jediném vydání v řadě zůstane konkrétní verze.
+  const seriesLabel = releases[0] ? releases[0].version.split('.').slice(0, 2).join('.') : ''
   const title = since
     ? multi
       ? `What's new since v${since}`
       : "What's new"
     : releases[0]
-      ? `What's new in v${releases[0].version}`
+      ? multi
+        ? `What's new in v${seriesLabel}`
+        : `What's new in v${releases[0].version}`
       : "What's new"
   const newestUrl = releases[0]?.url || RELEASES_PAGE
 
