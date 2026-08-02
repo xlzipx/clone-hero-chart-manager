@@ -570,10 +570,12 @@ export const useStore = create<AppState>((set, get) => {
   /** Strop deep scanu: 40 stránek. Chrání před stahováním celé DB (~93k). */
   const DEEP_MAX_PAGES = 40
   /**
-   * Kolik stránek stahovat naráz. Dřív se čekalo na každou zvlášť, takže
-   * 40 stránek znamenalo 40 čekání na síť za sebou a linka byla skoro celou
-   * dobu nečinná. Čtyři je kompromis — znatelně rychlejší, ale pořád
-   * ohleduplné k API (při větším náporu začne RhythmVerse omezovat).
+   * Kolik stránek stahovat naráz — POUZE pro RhythmVerse. Dřív se čekalo na
+   * každou zvlášť, takže 40 stránek znamenalo 40 čekání na síť za sebou a linka
+   * byla skoro celou dobu nečinná. Čtyři je kompromis — znatelně rychlejší, ale
+   * pořád ohleduplné k API (při větším náporu začne RhythmVerse omezovat).
+   * Chorus Encore souběh NESNESE (vrací 503) → tam se skenuje sériově, viz
+   * `parallel` v deepScan.
    */
   const DEEP_PARALLEL = 4
   /** Sken tahá po 100 (ne po `records`) → 40 stránek = 4000 písní pokrytí při
@@ -663,6 +665,11 @@ export const useStore = create<AppState>((set, get) => {
       const q = query.trim()
       const filters = buildServerFilters()
       const { sort, sortDir } = get()
+      // Souběh podle databáze. Chorus Encore (a tím i „Both", které ho dotazuje)
+      // vrací 503, jakmile na něj tečou souběžné požadavky — jeho Cloudflare
+      // frontend concurrent load shazuje. RhythmVerse souběh v pohodě snese.
+      // Proto Encore/Both skenujeme SÉRIOVĚ (spolehlivé), RV paralelně (rychlé).
+      const parallel = database === 'rhythmverse' ? DEEP_PARALLEL : 1
       // Klíč cache = PŘESNĚ to, co jde na server. Obtížnostní tier tu schválně
       // není (filtruje se lokálně), takže jeho změna sáhne do cache místo sítě.
       const keyFor = (p: number): string =>
@@ -722,9 +729,9 @@ export const useStore = create<AppState>((set, get) => {
 
       // Zbytek po dávkách. Tady je ta úspora: místo 40 čekání na síť za sebou
       // jich je 10 po čtyřech.
-      for (let start = 2; start <= lastPage; start += DEEP_PARALLEL) {
+      for (let start = 2; start <= lastPage; start += parallel) {
         const batch: number[] = []
-        for (let p = start; p < start + DEEP_PARALLEL && p <= lastPage; p++) batch.push(p)
+        for (let p = start; p < start + parallel && p <= lastPage; p++) batch.push(p)
         const res = await Promise.all(batch.map(fetchPage))
         if (myReq !== searchSeq) return
         batch.forEach((p, i) => {

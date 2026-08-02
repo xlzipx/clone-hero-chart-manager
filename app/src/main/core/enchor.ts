@@ -26,6 +26,30 @@ import type {
 const API = 'https://api.enchor.us'
 const FILES = 'https://files.enchor.us'
 
+/**
+ * POST na Encore s krátkým retry na přechodné 503/429. Encore (jeho Cloudflare
+ * frontend) občas shodí požadavek pod zátěží — typicky při souběhu. Deep scan už
+ * proto na Encore jede sériově, tohle je druhá pojistka: přechodná chyba se pár×
+ * zkusí znovu s narůstající pauzou, ať jediné 503 neshodí celé hledání. Trvalé
+ * chyby (4xx kromě 429) se nezkoušejí — nemá to smysl.
+ */
+async function postSearch(body: unknown, retries = 2): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${API}/search`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+      },
+      body: JSON.stringify(body)
+    })
+    if (res.ok || (res.status !== 503 && res.status !== 429) || attempt >= retries) return res
+    await new Promise((r) => setTimeout(r, 350 * (attempt + 1)))
+  }
+}
+
 interface EnchorChart {
   name?: string | null
   artist?: string | null
@@ -162,16 +186,7 @@ export async function search(
   const type = sort ? ENC_SORT_TYPE[sort] : undefined
   if (type && sort) body.sort = { type, direction: sortDir ?? SORT_DEFAULT_DIR[sort] }
 
-  const res = await fetch(`${API}/search`, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
-    },
-    body: JSON.stringify(body)
-  })
+  const res = await postSearch(body)
 
   if (!res.ok) {
     throw new Error(`Chorus Encore API returned HTTP ${res.status}`)
