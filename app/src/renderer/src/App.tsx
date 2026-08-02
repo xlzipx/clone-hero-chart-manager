@@ -54,6 +54,7 @@ export function App(): JSX.Element {
   const diffMax = useStore((s) => s.diffMax)
   const charterFilter = useStore((s) => s.charterFilter)
   const albumFilter = useStore((s) => s.albumFilter)
+  const advFilters = useStore((s) => s.filters)
   const ownedKeys = useStore((s) => s.ownedKeys)
   const hideOwned = useStore((s) => s.hideOwned)
   const sort = useStore((s) => s.sort)
@@ -442,6 +443,23 @@ export function App(): JSX.Element {
     document.querySelector('.results')?.scrollTo({ top: 0 })
   }, [page])
 
+  // Je aktivní JAKÝKOLI zužující filtr? Řídí prázdný stav: s filtrem se místo
+  // nabídky interpretů (Discover) ukáže výzva k uvolnění filtrů — klik na
+  // interpreta by s nesmyslným charter/album filtrem stejně nic nenašel.
+  const filtersNarrow =
+    !!charterFilter.trim() ||
+    !!albumFilter.trim() ||
+    hideOwned ||
+    instrumentFilters.length > 0 ||
+    diffMin > 0 ||
+    diffMax < 6 ||
+    !!(
+      advFilters.genre?.length ||
+      advFilters.year?.length ||
+      advFilters.decade?.length ||
+      advFilters.songLength?.length
+    )
+
   return (
     <div className="app">
       <div className="noise-overlay" aria-hidden="true" />
@@ -602,19 +620,28 @@ export function App(): JSX.Element {
         ) : error ? (
           <div className="state state--error">⚠ {error}</div>
         ) : source.length === 0 ? (
-          <div className="state state--empty">
-            <div className="state__msg">
-              {query
-                ? 'Nothing found. Try a different search, or an artist below.'
-                : 'Search for a song or artist.'}
+          // S aktivním zužujícím filtrem NEnabízet interprety (Discover) —
+          // klik na ně by kvůli filtru stejně nic nenašel. Místo toho poslat
+          // uživatele k filtrům.
+          filtersNarrow ? (
+            <div className="state">
+              No songs match the current filters. Try clearing a filter in Filters.
             </div>
-            <Discover />
-          </div>
+          ) : (
+            <div className="state state--empty">
+              <div className="state__msg">
+                {query
+                  ? 'Nothing found. Try a different search, or an artist below.'
+                  : 'Search for a song or artist.'}
+              </div>
+              <Discover />
+            </div>
+          )
         ) : visible.length === 0 ? (
           <div className="state">
             {deep && deepLoading
               ? `No matches yet — scanning page ${deepScannedPages} of ${deepTotalPages}…`
-              : 'No songs match the current filters. Try clearing a filter or Refine.'}
+              : 'No songs match the current filters. Try clearing a filter in Filters.'}
           </div>
         ) : (
           visible.map((song, i) => (
