@@ -63,10 +63,12 @@ export function createOverlay(): BrowserWindow {
   // ten „odd" stav na malých HiDPI displejích (1080p @ 150 %): okno se otevřelo
   // širší než obrazovka. Clamp to řeší bez zmenšování UI.
   const dip = (css: number): number => Math.round(css * ZOOM)
-  // Okno se VŽDY otevírá v „design" velikosti mockupu (1500×1044 CSS px),
+  // Okno se VŽDY otevírá v „design" velikosti mockupu (1660×1044 CSS px),
   // jen clampnuté na pracovní plochu — na menších displejích se zmenší,
-  // ale na velkých se uměle nenafukuje.
-  const winW = Math.min(dip(1500), width)
+  // ale na velkých se uměle nenafukuje. Šířka 1660 je zvolená tak, aby se při
+  // 100% UI scale všech 7 polí panelu filtrů vešlo do JEDNÉ řádky (viz
+  // FilterPanel/.filterfield basis) a „Clear filters" spadl sám vpravo pod ně.
+  const winW = Math.min(dip(1660), width)
   const winH = Math.min(dip(1044), height)
   const minW = Math.min(dip(1100), width)
   const minH = Math.min(dip(700), height)

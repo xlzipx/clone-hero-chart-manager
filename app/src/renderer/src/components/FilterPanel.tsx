@@ -122,15 +122,12 @@ export function FilterPanel(): JSX.Element {
   const options = useStore((s) => s.filterOptions)
   const database = useStore((s) => s.database)
   const setFilter = useStore((s) => s.setFilter)
-  const clearFilters = useStore((s) => s.clearFilters)
   const setDatabase = useStore((s) => s.setDatabase)
   const doSearch = useStore((s) => s.doSearch)
 
   const charter = useStore((s) => s.charterFilter)
   const album = useStore((s) => s.albumFilter)
-  const hideOwned = useStore((s) => s.hideOwned)
   const reductions = useStore((s) => s.reductions)
-  const directOnly = useStore((s) => s.directOnly)
   const setCharter = useStore((s) => s.setCharterFilter)
   const setAlbum = useStore((s) => s.setAlbumFilter)
   const setReductions = useStore((s) => s.setReductions)
@@ -148,24 +145,12 @@ export function FilterPanel(): JSX.Element {
         ? !!catalog?.sources.rv.ready
         : !!catalog?.sources.rv.ready && enReady
   const encoreOnly = database === 'enchor' && !enReady
-  const anyBrowse = !!(
-    filters.genre?.length ||
-    filters.year?.length ||
-    filters.decade?.length ||
-    filters.songLength?.length
-  )
-  const anyRefine = !!(charter || album || hideOwned) || reductions !== 'any' || directOnly
-  const anyActive = anyBrowse || anyRefine
 
   const one = (key: 'genre' | 'year' | 'decade' | 'songLength'): string => filters[key]?.[0] ?? ''
   const set =
     (key: 'genre' | 'year' | 'decade' | 'songLength') =>
     (v: string): void =>
       setFilter(key, v ? [v] : [])
-
-  // Vyčistí VŠECHNY filtry naráz (kanonický clear ve store — nástroj/obtížnost
-  // i žánr/rok/délka/charter/album/hideOwned).
-  const clearAll = (): void => clearFilters()
 
   // Overflow povolíme až PO dovysunutí rolety (jinak by se rozbalovací menu
   // ořezávalo o panel); při zavírání ho hned skryjeme, ať roleta pěkně zajede.
@@ -211,46 +196,53 @@ export function FilterPanel(): JSX.Element {
             Use RhythmVerse
           </button>
         </div>
-      ) : (
-        <div className="filterpanel__grid">
-          <FilterSelect
-            label="Genre"
-            placeholder="Any genre"
-            value={one('genre')}
-            options={options?.genre ?? []}
-            onChange={set('genre')}
-          />
-          <FilterSelect
-            label="Release year"
-            placeholder="Any year"
-            value={one('year')}
-            options={options?.year ?? []}
-            onChange={set('year')}
-          />
-          <FilterSelect
-            label="Decade"
-            placeholder="Any decade"
-            value={one('decade')}
-            options={options?.decade ?? []}
-            onChange={set('decade')}
-          />
-          <FilterSelect
-            label="Song length"
-            placeholder="Any length"
-            value={one('songLength')}
-            options={options?.songLength ?? []}
-            onChange={set('songLength')}
-          />
-        </div>
-      )}
+      ) : null}
 
-      <div className="filterpanel__grid filterpanel__grid--refine">
+      {/* Jedna mřížka pro VŠECHNA pole (browse i refine) → na širokém okně se
+          vejdou do jedné řádky a každé pole je kompaktní. S lokálním katalogem
+          fungují žánr/rok/dekáda/délka i charter/album stejně na obou DB, takže
+          je nemá smysl vizuálně oddělovat. Když je Encore ještě bez katalogu
+          (encoreOnly), browse pole ustoupí banneru a zůstane jen refine část. */}
+      <div className="filterpanel__grid">
+        {encoreOnly ? null : (
+          <>
+            <FilterSelect
+              label="Genre"
+              placeholder="Any genre"
+              value={one('genre')}
+              options={options?.genre ?? []}
+              onChange={set('genre')}
+            />
+            <FilterSelect
+              label="Release year"
+              placeholder="Any year"
+              value={one('year')}
+              options={options?.year ?? []}
+              onChange={set('year')}
+            />
+            <FilterSelect
+              label="Decade"
+              placeholder="Any decade"
+              value={one('decade')}
+              options={options?.decade ?? []}
+              onChange={set('decade')}
+            />
+            <FilterSelect
+              label="Song length"
+              placeholder="Any length"
+              value={one('songLength')}
+              options={options?.songLength ?? []}
+              onChange={set('songLength')}
+            />
+          </>
+        )}
         <FilterText label="Charter" value={charter} placeholder="e.g. Chezy" onChange={setCharter} />
         <FilterText label="Album" value={album} placeholder="e.g. Meteora" onChange={setAlbum} />
         {/* Redukce (Expert-only vs E/M/H/X) VEDLE Charter/Album ve stejné
             řadě, ať panel neroste na výšku. Přepínače vypadají jako odznaky
-            u řádku výsledků; klik na aktivní ho vypne. */}
-        <div className="filterfield">
+            u řádku výsledků; klik na aktivní ho vypne. Trochu širší (dva
+            přepínače v jedné buňce), ať se „Expert only" nemačká. */}
+        <div className="filterfield filterfield--wide">
           <span className="filterfield__label">Difficulty levels</span>
           <div className="reduc">
             <button
@@ -271,6 +263,8 @@ export function FilterPanel(): JSX.Element {
             </button>
           </div>
         </div>
+        {/* „Clear filters" žije v horní liště vedle tlačítka Filters (SearchBar) —
+            jde tak filtry zrušit i bez otevření tohoto panelu. */}
       </div>
 
       {/* Průběh stavby katalogu — JEN dokud pro vybranou databázi neběží
@@ -291,16 +285,6 @@ export function FilterPanel(): JSX.Element {
         </div>
       ) : null}
 
-      {/* „Hide songs I already have" a „Direct downloads only" žijí přímo
-          v liště výsledků (vždy po ruce bez otevírání Filters) — viz App.tsx.
-          Tady zůstává jen Clear filters (reset resetuje i ty přepínače). */}
-      {anyActive ? (
-        <div className="filterpanel__foot">
-          <button type="button" className="filterpanel__clear" onClick={clearAll}>
-            <Icon name="close" size={12} /> Clear filters
-          </button>
-        </div>
-      ) : null}
       </div>
     </div>
   )

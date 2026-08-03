@@ -96,7 +96,8 @@ export async function downloadDriveFolder(
   url: string,
   destDir: string,
   onProgress?: (p: DownloadProgress & { fileName?: string }) => void,
-  depth = 0
+  depth = 0,
+  signal?: AbortSignal
 ): Promise<void> {
   if (depth > 4) return
   const folderId = extractFolderId(url)
@@ -119,15 +120,23 @@ export async function downloadDriveFolder(
       totalBytes: null,
       fileName: f.name
     })
-    await downloadTo(`https://drive.google.com/uc?id=${f.id}&export=download`, join(destDir, f.name))
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    await downloadTo(
+      `https://drive.google.com/uc?id=${f.id}&export=download`,
+      join(destDir, f.name),
+      undefined,
+      signal
+    )
     done++
   }
   for (const sub of folders) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     await downloadDriveFolder(
       `https://drive.google.com/drive/folders/${sub.id}`,
       join(destDir, sub.name),
       onProgress,
-      depth + 1
+      depth + 1,
+      signal
     )
   }
 }
@@ -229,11 +238,13 @@ export async function resolve(url: string): Promise<ResolvedDownload> {
 async function downloadOnce(
   url: string,
   destPath: string,
-  onProgress?: (p: DownloadProgress) => void
+  onProgress?: (p: DownloadProgress) => void,
+  signal?: AbortSignal
 ): Promise<{ received: number; total: number | null }> {
   let res = await fetch(url, {
     headers: { 'User-Agent': UA, Accept: '*/*' },
-    redirect: 'follow'
+    redirect: 'follow',
+    signal
   })
 
   // Google Drive virus-scan mezistránka: HTML s confirm formulářem.
@@ -252,7 +263,7 @@ async function downloadOnce(
     }
     const u = new URL(action[1].replace(/&amp;/g, '&'))
     for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v)
-    res = await fetch(u.toString(), { headers: { 'User-Agent': UA }, redirect: 'follow' })
+    res = await fetch(u.toString(), { headers: { 'User-Agent': UA }, redirect: 'follow', signal })
   }
 
   if (!res.ok || !res.body) {
@@ -282,7 +293,10 @@ async function downloadOnce(
     }
   })
 
-  await pipeline(nodeStream, counter, createWriteStream(destPath))
+  // `signal` do pipeline → při cancelu se stream i zápis okamžitě zničí a
+  // pipeline vyhodí AbortError (jinak by se soubor dostahoval celý a zrušení
+  // by se projevilo až po dokončení).
+  await pipeline(nodeStream, counter, createWriteStream(destPath), { signal })
   return { received, total }
 }
 
@@ -290,13 +304,14 @@ async function downloadOnce(
 export async function downloadTo(
   sourceUrl: string,
   destPath: string,
-  onProgress?: (p: DownloadProgress) => void
+  onProgress?: (p: DownloadProgress) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const resolved = await resolve(sourceUrl)
 
   // Max 2 pokusy – druhý jen pokud server hlásil Content-Length a my dostali míň.
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const { received, total } = await downloadOnce(resolved.url, destPath, onProgress)
+    const { received, total } = await downloadOnce(resolved.url, destPath, onProgress, signal)
 
     // Bez Content-Length nemůžeme validovat — věříme, že to dopadlo.
     if (total === null) return

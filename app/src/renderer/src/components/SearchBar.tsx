@@ -43,6 +43,17 @@ export function SearchBar(): JSX.Element {
   const filters = useStore((s) => s.filters)
   const showFilters = useStore((s) => s.showFilters)
   const setShowFilters = useStore((s) => s.setShowFilters)
+  // Vše, co „Clear filters" reset uklidí — ať tlačítko v liště zmizí, jen když
+  // opravdu není co mazat (a shoduje se s tím, co dělá clearFilters).
+  const charterFilter = useStore((s) => s.charterFilter)
+  const albumFilter = useStore((s) => s.albumFilter)
+  const hideOwned = useStore((s) => s.hideOwned)
+  const reductions = useStore((s) => s.reductions)
+  const directOnly = useStore((s) => s.directOnly)
+  const instrumentFilters = useStore((s) => s.instrumentFilters)
+  const diffMin = useStore((s) => s.diffMin)
+  const diffMax = useStore((s) => s.diffMax)
+  const clearFilters = useStore((s) => s.clearFilters)
   const inputRef = useRef<HTMLInputElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
 
@@ -151,6 +162,19 @@ export function SearchBar(): JSX.Element {
     (k) => (filters[k]?.length ?? 0) > 0
   ).length
 
+  // Je co mazat? (browse filtry + charter/album/redukce/direct/hide owned +
+  // nástroj/obtížnost) — stejná množina, jakou resetuje clearFilters.
+  const hasActiveFilters =
+    activeFilterCount > 0 ||
+    !!charterFilter.trim() ||
+    !!albumFilter.trim() ||
+    hideOwned ||
+    reductions !== 'any' ||
+    directOnly ||
+    instrumentFilters.length > 0 ||
+    diffMin > 0 ||
+    diffMax < 6
+
   return (
     <div className="searchbar">
       <div className="searchbar__row searchbar__row--input">
@@ -246,6 +270,17 @@ export function SearchBar(): JSX.Element {
             </div>
           ) : null}
         </div>
+        {hasActiveFilters ? (
+          <button
+            type="button"
+            className="searchbar__clearfilters"
+            onClick={() => clearFilters()}
+            title="Clear all active filters"
+          >
+            <Icon name="close" size={13} />
+            <span>Clear filters</span>
+          </button>
+        ) : null}
         <button
           type="button"
           className={`searchbar__filters ${showFilters ? 'searchbar__filters--open' : ''} ${

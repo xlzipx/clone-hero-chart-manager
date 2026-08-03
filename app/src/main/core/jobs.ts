@@ -278,13 +278,19 @@ class JobManager extends EventEmitter {
         // Google Drive složka → stáhnout všechny soubory přímo do složky.
         this.setStage(id, 'downloading', 'Downloading Google Drive folder…', -1)
         const folderDir = join(tmpRoot, 'folder')
-        await downloadDriveFolder(url, folderDir, (p) => {
-          this.update(id, {
-            stage: 'downloading',
-            progress: p.progress,
-            message: p.fileName ? `Downloading ${p.fileName}` : undefined
-          })
-        })
+        await downloadDriveFolder(
+          url,
+          folderDir,
+          (p) => {
+            this.update(id, {
+              stage: 'downloading',
+              progress: p.progress,
+              message: p.fileName ? `Downloading ${p.fileName}` : undefined
+            })
+          },
+          0,
+          aborter.signal
+        )
         workDir = folderDir
       } else {
         this.setStage(id, 'downloading', 'Downloading…', 0)
@@ -292,12 +298,17 @@ class JobManager extends EventEmitter {
         const downloadPath = join(tmpRoot, fileName)
         // Throttle: aktualizuj UI nejvýš jednou na 1 % (jinak desítky updateů/s).
         let lastPct = -1
-        await downloadTo(url, downloadPath, (p) => {
-          const pct = Math.floor(Math.max(p.progress, 0) * 100)
-          if (pct === lastPct) return
-          lastPct = pct
-          this.update(id, { stage: 'downloading', progress: p.progress })
-        })
+        await downloadTo(
+          url,
+          downloadPath,
+          (p) => {
+            const pct = Math.floor(Math.max(p.progress, 0) * 100)
+            if (pct === lastPct) return
+            lastPct = pct
+            this.update(id, { stage: 'downloading', progress: p.progress })
+          },
+          aborter.signal
+        )
 
         // 2) Rozbalení (pokud archiv) — detekce podle obsahu, ne přípony
         // (Google Drive stahuje soubory bez přípony).

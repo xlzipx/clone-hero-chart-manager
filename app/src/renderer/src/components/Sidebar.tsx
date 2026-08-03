@@ -196,6 +196,37 @@ export function Sidebar(): JSX.Element {
 
       <div className="side-sep" aria-hidden="true" />
 
+      {/* Akční tlačítka hned pod launchery. „Surprise me" = náhodný chart
+          (respektuje dotaz i filtry). „Import playlist" = dohledat charty
+          z odkazu na playlist. */}
+      <div className="side-actions">
+        <button type="button" className="side-surprise" onClick={() => surpriseMe()}>
+          <Icon name="dice" size={20} className="side-surprise__dice" />
+          <span className="side-surprise__text">
+            <span className="side-surprise__title">Surprise me</span>
+            <span className="side-surprise__sub">Discover 5 random charts</span>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="side-surprise side-import"
+          onClick={() => setShowPlaylistImport(true)}
+        >
+          <span
+            className="side-import__logo"
+            style={{ WebkitMaskImage: `url(${spotifyMark})`, maskImage: `url(${spotifyMark})` }}
+            aria-hidden="true"
+          />
+          <span className="side-surprise__text">
+            <span className="side-surprise__title">Import playlist</span>
+            <span className="side-surprise__sub">Turn a playlist into charts</span>
+          </span>
+        </button>
+      </div>
+
+      <div className="side-sep" aria-hidden="true" />
+
       <div className="side-group">
         <div className="side-label">Database</div>
         <div className="side-list">
@@ -253,35 +284,7 @@ export function Sidebar(): JSX.Element {
         </div>
       ) : null}
 
-      <div className="side-sep side-sep--wide" aria-hidden="true" />
-
-      {/* Akční tlačítka pod seznamy. „Surprise me" = náhodný chart (respektuje
-          dotaz i filtry). „Import playlist" = dohledat charty z odkazu na playlist. */}
-      <div className="side-actions">
-        <button type="button" className="side-surprise" onClick={() => surpriseMe()}>
-          <Icon name="dice" size={18} className="side-surprise__dice" />
-          <span className="side-surprise__text">
-            <span className="side-surprise__title">Surprise me</span>
-            <span className="side-surprise__sub">Discover 5 random charts</span>
-          </span>
-        </button>
-
-        <button
-          type="button"
-          className="side-surprise side-import"
-          onClick={() => setShowPlaylistImport(true)}
-        >
-          <span
-            className="side-import__logo"
-            style={{ WebkitMaskImage: `url(${spotifyMark})`, maskImage: `url(${spotifyMark})` }}
-            aria-hidden="true"
-          />
-          <span className="side-surprise__text">
-            <span className="side-surprise__title">Import playlist</span>
-            <span className="side-surprise__sub">Turn a playlist into charts</span>
-          </span>
-        </button>
-      </div>
+      <div className="side-sep" aria-hidden="true" />
 
       <div className="side-footer">
         {downloaded && available ? (

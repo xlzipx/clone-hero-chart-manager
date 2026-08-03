@@ -1067,14 +1067,33 @@ body {
   margin-bottom: 2px;
 }
 .filterpanel__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  /* Flex (ne grid) SCHVÁLNĚ: pole se rovnoměrně roztáhnou na jednom řádku a při
+     zúžení okna se zalomí — a hlavně „Clear filters" jako poslední flex prvek
+     doplyne do volného místa posledního řádku místo skoku na řádek navíc.
+     `align-items: flex-end` srovná tlačítko Clear ke spodní hraně polí (na výšku
+     ovládacích prvků, ne popisků). */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   gap: 16px;
 }
 .filterfield {
+  /* `flex: 1 1 172px` → pole rostou dohromady a na plném řádku vyplní šířku;
+     pod 172px na prvek se řádek zalomí. `max-width` je KLÍČOVÝ: brání tomu, aby
+     se osamocené pole na zalomeném řádku (typicky „Difficulty levels") roztáhlo
+     přes celou šířku a přepínače nabobtnaly. Na default šířce okna se 7 polí
+     vejde do jedné řádky (viz šířka okna v overlay.ts). */
+  flex: 1 1 172px;
+  min-width: 0;
+  max-width: 240px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+/* „Difficulty levels" nese DVA přepínače v jedné buňce → o kus širší basis, ať
+   se „Expert only" nemačká (strop max-width dědí z .filterfield). */
+.filterfield--wide {
+  flex-basis: 200px;
 }
 .filterfield__label {
   font-size: 12px;
@@ -1112,19 +1131,13 @@ body {
   outline: none;
   border-color: var(--accent);
 }
-/* Refine řada je oddělená jemnou linkou od browse dropdownů. */
-.filterpanel__grid--refine {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
 /* Redukce („Difficulties") — dva přepínače laděné PŘESNĚ jako odznaky
    Expert only / E/M/H/X u řádku výsledků, aby bylo hned jasné, co filtrují.
    Neaktivní = tlumený panel jako vstupy vedle; aktivní = rozsvícený do barvy
    svého odznaku. Výška 40px kvůli zarovnání s poli výš. */
 .reduc {
   display: flex;
-  gap: 16px; /* stejná mezera jako mezi poli v mřížce (Charter/Album) */
+  gap: 10px; /* v užší buňce (7 polí v řadě) drží oba přepínače pohodlně vedle sebe */
 }
 .reduc__opt {
   /* Roztáhnout na dvě stejné poloviny přes celou buňku (k okraji jako pole
@@ -1171,30 +1184,30 @@ body {
   max-height: 280px;
   overflow-y: auto;
 }
-.filterpanel__foot {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 12px;
-}
-.filterpanel__clear {
+/* „Clear filters" v horní liště (vedle Filters) — tichý ghost, který se ukáže,
+   jen když je co mazat; na hover zesvětlí do jemného tlačítka. Výška lícuje
+   s Filters/Search (46px). */
+.searchbar__clearfilters {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border);
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid transparent;
   color: var(--text-faint);
-  font-size: 12.5px;
+  font-family: var(--font-display);
   font-weight: 600;
+  font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-.filterpanel__clear:hover {
+.searchbar__clearfilters:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border);
 }
 /* Stavová řádka lokálního katalogu pod charter/album (nenápadná, jen text). */
 .filterpanel__cat {
@@ -1414,20 +1427,25 @@ body {
   position: relative;
   display: inline-block;
 }
+/* Šířka = přesně sloupec „Download" v řádku (148px), aby „Sort by" sedělo
+   svisle nad Download tlačítky (viz margin na .resultsbar__right + gap/dir níž,
+   které kopírují mezeru a kebab sloupec řádku). */
 .dd--sort .dd__btn {
-  min-width: 130px;
+  min-width: 132px;
 }
-/* Sort ovládání = dropdown klíče + přepínač směru vedle sebe (jako v knihovně). */
+/* Sort ovládání = dropdown klíče + přepínač směru vedle sebe (jako v knihovně).
+   gap 14 + dir 30 = stejný rytmus jako v řádku (Download → mezera 14 → kebab 30),
+   aby celé ovládání lícovalo se sloupci řádku. */
 .sortctl {
   display: inline-flex;
   align-items: stretch;
-  gap: 6px;
+  gap: 14px;
 }
 .sortctl__dir {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
+  width: 30px;
   background: var(--panel);
   border: none;
   border-radius: var(--r-md);
@@ -1653,6 +1671,14 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* Posune Sort ovládání doleva tak, aby jeho pravá hrana lícovala s pravou
+     hranou obsahu řádku (kebab sloupec). Spolu s šířkou pilulky 148px = „Sort by"
+     přesně nad „Download". Hodnota = rozdíl mezi vnitřní pravou hranou lišty
+     a pravou hranou mřížky řádku (viz odsazení .tablewrap/.results/.song).
+     Ověřeno měřením repliky box-modelu: 26px → „Sort by" přesně nad „Download".
+     Doladěno na přání: doprava (26→21→18) + pilulka zúžena zleva o 15px
+     (148→133). */
+  margin-right: 18px;
 }
 
 /* ---------- Multi-select ---------- */
@@ -1804,6 +1830,10 @@ body {
 .results {
   flex: 1;
   overflow-y: auto;
+  /* Rezervuj místo pro scrollbar VŽDY (i když zrovna není potřeba) → šířka řádku
+     se nemění podle toho, jestli scrollbar je, takže „Sort by" drží zarovnané
+     s „Download" v obou stavech. */
+  scrollbar-gutter: stable;
   padding: 6px 10px 10px;
   /* Stejná plocha jako sidebar (`--bg-side`). Vedle vzhledu to má i technický
    * přínos: scrollovací kontejner má vlastní kompozitní vrstvu a plné pozadí
@@ -4946,7 +4976,9 @@ body {
 }
 .side-surprise__sub {
   font-size: 11px;
-  color: var(--text-faint);
+  /* O kousek světlejší než --text-faint (lepší čitelnost), ale pořád tlumené —
+     přimícháno trochu --text-dim. Theme-aware (funguje ve všech motivech). */
+  color: color-mix(in srgb, var(--text-faint), var(--text-dim) 35%);
 }
 @media (prefers-reduced-motion: reduce) {
   .side-surprise__dice {
@@ -6984,32 +7016,42 @@ body {
   border: 1px solid rgba(0, 0, 0, 0.35);
 }
 
+/* Oddělovací čáry NEprůhledné → vypadají všude stejně bez ohledu na podklad.
+   Poloprůhledná --tline jinak prosvítala stín vyvýšených tlačítek nad sebou,
+   takže čára pod „Import playlist" vycházela světlejší než ostatní. */
+[data-theme='graphite'] .side-sep {
+  background: #0a0b0d;
+}
+
 /* Vybraná položka v sidebaru + klouzavý indikátor — jemně vyvýšené. */
 [data-theme='graphite'] .side-indicator {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.4);
   background: linear-gradient(180deg, #2a2b30 0%, #1d1e22 100%);
 }
 
-/* „Surprise me" — vyryté do motivu jako boxy nad ním, ale s jemným akcentovým
-   nádechem (světlejší grafitová plocha + akcentový lem), ať je poznat, že je to
-   AKCE, a nesplývá s „důlky" Database/System. */
+/* „Surprise me" / „Import playlist" — VYVÝŠENÉ dlaždice, stejný recept jako
+   herní launchery (.side-launch) a vybraná položka sidebaru: světlejší panel,
+   horní lesk, měkký stín dolů, tmavý lem. Ať akční tlačítka vizuálně ladí se
+   zvýrazněnými prvky nad nimi (ne zapuštěná jako dřív). */
 [data-theme='graphite'] .side-surprise {
-  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.08) 0%, rgba(var(--accent-rgb), 0.02) 100%),
-    rgba(0, 0, 0, 0.32);
-  border: 1px solid rgba(var(--accent-rgb), 0.16);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.06), inset 0 -2px 6px rgba(0, 0, 0, 0.5),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.04);
+  /* Stejný světlý přechod jako vybraná položka (.side-indicator: RhythmVerse /
+     Clone Hero) — ne `var(--panel)`, ten je v grafitu skoro průhledný a vyšel
+     tmavší než referenční tlačítka. */
+  background: linear-gradient(180deg, #2a2b30 0%, #1d1e22 100%);
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.5),
+    0 8px 20px rgba(0, 0, 0, 0.35);
 }
 [data-theme='graphite'] .side-surprise:hover {
-  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.14) 0%, rgba(var(--accent-rgb), 0.05) 100%),
-    rgba(0, 0, 0, 0.28);
-  border-color: rgba(var(--accent-rgb), 0.32);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08), inset 0 -2px 6px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 1px rgba(var(--accent-rgb), 0.12), 0 1px 0 rgba(255, 255, 255, 0.05);
+  background: linear-gradient(180deg, #33343a 0%, #232429 100%);
+  border-color: rgba(var(--accent-rgb), 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.5),
+    0 10px 24px rgba(0, 0, 0, 0.38);
 }
 [data-theme='graphite'] .side-surprise:active {
   transform: translateY(1px);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.7), inset 0 1px 2px rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.5),
+    0 4px 10px rgba(0, 0, 0, 0.35);
 }
 
 /* Zapuštěné vstupy (search, pole v nastavení, difficulty selecty) — vyryté. */
@@ -7831,7 +7873,8 @@ button.plrow__na:hover {
      + jemný světlý odlesk hned pod ním (překlopený inset highlight z fgroup). */
   background: var(--tline);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03);
-  margin: -10px 0;
+  /* Víc vzduchu kolem čar (gap sidebaru 20px + 2px na každé straně = 22px). */
+  margin: 2px 0;
   flex-shrink: 0;
 }
 /* Druhý oddělovač (SYSTEM | akce) — víc vzduchu kolem, ať se Surprise oddělí zřetelněji. */

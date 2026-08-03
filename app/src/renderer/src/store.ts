@@ -294,12 +294,32 @@ let searchSeq = 0
 
 /** Debounce přehledání při psaní do charter/album filtru (katalogový režim). */
 let refineTimer: ReturnType<typeof setTimeout> | null = null
+function clearRefineTimer(): void {
+  if (refineTimer !== null) {
+    clearTimeout(refineTimer)
+    refineTimer = null
+  }
+}
 function scheduleRefineSearch(get: () => AppState): void {
-  if (refineTimer !== null) clearTimeout(refineTimer)
+  clearRefineTimer()
   refineTimer = setTimeout(() => {
     refineTimer = null
     void get().doSearch(1)
   }, 300)
+}
+/**
+ * Změna charter/album filtru → přehledání. Psaní se debouncuje (300 ms, ať se
+ * nehledá na každý stisk), ale VYMAZÁNÍ do prázdna se řeší OKAMŽITĚ: jinak by
+ * `filtersNarrow` v UI spadl na false hned, kdežto úklid výsledků až za 300 ms,
+ * a v té mezeře by na RhythmVerse/Both (bez dotazu) problikl prázdný Discover.
+ */
+function runRefineSearch(get: () => AppState, value: string): void {
+  if (value.trim() === '') {
+    clearRefineTimer()
+    void get().doSearch(1)
+  } else {
+    scheduleRefineSearch(get)
+  }
 }
 
 // Cache velkých serverových „chunků" RhythmVerse pro hluboké stránky (za 249.
@@ -1245,11 +1265,11 @@ export const useStore = create<AppState>((set, get) => {
   // chování: jen klientské zúžení načtené stránky v App.tsx.
   setCharterFilter: (v) => {
     set({ charterFilter: v, selectedIndex: -1 })
-    if (catalogUsableForDb()) scheduleRefineSearch(get)
+    if (catalogUsableForDb()) runRefineSearch(get, v)
   },
   setAlbumFilter: (v) => {
     set({ albumFilter: v, selectedIndex: -1 })
-    if (catalogUsableForDb()) scheduleRefineSearch(get)
+    if (catalogUsableForDb()) runRefineSearch(get, v)
   },
   setReductions: (v) => {
     set({ reductions: v, selectedIndex: -1 })
