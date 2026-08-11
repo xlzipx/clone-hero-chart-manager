@@ -11,6 +11,7 @@ import type {
   FilterOptions,
   LibListing,
   LibSongInfo,
+  PlayerTrack,
   PlaylistAddResult,
   PlaylistInfo,
   PlaylistResolveResult,
@@ -177,6 +178,14 @@ const api = {
     ipcRenderer.invoke('preview:sng', url) as Promise<SngPreview | null>,
   songAudio: (rel: string) =>
     ipcRenderer.invoke('preview:songAudio', rel) as Promise<SongAudio>,
+  playerListFolder: (rel: string) =>
+    ipcRenderer.invoke('player:listFolder', rel) as Promise<PlayerTrack[]>,
+  playerListPlaylist: (name: string) =>
+    ipcRenderer.invoke('player:listPlaylist', name) as Promise<PlayerTrack[]>,
+  loudnessGet: (rel: string) =>
+    ipcRenderer.invoke('loudness:get', rel) as Promise<{ lufs: number; peak: number } | null>,
+  loudnessSet: (rel: string, lufs: number, peak: number) =>
+    ipcRenderer.invoke('loudness:set', rel, lufs, peak) as Promise<void>,
 
   runningGame: () =>
     ipcRenderer.invoke('game:running') as Promise<'clone-hero' | 'yarg' | null>,

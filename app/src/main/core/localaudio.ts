@@ -123,7 +123,11 @@ export function handleAudioProtocol(): void {
           'Content-Type': type,
           'Content-Length': String(end - start + 1),
           'Content-Range': `bytes ${start}-${end}/${size}`,
-          'Accept-Ranges': 'bytes'
+          'Accept-Ranges': 'bytes',
+          // Přehrávač si stopy tahá i přes Web Audio (`crossOrigin='anonymous'`
+          // kvůli normalizaci hlasitosti). Bez CORS hlavičky by MediaElementSource
+          // dostal „tainted" (tiché) vzorky. Zdroj je náš vlastní chráněný protokol.
+          'Access-Control-Allow-Origin': '*'
         }
       })
     }
@@ -133,7 +137,8 @@ export function handleAudioProtocol(): void {
       headers: {
         'Content-Type': type,
         'Content-Length': String(size),
-        'Accept-Ranges': 'bytes'
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*'
       }
     })
   })
@@ -177,11 +182,7 @@ export async function getSongAudio(rel: string): Promise<SongAudio> {
     return empty
   }
 
-  const audio = names.filter((n) => AUDIO_EXT.has(extname(n).toLowerCase()))
-  const preview = audio.find((n) => /^preview\./i.test(n))
-  const picked = preview
-    ? [preview]
-    : audio.filter((n) => !/^preview\./i.test(n) && !EXCLUDED_STEMS.test(n))
+  const { picked, preview } = pickAudioNames(names)
   if (picked.length === 0) return empty
 
   return {
@@ -189,4 +190,49 @@ export async function getSongAudio(rel: string): Promise<SongAudio> {
     // U hotové ukázky se na preview_start_time nekouká — ta začíná od začátku.
     previewStartMs: preview ? null : await readPreviewStart(folderAbs)
   }
+}
+
+/** Ze seznamu souborů složky vybere ty, co tvoří mix (stejná logika pro přehrávání
+ *  i pro signaturu cache hlasitosti). `preview.*` má přednost před stopami. */
+function pickAudioNames(names: string[]): { picked: string[]; preview: string | undefined } {
+  const audio = names.filter((n) => AUDIO_EXT.has(extname(n).toLowerCase()))
+  const preview = audio.find((n) => /^preview\./i.test(n))
+  const picked = preview
+    ? [preview]
+    : audio.filter((n) => !/^preview\./i.test(n) && !EXCLUDED_STEMS.test(n))
+  return { picked, preview }
+}
+
+/**
+ * Signatura zvukových souborů písně (název:velikost:mtime) — klíč pro cache
+ * naměřené hlasitosti. Když se soubory ve složce změní (jiný chart, re-download),
+ * signatura se rozejde a hodnota se přeměří. `null` = složka bez použitelného zvuku.
+ */
+export async function getSongAudioSig(rel: string): Promise<string | null> {
+  let folderAbs: string
+  try {
+    folderAbs = songFolderAbs(rel)
+  } catch {
+    return null
+  }
+  let names: string[]
+  try {
+    names = (await readdir(folderAbs, { withFileTypes: true }))
+      .filter((e) => e.isFile())
+      .map((e) => e.name)
+  } catch {
+    return null
+  }
+  const { picked } = pickAudioNames(names)
+  if (picked.length === 0) return null
+  const parts: string[] = []
+  for (const n of picked.sort()) {
+    try {
+      const s = await stat(join(folderAbs, n))
+      parts.push(`${n}:${s.size}:${Math.round(s.mtimeMs)}`)
+    } catch {
+      return null
+    }
+  }
+  return parts.join('|')
 }

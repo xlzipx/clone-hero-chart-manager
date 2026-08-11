@@ -97,6 +97,12 @@ CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS loudness (
+  rel TEXT PRIMARY KEY,
+  lufs REAL NOT NULL,
+  peak REAL NOT NULL,
+  sig TEXT NOT NULL
+);
 `
 
 /** Otevře (nebo založí) katalogovou DB. Volat jednou při startu appky. */
@@ -268,6 +274,23 @@ export function setMeta(key: string, value: string): void {
 
 export function delMeta(key: string): void {
   need().prepare('DELETE FROM meta WHERE key = ?').run(key)
+}
+
+// ── cache naměřené hlasitosti (normalizace v přehrávači) ────────────────────
+// Per píseň v knihovně: integrovaná hlasitost (LUFS) + peak jejího mixu. Klíč je
+// relativní cesta ke složce, `sig` hlídá, že soubory se od měření nezměnily.
+
+export function getLoudness(rel: string): { lufs: number; peak: number; sig: string } | null {
+  const row = need()
+    .prepare('SELECT lufs, peak, sig FROM loudness WHERE rel = ?')
+    .get(rel) as { lufs: number; peak: number; sig: string } | undefined
+  return row ?? null
+}
+
+export function setLoudness(rel: string, lufs: number, peak: number, sig: string): void {
+  need()
+    .prepare('INSERT OR REPLACE INTO loudness (rel, lufs, peak, sig) VALUES (?, ?, ?, ?)')
+    .run(rel, lufs, peak, sig)
 }
 
 // ── upsert ────────────────────────────────────────────────────────────────

@@ -53,6 +53,14 @@ export type IconName =
   | 'dice'
   | 'lightbulb'
   | 'playlist'
+  | 'skipBack'
+  | 'skipForward'
+  | 'shuffle'
+  | 'repeat'
+  | 'repeatOne'
+  | 'volume'
+  | 'volumeMute'
+  | 'levels'
 
 // Obsah jednotlivých ikon (viewBox 0 0 24 24). Stroke dědí currentColor.
 const PATHS: Record<IconName, JSX.Element> = {
@@ -277,6 +285,85 @@ const PATHS: Record<IconName, JSX.Element> = {
     <>
       <path d="M4 7h13M4 12h13M4 17h6" />
       <polygon points="14 15 20 18 14 21" fill="currentColor" stroke="none" />
+    </>
+  ),
+  // přehrávač: předchozí / další (trojúhelník + zarážka)
+  skipBack: (
+    <>
+      <polygon points="18 6 9 12 18 18" fill="currentColor" stroke="none" />
+      <rect x="5.4" y="5.5" width="2.2" height="13" rx="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  skipForward: (
+    <>
+      <polygon points="6 6 15 12 6 18" fill="currentColor" stroke="none" />
+      <rect x="16.4" y="5.5" width="2.2" height="13" rx="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  shuffle: (
+    <>
+      <path d="M16 3h5v5" />
+      <path d="M4 20L21 3" />
+      <path d="M21 16v5h-5" />
+      <path d="M15 15l6 6" />
+      <path d="M4 4l5 5" />
+    </>
+  ),
+  repeat: (
+    <>
+      <path d="M17 2l4 4-4 4" />
+      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+      <path d="M7 22l-4-4 4-4" />
+      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+    </>
+  ),
+  repeatOne: (
+    <>
+      <path d="M17 2l4 4-4 4" />
+      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+      <path d="M7 22l-4-4 4-4" />
+      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+      <text
+        x="12"
+        y="14.5"
+        fontSize="8"
+        fontWeight="700"
+        fill="currentColor"
+        stroke="none"
+        textAnchor="middle"
+      >
+        1
+      </text>
+    </>
+  ),
+  // reproduktor + zvukové vlny
+  volume: (
+    <>
+      <polygon points="11 5 6 9 3 9 3 15 6 15 11 19 11 5" fill="currentColor" stroke="none" />
+      <path d="M15.4 8.6a5 5 0 0 1 0 6.8" />
+      <path d="M18.4 5.6a9 9 0 0 1 0 12.8" />
+    </>
+  ),
+  // reproduktor přeškrtnutý (ztlumeno)
+  volumeMute: (
+    <>
+      <polygon points="11 5 6 9 3 9 3 15 6 15 11 19 11 5" fill="currentColor" stroke="none" />
+      <line x1="22" y1="9" x2="16" y2="15" />
+      <line x1="16" y1="9" x2="22" y2="15" />
+    </>
+  ),
+  // tři posuvníky = vyrovnání úrovní (normalizace hlasitosti)
+  levels: (
+    <>
+      <line x1="4" y1="21" x2="4" y2="14" />
+      <line x1="4" y1="10" x2="4" y2="3" />
+      <line x1="12" y1="21" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12" y2="3" />
+      <line x1="20" y1="21" x2="20" y2="16" />
+      <line x1="20" y1="12" x2="20" y2="3" />
+      <line x1="1" y1="14" x2="7" y2="14" />
+      <line x1="9" y1="8" x2="15" y2="8" />
+      <line x1="17" y1="16" x2="23" y2="16" />
     </>
   )
 }

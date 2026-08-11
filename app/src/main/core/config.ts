@@ -150,6 +150,14 @@ function defaults(): AppConfig {
     onyxPath: detectOnyxPath(),
     chExePath: '', // auto-detekce z songsDir
     yargExePath: '', // auto-detekce v běžných YARG instalech
+    // Poslední volba databáze/systému + přepínačů v liště (obnoví se po restartu).
+    database: 'rhythmverse',
+    system: 'ch',
+    hideOwned: false,
+    directOnly: false,
+    // Normalizace hlasitosti v přehrávači zapnutá — vyrovná pocitovou hlasitost
+    // mezi skladbami konstantním gainem (dynamika zůstává). Uživatel může vypnout.
+    normalizeLoudness: true,
     recordsPerPage: 25,
     // Default 1.0 (= 100 %). Historicky bylo 1.2 kvůli 4K @ 125 %, ale na malých
     // obrazovkách (notebook 1366×768 / 1920×1080 s vyšším Windows scaling) se

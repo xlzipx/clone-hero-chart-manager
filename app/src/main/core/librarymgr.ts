@@ -4,13 +4,14 @@
 import { shell } from 'electron'
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'fs'
 import { readdir } from 'fs/promises'
-import { basename, extname, join, resolve, sep } from 'path'
+import { basename, extname, join, relative, resolve, sep } from 'path'
 import { getConfig } from './config'
 import { readAlbumArt, readSongInfo, readSongMeta, writeSongMeta } from './songmeta'
 import {
   addSongsToPlaylist,
   deletePlaylist,
   getPlaylistSongs,
+  getPlaylistTracks,
   invalidateLibraryIndex,
   listPlaylists,
   removeSongsFromPlaylist,
@@ -21,6 +22,7 @@ import { findDuplicates } from './duplicates'
 import type {
   DupGroup,
   LibSongInfo,
+  PlayerTrack,
   PlaylistAddResult,
   PlaylistInfo,
   PlaylistSong,
@@ -161,6 +163,55 @@ export async function libFolderCounts(rel: string): Promise<Record<string, numbe
       })
   )
   return out
+}
+
+/** Rekurzivně posbírá absolutní cesty ke VŠEM song složkám pod `abs`. Do samotné
+ *  písně už neleze (její soubory nejsou další písně) — stejná logika jako
+ *  `countSongsIn`. Volné `.sng` se přeskakují (přehrávač míchá stopy ze složky). */
+async function collectSongFolders(abs: string, out: string[], depth = 0): Promise<void> {
+  if (depth > 10) return
+  let ents
+  try {
+    ents = await readdir(abs, { withFileTypes: true })
+  } catch {
+    return
+  }
+  if (ents.some((e) => e.isFile() && SONG_MARKERS.includes(e.name.toLowerCase()))) {
+    out.push(abs)
+    return
+  }
+  for (const e of ents) {
+    if (e.isDirectory()) await collectSongFolders(join(abs, e.name), out, depth + 1)
+  }
+}
+
+/** Fronta pro přehrávač: všechny písně pod danou složkou (rekurzivně) i s názvem
+ *  a interpretem. Řazeno interpret → název, ať playlist dává smysl. */
+export async function libListSongsUnder(rel: string): Promise<PlayerTrack[]> {
+  const absRoot = safeAbs(rel)
+  const folders: string[] = []
+  await collectSongFolders(absRoot, folders)
+  const root = rootDir()
+  const tracks = await Promise.all(
+    folders.map(async (abs) => {
+      let title = basename(abs)
+      let artist = ''
+      try {
+        const info = await readSongInfo(abs)
+        if (info) {
+          if (info.title) title = info.title
+          artist = info.artist ?? ''
+        }
+      } catch {
+        /* neplatná píseň → aspoň název složky */
+      }
+      return { rel: relative(root, abs), title, artist }
+    })
+  )
+  tracks.sort(
+    (a, b) => a.artist.localeCompare(b.artist, 'cs') || a.title.localeCompare(b.title, 'cs')
+  )
+  return tracks
 }
 
 export function libCreateFolder(rel: string, name: string): void {
@@ -324,6 +375,10 @@ export function libRenamePlaylist(oldName: string, newName: string): Promise<voi
 }
 export function libPlaylistSongs(name: string): Promise<PlaylistSong[]> {
   return getPlaylistSongs(name)
+}
+/** Písně setlistu jako fronta pro přehrávač (jen nalezené, s cestou ke složce). */
+export function libPlaylistTracks(name: string): Promise<PlayerTrack[]> {
+  return getPlaylistTracks(name)
 }
 export function libRemoveFromPlaylist(name: string, hashes: string[]): Promise<void> {
   return removeSongsFromPlaylist(name, hashes)

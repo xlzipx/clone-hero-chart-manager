@@ -23,6 +23,12 @@ export function asError(e: unknown): Error {
  */
 const IPC_WRAP = /^Error invoking remote method '[^']*':\s*(?:\w*Error:\s*)?/
 
+/** Hláška „nemáš připojení" — JEDEN zdroj pravdy. Používá ji jak `userMsg`
+ *  (překlad chycené síťové chyby), tak rychlý offline‑fail v rendereru, který
+ *  request vůbec neodešle, když `navigator.onLine === false` (jinak by uživatel
+ *  koukal na skeleton až do 30–45s timeoutu, než by se tahle věta objevila). */
+export const OFFLINE_MSG = 'No connection to the internet. Check your network and try again.'
+
 /**
  * Text chyby určený UŽIVATELI — bez vnitřností Electronu a s vysvětlením tam,
  * kde příčina není u nás. Výpadek katalogu je nejčastější případ: uživatel by
@@ -45,7 +51,7 @@ export function userMsg(e: unknown): string {
   }
 
   if (/fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|network/i.test(raw)) {
-    return 'No connection to the internet. Check your network and try again.'
+    return OFFLINE_MSG
   }
   return raw
 }

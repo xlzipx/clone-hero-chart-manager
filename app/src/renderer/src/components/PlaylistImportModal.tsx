@@ -263,6 +263,12 @@ export function PlaylistImportModal(): JSX.Element | null {
   const startImport = async (): Promise<void> => {
     const u = url.trim()
     if (!u) return
+    // Bez sítě nemá smysl posílat request a čekat na timeout — hláška hned.
+    // (onLine je spolehlivé jen ve FALSE směru; browse katalogu offline funguje.)
+    if (navigator.onLine === false) {
+      setError(ERROR_MSG.network)
+      return
+    }
     const myRun = ++runId.current // zruší případné běžící párování + kotva proti reopenu
     setError(null)
     setExpanded(null)

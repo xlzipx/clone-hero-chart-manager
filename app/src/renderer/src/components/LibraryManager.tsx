@@ -35,6 +35,7 @@ const LIB_SORTS: { id: LibSortKey; label: string }[] = [
 export function LibraryManager(): JSX.Element | null {
   const show = useStore((s) => s.showLibrary)
   const close = useStore((s) => s.setShowLibrary)
+  const playFolder = useStore((s) => s.playFolder)
   // Cíl z „In library" (kopie písně k odhalení). Víc = duplikáty → banner.
   const libraryReveal = useStore((s) => s.libraryReveal)
   const [revealActive, setRevealActive] = useState<string | null>(null)
@@ -581,6 +582,16 @@ export function LibraryManager(): JSX.Element | null {
             {singleIsDir ? (
               <button className="ctxmenu__item" onClick={() => { void load(relOf(singleName!)); setCtx(null) }}>
                 <Icon name="folder" size={14} /> Open
+              </button>
+            ) : null}
+            {singleIsDir && !singleIsSong ? (
+              <button className="ctxmenu__item" onClick={() => { void playFolder(relOf(singleName!), singleName!); setCtx(null); close(false) }}>
+                <Icon name="play" size={14} /> Listen in music player
+              </button>
+            ) : null}
+            {single && singleIsSong ? (
+              <button className="ctxmenu__item" onClick={() => { void playFolder(relOf(singleName!), singleName!); setCtx(null); close(false) }}>
+                <Icon name="play" size={14} /> Play
               </button>
             ) : null}
             {single ? (

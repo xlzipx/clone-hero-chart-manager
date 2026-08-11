@@ -4696,6 +4696,16 @@ body {
   padding: 10px 12px;
   border-top: 1px solid var(--border);
 }
+.plm__footactions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.plm__footactions .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
 
 /* ---------- Scrollbars ---------- */
 ::-webkit-scrollbar {
@@ -7880,4 +7890,495 @@ button.plrow__na:hover {
 /* Druhý oddělovač (SYSTEM | akce) — víc vzduchu kolem, ať se Surprise oddělí zřetelněji. */
 .side-sep--wide {
   margin: 4px 0;
+}
+
+/* ── Přehrávač knihovny („Listen as a playlist") ──────────────────────────
+   Spodní lišta jako běžný flex prvek `.app` (zmenší obsah, žádné překryvy).
+   Zvuk (mix stop z `chm-audio://`) řeší store. */
+.player {
+  flex-shrink: 0;
+  /* KLÍČOVÉ: bez `min-height: 0` flexový prvek nejde srolovat na 0 (výchozí
+     min-height:auto ho drží na výšce obsahu) → roleta by „skočila". */
+  min-height: 0;
+  z-index: 90; /* nad obsahem (i sticky top bary z60/80), pod modaly (100) */
+  /* Roleta: celý přehrávač plynule vyjede/zajede (grid-rows 0fr↔1fr — stejný
+     trik jako filtry a download fronta). Klip řeší .player__stack. */
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.player--active {
+  grid-template-rows: 1fr;
+}
+/* Vnitřní stack: fronta roluje NAD lištou, obojí in-flow. overflow:hidden ořízne
+   obě roluty (přehrávače i fronty). */
+.player__stack {
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Fronta roluje in-flow (grid-rows 0fr↔1fr) — STEJNÝ princip jako lišta. Žádný
+   `position: absolute` ani `transform`, které při UI scale ≠ 100 % rozhazují
+   hit-test (klik mimo text). Lišta zůstává dole, fronta roluje nad ní. */
+.player__queueroll {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.player__queueroll--open {
+  grid-template-rows: 1fr;
+}
+/* Klip-wrapper lišty (ořízne obsah při zajetí) + veškerá „chrome": podklad,
+   horní barevná linka, stín. */
+.player__barclip {
+  overflow: hidden;
+  min-height: 0;
+  position: relative;
+  background: linear-gradient(180deg, #17181c 0%, #101013 100%);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4);
+}
+/* Tenká barevná linka nahoře = identita přehrávače (echo barevné značky v logu),
+   jinak zůstává lišta monochromní jako zbytek appky. */
+.player__barclip::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 1;
+  background: linear-gradient(
+    90deg,
+    var(--g-guitar),
+    var(--g-bass),
+    var(--g-keys),
+    var(--g-vocals)
+  );
+  opacity: 0.5;
+}
+.player__bar {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(320px, 1.6fr) minmax(240px, 1fr);
+  align-items: center;
+  gap: 16px;
+  height: 78px;
+  padding: 0 18px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .player,
+  .player__queueroll {
+    transition: none;
+  }
+}
+/* Aktuální píseň (vlevo) */
+.player__now {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.player__art {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--panel);
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.player__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.player__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.player__title,
+.player__artist {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player__title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.player__artist {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.player__links {
+  display: flex;
+  gap: 6px;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+.player__link {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s, border-color 0.12s;
+}
+.player__link:hover {
+  color: var(--text);
+  border-color: rgba(var(--accent-rgb), 0.5);
+}
+/* Brand nádech na hover — jediná barva na jinak monochromních odkazech. */
+.player__link--spotify:hover {
+  color: #1ed760;
+  border-color: rgba(30, 215, 96, 0.55);
+}
+.player__link--youtube:hover {
+  color: #ff5b5b;
+  border-color: rgba(255, 91, 91, 0.55);
+}
+/* Ovládání + seek (uprostřed) */
+.player__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.player__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.player__ctl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 6px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.player__ctl:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.player__ctl--on {
+  color: var(--g-vocals); /* teal = „aktivní/hraje" napříč přehrávačem (shuffle/repeat/queue) */
+  /* Podbarvení, aby byl zapnutý stav vidět i BĚHEM hoveru — samotná barva by se
+     jinak ztratila (hover má vyšší specificitu a přebíjí ji na bílou). */
+  background: rgba(42, 214, 192, 0.14);
+}
+/* Zapnutý + hover: drž teal a jen zesil podbarvení (ne bílá jako u vypnutých). */
+.player__ctl--on:hover {
+  color: var(--g-vocals);
+  background: rgba(42, 214, 192, 0.24);
+}
+.player__play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(180deg, #f6f6f8, #d6d6db);
+  color: #101013;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.player__play:hover {
+  background: linear-gradient(180deg, #fff, #dcdce1);
+}
+.player__play:disabled {
+  cursor: default;
+}
+.player__spin {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.3);
+  border-top-color: #101013;
+  animation: player-spin 0.7s linear infinite;
+}
+@keyframes player-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.player__seekrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 540px;
+}
+.player__time {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: center;
+}
+.player__seek {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.09);
+  cursor: pointer;
+}
+.player__seekfill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2, var(--accent)));
+}
+/* Fronta + zavřít (vpravo) */
+.player__right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.player__qn {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+/* Na zapnutém (teal) tlačítku fronty musí být čísla kontrastní, ne faint. */
+.player__ctl--on .player__qn {
+  color: var(--g-vocals);
+  font-weight: 600;
+}
+/* Hlasitost: ikona (mute) + tenký slider s vyplněnou částí. */
+.player__vol {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.player__volslider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 84px;
+  height: 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  outline: none;
+  background: linear-gradient(
+    90deg,
+    var(--accent) var(--v, 100%),
+    rgba(255, 255, 255, 0.12) var(--v, 100%)
+  );
+}
+.player__volslider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+/* Fronta = obsah rolety `.player__queueroll`. `min-height: 0` ji nechá srolovat
+   na 0, `max-height` omezí panel (zbytek skroluje seznam uvnitř). Žádný absolute
+   ani transform → hit-test sedí přesně na jakémkoli UI scale. */
+.player__queue {
+  overflow: hidden;
+  min-height: 0;
+  max-height: min(48vh, 520px);
+  display: flex;
+  flex-direction: column;
+  background: #14151a;
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.55);
+}
+.player__queuehead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px 10px;
+}
+.player__queuetitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.player__queuecount {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+/* Hlavička sloupců tabulky — stejná mřížka jako řádky. */
+.player__qcols {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 14px;
+  padding: 6px 18px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+}
+.player__qcol-idx {
+  text-align: center;
+}
+/* Klikatelné hlavičky řazení — dědí vzhled z .player__qcols (uppercase, faint).
+   `justify-self: start` = tlačítko je jen tak široké jako TEXT (ne celý sloupec),
+   takže klikatelný je pouze samotný nadpis, ne prázdné místo za ním. */
+.player__qcolbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.player__qcolbtn:hover {
+  color: var(--text);
+}
+.player__qcolbtn--on {
+  color: var(--g-vocals);
+}
+/* „#" vycentruj v jeho úzkém sloupci, ať sedí nad čísly řádků. */
+.player__qcolbtn.player__qcol-idx {
+  justify-self: center;
+}
+.player__qsort {
+  font-size: 8px;
+  line-height: 1;
+}
+.player__queuelist {
+  flex: 1;
+  min-height: 0; /* aby se seznam v flex sloupci mohl zmenšit a skrolovat (ne hlavičky) */
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.player__qrow {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1.5fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 18px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+/* Jemný zebra pruh pro čitelnost tabulky. */
+.player__qrow:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+.player__qrow:hover {
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+}
+.player__qrow--on,
+.player__qrow--on:nth-child(even) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  box-shadow: inset 3px 0 0 var(--g-vocals);
+}
+.player__qidx {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+.player__qtitle {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player__qrow--on .player__qtitle {
+  font-weight: 700;
+}
+.player__qartist {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player__qrow:hover .player__qartist {
+  color: var(--text-dim);
+}
+/* Barevný equalizer u hrající písně — echo barevné značky v logu. */
+.player__eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 13px;
+}
+.player__eq i {
+  width: 3px;
+  height: 40%;
+  border-radius: 1px;
+}
+.player__eq i:nth-child(1) {
+  background: var(--g-guitar);
+}
+.player__eq i:nth-child(2) {
+  background: var(--g-keys);
+}
+.player__eq i:nth-child(3) {
+  background: var(--g-vocals);
+}
+.player--playing .player__qrow--on .player__eq i {
+  animation: player-eq 0.9s ease-in-out infinite;
+}
+.player--playing .player__qrow--on .player__eq i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.player--playing .player__qrow--on .player__eq i:nth-child(3) {
+  animation-delay: 0.34s;
+}
+@keyframes player-eq {
+  0%,
+  100% {
+    height: 28%;
+  }
+  50% {
+    height: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .player--playing .player__qrow--on .player__eq i {
+    animation: none;
+  }
 }

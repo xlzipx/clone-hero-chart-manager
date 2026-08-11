@@ -258,6 +258,14 @@ export type ReminderPosition = 'top-left' | 'top-right' | 'bottom-left' | 'botto
 export interface AppConfig {
   songsDir: string
   c3BinDir: string
+  /** Poslední zvolená databáze a systém — obnoví se po restartu appky. */
+  database: Database
+  system: RhythmVerseSystem
+  /** Poslední stav přepínačů „Hide owned" / „Direct downloads only" (v liště výsledků). */
+  hideOwned: boolean
+  directOnly: boolean
+  /** Vyrovnávat hlasitost skladeb v přehrávači (EBU R128, konstantní gain — nemění dynamiku). */
+  normalizeLoudness: boolean
   /** Cesta k onyx.exe (CLI konvertor CON→CH). Prázdné = nenastaveno. */
   onyxPath: string
   /** Manuální cesta ke Clone Hero.exe. Prázdné = auto-detekce z `songsDir`. */
@@ -580,6 +588,24 @@ export interface RendererApi {
   songAudio(rel: string): Promise<SongAudio>
   /** Skutečná ukázka přímo z chartu na Encore. `null` = nepovedlo se, zkus online. */
   sngPreview(url: string): Promise<SngPreview | null>
+  /** Rekurzivně vyjmenuje VŠECHNY písně (song složky) pod danou složkou knihovny —
+   *  pro přehrávač „Listen as a playlist". Metadata bez obalu (ten se dohrává líně). */
+  playerListFolder(rel: string): Promise<PlayerTrack[]>
+  /** Písně setlistu jako fronta pro přehrávač (jen nalezené v knihovně, v pořadí). */
+  playerListPlaylist(name: string): Promise<PlayerTrack[]>
+  /** Cache naměřené hlasitosti písně (LUFS + peak). `null` = nezměřeno nebo se
+   *  soubory od měření změnily (renderer pak přeměří a uloží přes `loudnessSet`). */
+  loudnessGet(rel: string): Promise<{ lufs: number; peak: number } | null>
+  /** Uloží naměřenou hlasitost písně do cache (renderer měří přes Web Audio). */
+  loudnessSet(rel: string, lufs: number, peak: number): Promise<void>
+}
+
+/** Jedna položka fronty přehrávače (odkaz na složku písně + základní metadata). */
+export interface PlayerTrack {
+  /** Cesta ke složce písně relativně ke knihovně (pro `songAudio`/`libSongDetail`). */
+  rel: string
+  title: string
+  artist: string
 }
 
 /** Výsledek hledání zvukové ukázky (30s klip oficiální nahrávky). */

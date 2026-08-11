@@ -6,6 +6,7 @@ import { LibraryManager } from './components/LibraryManager'
 import { LocalDropModal } from './components/LocalDropModal'
 import { MarketplaceModal } from './components/MarketplaceModal'
 import { AboutModal } from './components/AboutModal'
+import { PlayerBar } from './components/PlayerBar'
 import { PlaylistImportModal } from './components/PlaylistImportModal'
 import { Pager, ReportBug } from './components/Pager'
 import { SearchBar } from './components/SearchBar'
@@ -740,6 +741,7 @@ export function App(): JSX.Element {
       <WhatsNew />
       <PlaylistImportModal />
       <AboutModal />
+      <PlayerBar />
     </div>
   )
 }

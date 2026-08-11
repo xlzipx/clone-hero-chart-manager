@@ -20,10 +20,15 @@
 import { app } from 'electron'
 import { createHash } from 'crypto'
 import { existsSync, promises as fsp } from 'fs'
-import { basename, join } from 'path'
+import { basename, join, relative } from 'path'
 import { getConfig } from './config'
 import { readSongMeta } from './songmeta'
-import type { PlaylistAddResult, PlaylistInfo, PlaylistSong } from '../../shared/types'
+import type {
+  PlayerTrack,
+  PlaylistAddResult,
+  PlaylistInfo,
+  PlaylistSong
+} from '../../shared/types'
 
 const SONG_MARKERS = ['song.ini', 'notes.chart', 'notes.mid']
 
@@ -243,7 +248,10 @@ export async function removeSongsFromPlaylist(name: string, hashes: string[]): P
 //      restart appky i vyhození OS file-cache („po nějaké době") — první otevření
 //      setlistu pak jen `stat`uje soubory (metadata z MFT, ~KB), místo aby četlo
 //      stovky MB obsahu.
-let indexCache: { at: number; map: Map<string, { artist: string; title: string }> } | null = null
+let indexCache: {
+  at: number
+  map: Map<string, { artist: string; title: string; dir: string }>
+} | null = null
 
 interface HashCacheEntry {
   mtimeMs: number
@@ -343,13 +351,15 @@ async function notesStat(
   return null
 }
 
-async function libraryHashIndex(): Promise<Map<string, { artist: string; title: string }>> {
+async function libraryHashIndex(): Promise<
+  Map<string, { artist: string; title: string; dir: string }>
+> {
   if (indexCache && Date.now() - indexCache.at < 5 * 60 * 1000) return indexCache.map
   const songsDir = getConfig().songsDir
   const oldCache = await loadHashCache()
   // `nextCache` obsahuje JEN písně viděné teď → smazané samy vypadnou (prune).
   const nextCache = new Map<string, HashCacheEntry>()
-  const map = new Map<string, { artist: string; title: string }>()
+  const map = new Map<string, { artist: string; title: string; dir: string }>()
   let changed = false
 
   const walk = async (dir: string, depth: number): Promise<void> => {
@@ -383,7 +393,8 @@ async function libraryHashIndex(): Promise<Map<string, { artist: string; title: 
           // Syrově vč. tagů — RichText v UI je vykreslí barevně jako hra.
           map.set(h, {
             artist: (meta.artist || (dash > 0 ? fb.slice(0, dash) : '')).trim(),
-            title: (meta.name || (dash > 0 ? fb.slice(dash + 3) : fb)).trim()
+            title: (meta.name || (dash > 0 ? fb.slice(dash + 3) : fb)).trim(),
+            dir // absolutní cesta ke složce písně (pro přehrávač)
           })
         }
       }
@@ -414,4 +425,24 @@ export async function getPlaylistSongs(name: string): Promise<PlaylistSong[]> {
     const e = idx.get(h)
     return { hash: h, artist: e?.artist ?? '', title: e?.title ?? '', found: !!e }
   })
+}
+
+/** Písně setlistu jako fronta pro přehrávač — jen NALEZENÉ v knihovně, v pořadí
+ *  setlistu, s relativní cestou ke složce (pro `songAudio`/přehrávač). */
+export async function getPlaylistTracks(name: string): Promise<PlayerTrack[]> {
+  const file = join(setlistsDir(), `${sanitizeSetlistName(name)}.setlist`)
+  let hashes: string[]
+  try {
+    hashes = decodeSetlist(await fsp.readFile(file))
+  } catch {
+    return []
+  }
+  const idx = await libraryHashIndex()
+  const root = getConfig().songsDir
+  const out: PlayerTrack[] = []
+  for (const h of hashes) {
+    const e = idx.get(h)
+    if (e) out.push({ rel: relative(root, e.dir), title: e.title, artist: e.artist })
+  }
+  return out
 }

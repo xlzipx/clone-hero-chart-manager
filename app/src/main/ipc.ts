@@ -14,7 +14,12 @@ import type {
 } from '../shared/types'
 import { getConfig, setConfig } from './core/config'
 import { isMac } from './core/platform'
-import { queryCatalog, setOwnedKeys as setCatalogOwned } from './core/catalog'
+import {
+  getLoudness,
+  queryCatalog,
+  setLoudness,
+  setOwnedKeys as setCatalogOwned
+} from './core/catalog'
 import { getCatalogStatus } from './core/catalogsync'
 import type { CatalogQuery } from '../shared/types'
 import { search as searchEnchor } from './core/enchor'
@@ -37,6 +42,8 @@ import {
   libFolderCounts,
   libList,
   libListPlaylists,
+  libListSongsUnder,
+  libPlaylistTracks,
   libMove,
   libMoveOut,
   libOpen,
@@ -56,7 +63,7 @@ import { asError } from '../shared/errors'
 import type { SongMeta } from '../shared/types'
 import { invalidateLibraryIndex } from './core/playlists'
 import { getPreview } from './core/preview'
-import { getSongAudio } from './core/localaudio'
+import { getSongAudio, getSongAudioSig } from './core/localaudio'
 import { getSngPreview } from './core/sngpreview'
 import { fetchFilterOptions, search as searchRhythmverse } from './core/rhythmverse'
 import { resolveSpotifyPlaylist } from './core/spotify'
@@ -200,6 +207,20 @@ export function registerIpc(): void {
   // Správce knihovny
   ipcMain.handle('lib:list', (_e, rel: string) => libList(rel))
   ipcMain.handle('lib:folderCounts', (_e, rel: string) => libFolderCounts(rel))
+  ipcMain.handle('player:listFolder', (_e, rel: string) => libListSongsUnder(rel))
+  ipcMain.handle('player:listPlaylist', (_e, name: string) => libPlaylistTracks(name))
+  // Cache naměřené hlasitosti (normalizace v přehrávači). `get` vrací hodnotu jen
+  // když signatura souborů sedí — jinak null a renderer přeměří.
+  ipcMain.handle('loudness:get', async (_e, rel: string) => {
+    const sig = await getSongAudioSig(rel)
+    if (!sig) return null
+    const row = getLoudness(rel)
+    return row && row.sig === sig ? { lufs: row.lufs, peak: row.peak } : null
+  })
+  ipcMain.handle('loudness:set', async (_e, rel: string, lufs: number, peak: number) => {
+    const sig = await getSongAudioSig(rel)
+    if (sig) setLoudness(rel, lufs, peak, sig)
+  })
   ipcMain.handle('lib:createFolder', (_e, rel: string, name: string) => libCreateFolder(rel, name))
   ipcMain.handle('lib:rename', (_e, relItem: string, newName: string) =>
     libRename(relItem, newName)

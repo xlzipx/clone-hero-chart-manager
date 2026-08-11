@@ -5,15 +5,17 @@ import type {
   Database,
   DownloadJob,
   FilterOptions,
+  PlayerTrack,
   RhythmVerseSystem,
   SearchFilters,
+  SongAudio,
   SongResult,
   SortDir,
   SortKey
 } from '../../shared/types'
 import { SORT_DEFAULT_DIR } from '../../shared/types'
 import { mergeBoth, songKey } from '../../shared/songid'
-import { asError, errMsg, userMsg } from '../../shared/errors'
+import { asError, errMsg, OFFLINE_MSG, userMsg } from '../../shared/errors'
 import {
   ENCORE_PER_PAGE_MAX,
   RV_CHUNK,
@@ -22,8 +24,53 @@ import {
   RV_SURPRISE_PICK,
   isAutoDownloadable
 } from './utils'
+import { analyzeMix } from './loudness'
 
 export type { SortKey } from '../../shared/types'
+
+/** Stav přehrávače knihovny. `order` je pořadí přehrávání (identita nebo
+ *  zamíchané) — indexy do `queue`; `pos` je pozice v `order`. */
+export interface PlayerState {
+  active: boolean
+  /** Popisek fronty (název složky), např. „1 Downloads". */
+  label: string
+  queue: PlayerTrack[]
+  order: number[]
+  pos: number
+  state: 'loading' | 'playing' | 'paused'
+  /** Aktuální pozice v písni (s) a její délka (s). */
+  time: number
+  duration: number
+  /** Obal alba aktuální písně (data URI) — dohrává se líně. */
+  art: string | null
+  shuffle: boolean
+  repeat: 'off' | 'all' | 'one'
+  /** Hlasitost 0..1 (drží se i mezi skladbami). */
+  volume: number
+  /** Vyrovnávat hlasitost mezi skladbami (EBU R128, konstantní gain). */
+  normalize: boolean
+  /** Řazení fronty: `index` = pořadí ze složky (výchozí), jinak podle názvu/umělce. */
+  sortBy: 'index' | 'title' | 'artist'
+  sortDir: 'asc' | 'desc'
+}
+
+const INITIAL_PLAYER: PlayerState = {
+  active: false,
+  label: '',
+  queue: [],
+  order: [],
+  pos: 0,
+  state: 'paused',
+  time: 0,
+  duration: 0,
+  art: null,
+  shuffle: false,
+  repeat: 'off',
+  volume: 1,
+  normalize: true,
+  sortBy: 'index',
+  sortDir: 'asc'
+}
 
 interface AppState {
   query: string
@@ -152,6 +199,34 @@ interface AppState {
    */
   toggleLocalPreview: (key: string, rel: string) => Promise<void>
   stopPreview: () => void
+
+  // ── Přehrávač knihovny („Listen as a playlist") ──────────────────────────
+  /** Stav plnohodnotného přehrávače (fronta písní z knihovny, celé skladby). */
+  player: PlayerState
+  /** Naplní frontu VŠEMI písněmi pod danou složkou a spustí přehrávání. */
+  playFolder: (rel: string, label: string) => Promise<void>
+  /** Naplní frontu písněmi setlistu (jen nalezenými) a spustí přehrávání. */
+  playPlaylist: (name: string, label: string) => Promise<void>
+  /** Přehraje písničku na dané POZICI ve frontě (index do `order`). */
+  playerPlayPos: (pos: number) => Promise<void>
+  /** Pauza / pokračování aktuální písně. */
+  playerToggle: () => void
+  /** Jen pauza (bez pokračování) — volá se, když se spustí ukázka. */
+  playerPause: () => void
+  playerNext: () => void
+  /** Předchozí: do 3 s od začátku skočí na předchozí, jinak restartuje aktuální. */
+  playerPrev: () => void
+  /** Přetočí aktuální píseň na zlomek délky (0..1). */
+  playerSeek: (frac: number) => void
+  playerToggleShuffle: () => void
+  /** Seřadí frontu podle sloupce (# / title / artist); stejný sloupec podruhé obrátí směr. */
+  playerSortQueue: (col: 'index' | 'title' | 'artist') => void
+  playerCycleRepeat: () => void
+  /** Nastaví hlasitost 0..1 (propíše se na všechny hrající stopy). */
+  playerSetVolume: (v: number) => void
+  /** Zapne/vypne vyrovnávání hlasitosti mezi skladbami (EBU R128, konstantní gain). */
+  playerToggleNormalize: () => void
+  playerClose: () => void
 
   setQuery: (q: string) => void
   setDatabase: (d: Database) => void
@@ -567,6 +642,101 @@ function stopPreviewAudio(): void {
   progressEl = null
 }
 
+// --- Přehrávač knihovny ---------------------------------------------------
+// Celé skladby z knihovny, míchané ze stop (stejně jako ukázka, ale bez 30s
+// stropu) + fronta s next/prev/seek/shuffle. Elementy žijí mimo store (kvůli
+// re-renderům), stav se drží v `player`.
+let playerEls: HTMLAudioElement[] = []
+/** „Hodinová" stopa, ze které se čte pozice + `ended` (první stopa mixu). */
+let playerMaster: HTMLAudioElement | null = null
+/** Interval, který 4×/s propisuje pozici do stavu (kvůli seek baru). */
+let playerTick: number | null = null
+/** Token proti závodu: pomalé načtení stopy nesmí přepsat novější přepnutí. */
+let playerSeq = 0
+
+// ── Web Audio graf pro normalizaci hlasitosti ───────────────────────────────
+// Stopy jdou přes `MediaElementSource → normGain → destination`. `normGain` je
+// jeden KONSTANTNÍ násobek na celou skladbu (z naměřené LUFS) — nemění dynamiku,
+// jen srovná pocitovou hlasitost mezi skladbami. Master hlasitost zůstává na
+// `el.volume` (aplikuje se před odbočkou do grafu, takže funguje i přes Web Audio).
+let playerCtx: AudioContext | null = null
+let playerNormGain: GainNode | null = null
+let playerSources: MediaElementAudioSourceNode[] = []
+/** Aktuálně hrající píseň — pro přepočet gainu při přepnutí toggle normalizace. */
+let playerCurRel: string | null = null
+let playerCurUrls: string[] = []
+
+// Cíl a limity normalizace. Cíl −18 LUFS je konzervativní (většinou spíš tlumí);
+// gain se stropuje tak, aby peak nikdy nepřelezl −1 dBFS → zesílení NIKDY neklipuje.
+const NORM_TARGET_LUFS = -18
+const NORM_CEILING_DB = -1
+const NORM_MIN_DB = -24
+const NORM_MAX_DB = 12
+
+/** Založí (jednou) sdílený AudioContext + normalizační GainNode. */
+function ensureAudioGraph(): boolean {
+  if (playerCtx && playerNormGain) return true
+  try {
+    playerCtx = new AudioContext()
+    playerNormGain = playerCtx.createGain()
+    playerNormGain.gain.value = 1
+    playerNormGain.connect(playerCtx.destination)
+    return true
+  } catch {
+    playerCtx = null
+    playerNormGain = null
+    return false
+  }
+}
+
+/** Přepočte naměřenou LUFS + peak na výsledný lineární násobek (peak-capped). */
+function appliedMult(lufs: number, peak: number): number {
+  if (!Number.isFinite(lufs) || lufs < -70) return 1 // ticho → nezesiluj šum
+  const gainDb = NORM_TARGET_LUFS - lufs
+  const peakDb = 20 * Math.log10(Math.max(peak, 1e-6))
+  const capDb = NORM_CEILING_DB - peakDb // víc už by klipovalo
+  const db = Math.max(NORM_MIN_DB, Math.min(NORM_MAX_DB, Math.min(gainDb, capDb)))
+  return 10 ** (db / 20)
+}
+
+/** Nastaví normalizační gain — buď skokem (start skladby), nebo plynule (dodatečně
+ *  po doměření / přepnutí toggle), ať to nelupne. */
+function setNormGain(mult: number, ramp: boolean): void {
+  if (!playerCtx || !playerNormGain) return
+  const now = playerCtx.currentTime
+  const g = playerNormGain.gain
+  g.cancelScheduledValues(now)
+  if (ramp) {
+    g.setValueAtTime(g.value, now)
+    g.setTargetAtTime(mult, now, 0.08)
+  } else {
+    g.setValueAtTime(mult, now)
+  }
+}
+
+/** Zastaví a uvolní všechny stopy přehrávače (i Range spojení na `chm-audio://`). */
+function stopPlayerAudio(): void {
+  if (playerTick !== null) {
+    clearInterval(playerTick)
+    playerTick = null
+  }
+  for (const s of playerSources) {
+    try {
+      s.disconnect()
+    } catch {
+      /* už odpojeno */
+    }
+  }
+  playerSources = []
+  for (const el of playerEls) {
+    el.pause()
+    el.removeAttribute('src')
+    el.load()
+  }
+  playerEls = []
+  playerMaster = null
+}
+
 export const useStore = create<AppState>((set, get) => {
   /** Filtr, který server NEUMÍ plně → nutný deep scan (nabalit stránky a
    *  filtrovat lokálně). RhythmVerse umí `instrument[]` i pro víc nástrojů (AND,
@@ -598,6 +768,14 @@ export const useStore = create<AppState>((set, get) => {
     if (s.database === 'rhythmverse') return src.rv.ready
     return src.en.ready && src.rv.ready
   }
+
+  /** Rychlý offline‑fail pro cesty na ŽIVÉ API. Když prohlížeč tvrdí „bez sítě",
+   *  nemá smysl request odesílat a čekat na 30–45s timeout — vrať hlášku hned.
+   *  `navigator.onLine` je spolehlivé jen ve FALSE směru (true může znamenat
+   *  „připojen k síti, ale bez internetu"), proto failujeme jen na tvrdé
+   *  `=== false`. Browse z lokálního katalogu tudy nechodí, ten jede i offline. */
+  const isOffline = (): boolean =>
+    typeof navigator !== 'undefined' && navigator.onLine === false
 
   const catalogEligible = (): boolean => {
     const s = get()
@@ -950,6 +1128,221 @@ export const useStore = create<AppState>((set, get) => {
     void get().doSearch(1)
   }
 
+  // Změří hlasitost mixu na pozadí, uloží do cache a plynule dolaď gain (jen když
+  // se mezitím nepřepnula skladba ani nevypnula normalizace).
+  const analyzeAndApply = async (rel: string, urls: string[], token: number): Promise<void> => {
+    try {
+      const loud = await analyzeMix(urls)
+      if (token !== playerSeq) return
+      void window.api.loudnessSet(rel, loud.lufs, loud.peak)
+      if (get().player.normalize && playerCurRel === rel) {
+        setNormGain(appliedMult(loud.lufs, loud.peak), true)
+      }
+    } catch {
+      /* měření selhalo → necháme neutrální gain */
+    }
+  }
+
+  // Předpočítá hlasitost NÁSLEDUJÍCÍ skladby ve frontě (a uloží do cache), ať je
+  // přepnutí okamžité — jinak by se každá nová skladba ~1–2 s měřila teprve po
+  // startu a do té doby hrála nevyrovnaně. Gain NEnastavuje (jen naplní cache).
+  const prefetchNext = async (curPos: number, token: number): Promise<void> => {
+    const pl = get().player
+    if (!pl.normalize || pl.order.length < 2) return
+    const nextPos = (curPos + 1) % pl.order.length
+    const nextTrack = pl.queue[pl.order[nextPos]]
+    if (!nextTrack) return
+    try {
+      const cached = await window.api.loudnessGet(nextTrack.rel)
+      if (token !== playerSeq || cached) return // už změřeno, nebo se mezitím přepnulo
+      const audio = await window.api.songAudio(nextTrack.rel)
+      if (token !== playerSeq || audio.tracks.length === 0) return
+      const loud = await analyzeMix(audio.tracks.map((t) => t.url))
+      void window.api.loudnessSet(nextTrack.rel, loud.lufs, loud.peak)
+    } catch {
+      /* předpočítání je best-effort */
+    }
+  }
+
+  // Aplikuje normalizaci na PRÁVĚ hrající skladbu (po zapnutí toggle): cache → hned,
+  // jinak doměř. Plynule (ramp), ať to nelupne.
+  const applyNormForCurrent = async (token: number): Promise<void> => {
+    const rel = playerCurRel
+    const urls = playerCurUrls
+    if (!rel || urls.length === 0) return
+    try {
+      const cached = await window.api.loudnessGet(rel)
+      if (token !== playerSeq || !get().player.normalize) return
+      if (cached) {
+        setNormGain(appliedMult(cached.lufs, cached.peak), true)
+        return
+      }
+      await analyzeAndApply(rel, urls, token)
+    } catch {
+      /* ponech neutrální */
+    }
+  }
+
+  // Načte a spustí písničku na POZICI `pos` ve frontě (index do `order`).
+  // `skips` chrání před nekonečným přeskakováním, kdyby žádná píseň nešla přehrát.
+  const loadPlayerTrack = async (pos: number, skips = 0): Promise<void> => {
+    const p0 = get().player
+    if (!p0.active || p0.order.length === 0) return
+    const n = p0.order.length
+    const clamped = ((pos % n) + n) % n
+    const track = p0.queue[p0.order[clamped]]
+    const myReq = ++playerSeq
+    get().stopPreview() // přehrávač a ukázka nesmí hrát naráz
+    stopPlayerAudio()
+    set({
+      player: { ...get().player, pos: clamped, state: 'loading', time: 0, duration: 0, art: null }
+    })
+
+    // Obal dohráváme líně a nezávisle (nezdržuje start zvuku).
+    void window.api
+      .libSongDetail(track.rel)
+      .then((d) => {
+        if (myReq === playerSeq) set({ player: { ...get().player, art: d.albumArt ?? null } })
+      })
+      .catch(() => undefined)
+
+    let audio: SongAudio
+    try {
+      audio = await window.api.songAudio(track.rel)
+    } catch {
+      audio = { tracks: [], previewStartMs: null }
+    }
+    if (myReq !== playerSeq) return
+
+    // Nepřehratelná píseň (chybí zvuk / vadný kodek) → přeskoč na další, ale
+    // ne donekonečna: když jsme obešli celou frontu, zastav.
+    if (audio.tracks.length === 0) {
+      if (skips + 1 >= n) {
+        stopPlayerAudio()
+        set({ player: { ...get().player, state: 'paused' } })
+        return
+      }
+      return loadPlayerTrack(clamped + 1, skips + 1)
+    }
+
+    const vol = get().player.volume
+    const els = audio.tracks.map((t) => {
+      const el = new Audio()
+      el.preload = 'auto'
+      // crossOrigin kvůli Web Audio: bez něj by MediaElementSource dostal „tainted"
+      // (tiché) vzorky. Protokol `chm-audio://` k tomu posílá CORS hlavičku. MUSÍ
+      // být nastaveno PŘED `src`, jinak se na požadavek neuplatní.
+      el.crossOrigin = 'anonymous'
+      el.volume = vol
+      el.src = t.url
+      return el
+    })
+    playerEls = els
+    playerCurRel = track.rel
+    playerCurUrls = audio.tracks.map((t) => t.url)
+    // Zapoj stopy do normalizačního grafu (source → normGain → výstup). Když Web
+    // Audio selže, stopy hrají přímo (normalizace prostě neběží).
+    if (ensureAudioGraph() && playerNormGain) {
+      playerSources = []
+      for (const el of els) {
+        try {
+          const src = playerCtx!.createMediaElementSource(el)
+          src.connect(playerNormGain)
+          playerSources.push(src)
+        } catch {
+          /* stopa pak hraje přímo, bez normalizace */
+        }
+      }
+      void playerCtx!.resume()
+    }
+    // Srovnat všechny stopy na začátek, ať mix nastartuje v synku.
+    await Promise.all(els.map((el) => seekReady(el, 0)))
+    if (myReq !== playerSeq) {
+      stopPlayerAudio()
+      return
+    }
+    playerMaster = els[0]
+    // Konec skladby → další podle repeat režimu.
+    playerMaster.addEventListener(
+      'ended',
+      () => {
+        if (myReq !== playerSeq) return
+        const pl = get().player
+        if (pl.repeat === 'one') void loadPlayerTrack(pl.pos)
+        else if (pl.pos + 1 < pl.order.length) void loadPlayerTrack(pl.pos + 1)
+        else if (pl.repeat === 'all') void loadPlayerTrack(0)
+        else {
+          stopPlayerAudio()
+          set({ player: { ...get().player, state: 'paused', time: get().player.duration } })
+        }
+      },
+      { once: true }
+    )
+
+    // Normalizace: pokud je zapnutá a hlasitost už máme v cache, nastav gain HNED
+    // (bez slyšitelného skoku na startu). Miss → hraj neutrálně a doměř na pozadí.
+    let cachedLoud: { lufs: number; peak: number } | null = null
+    if (get().player.normalize) {
+      try {
+        cachedLoud = await window.api.loudnessGet(track.rel)
+      } catch {
+        cachedLoud = null
+      }
+      if (myReq !== playerSeq) {
+        stopPlayerAudio()
+        return
+      }
+    }
+    setNormGain(cachedLoud ? appliedMult(cachedLoud.lufs, cachedLoud.peak) : 1, false)
+
+    await Promise.all(els.map((el) => el.play().catch(() => undefined)))
+    if (myReq !== playerSeq) {
+      stopPlayerAudio()
+      return
+    }
+    // Neznámá hlasitost → změř mix na pozadí (nezdržuje přehrávání) a jakmile je
+    // hotovo, plynule dolaď gain a ulož do cache pro příště.
+    if (get().player.normalize && !cachedLoud) {
+      void analyzeAndApply(track.rel, playerCurUrls, myReq)
+    }
+    set({
+      player: { ...get().player, state: 'playing', duration: playerMaster.duration || 0 }
+    })
+    if (playerTick !== null) clearInterval(playerTick)
+    playerTick = window.setInterval(() => {
+      if (!playerMaster || myReq !== playerSeq) return
+      set({
+        player: {
+          ...get().player,
+          time: playerMaster.currentTime,
+          duration: playerMaster.duration || get().player.duration
+        }
+      })
+    }, 250)
+
+    // Předpočítej hlasitost DALŠÍ skladby, ať je přepnutí na ni okamžité (bez
+    // měřicího zpoždění). Best-effort, na pozadí.
+    void prefetchNext(clamped, myReq)
+  }
+
+  // Společný start fronty (ze složky i ze setlistu).
+  const startPlayerQueue = (tracks: PlayerTrack[], label: string): void => {
+    if (tracks.length === 0) return
+    set({
+      player: {
+        ...INITIAL_PLAYER,
+        active: true,
+        label,
+        queue: tracks,
+        order: tracks.map((_, i) => i),
+        state: 'loading',
+        volume: get().player.volume, // zachovej nastavenou hlasitost
+        normalize: get().player.normalize // i volbu normalizace
+      }
+    })
+    void loadPlayerTrack(0)
+  }
+
   return {
   query: '',
   database: 'rhythmverse',
@@ -1017,10 +1410,163 @@ export const useStore = create<AppState>((set, get) => {
   previewKey: null,
   previewState: 'idle',
   previewLabel: null,
+  player: INITIAL_PLAYER,
 
   stopPreview: () => {
     stopPreviewAudio()
     set({ previewKey: null, previewState: 'idle', previewLabel: null })
+  },
+
+  playFolder: async (rel, label) => {
+    let tracks: PlayerTrack[] = []
+    try {
+      tracks = await window.api.playerListFolder(rel)
+    } catch {
+      /* prázdno → nic nehraj */
+    }
+    startPlayerQueue(tracks, label)
+  },
+  playPlaylist: async (name, label) => {
+    let tracks: PlayerTrack[] = []
+    try {
+      tracks = await window.api.playerListPlaylist(name)
+    } catch {
+      /* prázdno → nic nehraj */
+    }
+    startPlayerQueue(tracks, label)
+  },
+  playerPlayPos: async (pos) => {
+    if (get().player.active) await loadPlayerTrack(pos)
+  },
+  playerToggle: () => {
+    const p = get().player
+    if (!p.active || !playerMaster) return
+    if (p.state === 'playing') {
+      for (const el of playerEls) el.pause()
+      set({ player: { ...p, state: 'paused' } })
+    } else {
+      get().stopPreview() // resume přehrávače → utni případnou ukázku
+      for (const el of playerEls) void el.play().catch(() => undefined)
+      set({ player: { ...p, state: 'playing' } })
+    }
+  },
+  playerPause: () => {
+    const p = get().player
+    if (!p.active || p.state !== 'playing') return
+    for (const el of playerEls) el.pause()
+    set({ player: { ...p, state: 'paused' } })
+  },
+  playerNext: () => {
+    const p = get().player
+    if (p.active) void loadPlayerTrack(p.pos + 1)
+  },
+  playerPrev: () => {
+    const p = get().player
+    if (!p.active) return
+    // Do 3 s od začátku = předchozí; jinak restart aktuální (jako v přehrávačích).
+    if (playerMaster && playerMaster.currentTime > 3) void loadPlayerTrack(p.pos)
+    else void loadPlayerTrack(p.pos - 1)
+  },
+  playerSeek: (frac) => {
+    const p = get().player
+    if (!p.active || !playerMaster) return
+    const dur = playerMaster.duration || p.duration
+    if (!dur || !Number.isFinite(dur)) return
+    const t = Math.max(0, Math.min(dur, frac * dur))
+    for (const el of playerEls) {
+      try {
+        el.currentTime = t
+      } catch {
+        /* některé stavy seek nedovolí */
+      }
+    }
+    set({ player: { ...p, time: t } })
+  },
+  playerToggleShuffle: () => {
+    const p = get().player
+    if (!p.active) return
+    if (!p.shuffle) {
+      // Zamíchat, ale aktuální píseň nechat hrát dál (posadit ji na začátek).
+      const cur = p.order[p.pos]
+      const rest = p.order.filter((_, i) => i !== p.pos)
+      for (let i = rest.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[rest[i], rest[j]] = [rest[j], rest[i]]
+      }
+      set({ player: { ...p, shuffle: true, order: [cur, ...rest], pos: 0 } })
+    } else {
+      // Zpět do přirozeného pořadí (= řazení podle #), `pos` navázat na právě
+      // hrající píseň.
+      const curTrack = p.order[p.pos]
+      set({
+        player: {
+          ...p,
+          shuffle: false,
+          order: p.queue.map((_, i) => i),
+          pos: curTrack,
+          sortBy: 'index',
+          sortDir: 'asc'
+        }
+      })
+    }
+  },
+  playerSortQueue: (col) => {
+    const p = get().player
+    if (!p.active || p.queue.length === 0) return
+    // Stejný sloupec podruhé → obrať směr; jiný sloupec → začni vzestupně.
+    const dir = p.sortBy === col && !p.shuffle ? (p.sortDir === 'asc' ? 'desc' : 'asc') : 'asc'
+    const idx = p.queue.map((_, i) => i)
+    let ordered: number[]
+    if (col === 'index') {
+      ordered = idx // původní pořadí ze složky
+    } else {
+      const primary = col // 'title' | 'artist'
+      ordered = [...idx].sort((a, b) => {
+        const A = p.queue[a]
+        const B = p.queue[b]
+        const c = (A[primary] || '').localeCompare(B[primary] || '', undefined, {
+          sensitivity: 'base'
+        })
+        if (c !== 0) return c
+        // Shodná hodnota → dořaď podle druhého sloupce (artist↔title).
+        const sec = col === 'artist' ? 'title' : 'artist'
+        return (A[sec] || '').localeCompare(B[sec] || '', undefined, { sensitivity: 'base' })
+      })
+    }
+    if (dir === 'desc') ordered.reverse()
+    // Zachovej PRÁVĚ hrající skladbu — najdi její novou pozici v přeřazené frontě.
+    const curQi = p.order[p.pos]
+    const newPos = Math.max(0, ordered.indexOf(curQi))
+    set({ player: { ...p, order: ordered, pos: newPos, sortBy: col, sortDir: dir, shuffle: false } })
+  },
+  playerCycleRepeat: () => {
+    const p = get().player
+    if (!p.active) return
+    const nx = p.repeat === 'off' ? 'all' : p.repeat === 'all' ? 'one' : 'off'
+    set({ player: { ...p, repeat: nx } })
+  },
+  playerSetVolume: (v) => {
+    const vol = Math.max(0, Math.min(1, v))
+    for (const el of playerEls) el.volume = vol
+    set({ player: { ...get().player, volume: vol } })
+  },
+  playerToggleNormalize: () => {
+    const p = get().player
+    const on = !p.normalize
+    set({ player: { ...p, normalize: on } })
+    void window.api.setConfig({ normalizeLoudness: on }) // zapamatuj po restartu
+    if (!p.active) return
+    // Přepočti gain pro právě hrající skladbu: vypnutí → zpět na 1, zapnutí →
+    // z cache/doměření (obojí plynule, ať to nelupne).
+    if (!on) setNormGain(1, true)
+    else void applyNormForCurrent(playerSeq)
+  },
+  playerClose: () => {
+    playerSeq++
+    stopPlayerAudio()
+    playerCurRel = null
+    playerCurUrls = []
+    set({ player: INITIAL_PLAYER })
   },
 
   toggleLocalPreview: async (key, rel) => {
@@ -1033,6 +1579,7 @@ export const useStore = create<AppState>((set, get) => {
     }
 
     stopPreviewAudio()
+    get().playerPause() // ukázka a přehrávač nesmí hrát naráz
     set({ previewKey: key, previewState: 'loading', previewLabel: null })
 
     try {
@@ -1055,6 +1602,7 @@ export const useStore = create<AppState>((set, get) => {
 
     // Zastav cokoli, co zrovna hraje, a přepni cíl.
     stopPreviewAudio()
+    get().playerPause() // ukázka a přehrávač nesmí hrát naráz
     set({ previewKey: key, previewState: 'loading', previewLabel: null })
 
     // Máme píseň v knihovně? Pak hraj rovnou z disku. Je to SKUTEČNÝ zvuk
@@ -1200,12 +1748,16 @@ export const useStore = create<AppState>((set, get) => {
       }
     }
     set(patch as Partial<AppState>)
+    // Zapamatuj volbu do configu (obnoví se po restartu). Fire-and-forget —
+    // neaktualizuje store `config` (jen persistence do JSON).
+    void window.api.setConfig({ database: d })
   },
   setSystem: (s) => {
     // Číselník filtrů (žánry/roky/délky) je pro každý systém jiný → vynutit
     // znovunačtení, ať v dropdownech nezůstanou hodnoty z předchozího systému.
     set({ system: s, filterOptions: null })
     void get().loadFilterOptions()
+    void window.api.setConfig({ system: s }) // zapamatuj (obnoví se po restartu)
   },
   toggleInstrumentFilter: (id) => {
     set((s) => ({
@@ -1278,12 +1830,14 @@ export const useStore = create<AppState>((set, get) => {
   setDirectOnly: (v) => {
     set({ directOnly: v, selectedIndex: -1 })
     void get().doSearch(1)
+    void window.api.setConfig({ directOnly: v }) // zapamatuj (obnoví se po restartu)
   },
   setHideOwned: (v) => {
     set({ hideOwned: v, selectedIndex: -1 })
     // S katalogem filtruje přes celou DB → přehledej. Bez katalogu doSearch
     // stejně skončí na živém API a App.tsx to dorovná client refinem.
     void get().doSearch(1)
+    void window.api.setConfig({ hideOwned: v }) // zapamatuj (obnoví se po restartu)
   },
   loadOwnedKeys: async () => {
     try {
@@ -1292,6 +1846,12 @@ export const useStore = create<AppState>((set, get) => {
       // Předej sadu i katalogu, ať „Hide owned" filtruje přes CELÝ katalog
       // (ne jen načtenou stránku). Selhání není fatální — spadne na client refine.
       void window.api.catalogSetOwned(keys).catch(() => {})
+      // Když je „Hide owned" aktivní (i po restartu), sada vlastněných se mění
+      // AŽ tady → přehledej, ať katalogový SQL filtr reálně skryje vlastněné
+      // (při startu doSearch proběhl dřív, než byla sada k dispozici).
+      if (get().hideOwned && (get().results.length > 0 || get().deep)) {
+        void get().doSearch(get().page)
+      }
     } catch {
       /* nevadí — nápověda „In library" prostě nebude */
     }
@@ -1312,6 +1872,11 @@ export const useStore = create<AppState>((set, get) => {
   },
   surpriseMe: async () => {
     get().stopPreview()
+    // Losování jde vždy na živé API (náhodná stránka) → offline fail hned.
+    if (isOffline()) {
+      set({ loading: false, surprise: false, error: OFFLINE_MSG })
+      return
+    }
     const { query, system, database, records, sort, sortDir } = get()
     // Serverové filtry (vč. nástroje) → losování respektuje zaškrtnuté nástroje.
     const filters = buildServerFilters()
@@ -1410,6 +1975,8 @@ export const useStore = create<AppState>((set, get) => {
       selectedIndex: -1
     })
     void get().doSearch(1)
+    // Vypnuté přepínače taky zapamatuj (jinak by se po restartu vrátily zapnuté).
+    void window.api.setConfig({ directOnly: false, hideOwned: false })
   },
   setFilter: (key, values) => {
     set((s) => ({ filters: { ...s.filters, [key]: values }, page: 1, selectedIndex: -1 }))
@@ -1461,6 +2028,13 @@ export const useStore = create<AppState>((set, get) => {
     // tier, Encore žánr…), jednou rychlou SQL stránkou místo deep scanu.
     if (catalogEligible()) {
       return catalogSearch(page)
+    }
+    // Odtud níž je potřeba síť (deep scan i běžné serverové stránkování). Bez
+    // připojení fail hned, ať uživatel nekouká na skeleton až do timeoutu.
+    if (isOffline()) {
+      searchSeq++ // zneplatni i případné běžící hledání
+      set({ loading: false, deepLoading: false, surprise: false, error: OFFLINE_MSG })
+      return
     }
     // Jen to, co server neumí (tier / Encore multi-nástroj) → deep scan.
     // Jeden nástroj i víc nástrojů na RhythmVerse zvládne server (AND) → jde
@@ -1821,7 +2395,17 @@ export const useStore = create<AppState>((set, get) => {
 
   loadConfig: async () => {
     const config = await window.api.getConfig()
-    set({ config, records: config.recordsPerPage })
+    // Obnov poslední volbu databáze/systému (uloženou z minula). Běží PŘED
+    // úvodním doSearch, takže se rovnou načte správný katalog.
+    set({
+      config,
+      records: config.recordsPerPage,
+      database: config.database ?? 'rhythmverse',
+      system: config.system ?? 'ch',
+      hideOwned: config.hideOwned ?? false,
+      directOnly: config.directOnly ?? false,
+      player: { ...get().player, normalize: config.normalizeLoudness ?? true }
+    })
   },
 
   saveConfig: async (patch) => {

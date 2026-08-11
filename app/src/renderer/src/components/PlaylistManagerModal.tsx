@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PlaylistInfo, PlaylistSong } from '../../../shared/types'
 import { errMsg } from '../../../shared/errors'
+import { useStore } from '../store'
 import { Icon } from './Icon'
 import { RichText } from './RichText'
 
 /** Správce Clone Hero setlistů: přejmenování, mazání, zobrazení a odebírání písní. */
 export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.Element {
+  const playPlaylist = useStore((s) => s.playPlaylist)
+  const closeLibrary = useStore((s) => s.setShowLibrary)
   const [lists, setLists] = useState<PlaylistInfo[] | null>(null)
   const [sel, setSel] = useState<string | null>(null)
   const [songs, setSongs] = useState<PlaylistSong[] | null>(null)
@@ -231,13 +234,28 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
                 </div>
                 <div className="plm__songfoot">
                   <span className="dup__selinfo">{checked.size} selected</span>
-                  <button
-                    className="btn-secondary"
-                    disabled={checked.size === 0 || busy}
-                    onClick={removeChecked}
-                  >
-                    Remove from playlist
-                  </button>
+                  <div className="plm__footactions">
+                    <button
+                      className="btn-primary"
+                      disabled={!sel || !songs?.some((s) => s.found) || busy}
+                      title="Play this setlist in the built-in player"
+                      onClick={() => {
+                        if (!sel) return
+                        void playPlaylist(sel, sel)
+                        onClose()
+                        closeLibrary(false)
+                      }}
+                    >
+                      <Icon name="play" size={14} /> Play
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      disabled={checked.size === 0 || busy}
+                      onClick={removeChecked}
+                    >
+                      Remove from playlist
+                    </button>
+                  </div>
                 </div>
               </>
             ) : (
