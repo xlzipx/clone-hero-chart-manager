@@ -6,7 +6,7 @@ import { homedir } from 'os'
 import { dirname, join } from 'path'
 import { DEFAULT_FOLDER_TEMPLATE } from '../../shared/foldertemplate'
 import type { AppConfig } from '../../shared/types'
-import { cloneHeroArtifactName, isMac, onyxBinaryName, sevenZipBinaryName } from './platform'
+import { cloneHeroArtifactName, isLinux, isMac, onyxBinaryName, sevenZipBinaryName } from './platform'
 
 let cached: AppConfig | null = null
 
@@ -96,6 +96,22 @@ function detectSongsDir(): string {
     return join(home, 'Clone Hero', 'Songs')
   }
 
+  // Linux: CH nemá oficiální Linux build (běhá přes Proton nebo Wine), takže
+  // jde spíš o rozumný default k ručnímu úpravě v Settings. Zkusíme viditelné
+  // domácí kandidáty a Steam Proton prefix; jinak padáme na ~/Clone Hero/Songs.
+  if (isLinux) {
+    const home = homedir()
+    const linuxCandidates = [
+      join(home, 'Clone Hero', 'Songs'),
+      join(home, 'Documents', 'Clone Hero', 'Songs'),
+      join(home, 'Music', 'Clone Hero', 'Songs'),
+      join(home, 'Downloads', 'Clone Hero', 'Songs'),
+      join(home, '.local', 'share', 'Clone Hero', 'Songs')
+    ]
+    for (const c of linuxCandidates) if (existsSync(c)) return c
+    return join(home, 'Clone Hero', 'Songs')
+  }
+
   const fallback = 'G:\\Clone Hero\\Songs'
   const chArtifact = cloneHeroArtifactName() // 'Clone Hero.exe' na Windows
   const candidates: string[] = []
@@ -123,7 +139,10 @@ function detectOnyxPath(): string {
     ...rootCandidates().map((r) => join(r, 'onyx')),
     ...rootCandidates().map((r) => join(r, 'native', 'onyx')),
     // macOS dev: rozbalený onyx-macos-x64 bundle.
-    ...rootCandidates().map((r) => join(r, 'native', 'onyx-mac'))
+    ...rootCandidates().map((r) => join(r, 'native', 'onyx-mac')),
+    // Linux dev: extrahovaný obsah onyx-linux-x64.AppImage (squashfs-root).
+    // Skutečná ELF binárka je uvnitř `usr/bin/onyx`, `findFile` ji najde do hloubky 5.
+    ...rootCandidates().map((r) => join(r, 'native', 'onyx-linux'))
   ]
   // Hloubka 5: na macu je binárka uvnitř Onyx.app/Contents/MacOS/, a zip se může
   // rozbalit ještě do vnořené složky — ať to najdeme i tak.
@@ -136,6 +155,7 @@ function detect7zDir(): string {
     ...rootCandidates().map((r) => join(r, 'tools')),
     ...rootCandidates().map((r) => join(r, 'native', '7zip')),
     ...rootCandidates().map((r) => join(r, 'native', '7zip-mac')),
+    ...rootCandidates().map((r) => join(r, 'native', '7zip-linux')),
     ...rootCandidates().map((r) => join(r, 'C3 CON TOOLS', 'bin')),
     ...rootCandidates()
   ]

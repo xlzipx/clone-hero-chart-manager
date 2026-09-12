@@ -1,6 +1,6 @@
 {
   "name": "chm",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "Clone Hero Chart Manager (CHM): search, download and convert Clone Hero charts from RhythmVerse and Chorus Encore.",
   "main": "./out/main/index.js",
   "author": "ZIPEEK",
@@ -16,7 +16,8 @@
     "seed": "node build/build-catalog-seed.cjs",
     "dist": "node build/build-catalog-seed.cjs && electron-vite build && electron-builder --win nsis",
     "dist:portable": "node build/build-catalog-seed.cjs && electron-vite build && electron-builder --win portable",
-    "dist:mac": "node build/build-catalog-seed.cjs && electron-vite build && electron-builder --mac"
+    "dist:mac": "node build/build-catalog-seed.cjs && electron-vite build && electron-builder --mac",
+    "dist:linux": "node build/build-catalog-seed.cjs && electron-vite build && electron-builder --linux"
   },
   "build": {
     "appId": "com.zipeek.chm",
@@ -105,6 +106,38 @@
           "to": "THIRD-PARTY.txt"
         }
       ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "AudioVideo",
+      "icon": "build/icon-1024.png",
+      "extraResources": [
+        {
+          "from": "build/catalog-seed.db.gz",
+          "to": "catalog-seed.db.gz"
+        },
+        {
+          "from": "../native/onyx-linux",
+          "to": "onyx"
+        },
+        {
+          "from": "../native/7zip-linux/7zz",
+          "to": "tools/7zz"
+        },
+        {
+          "from": "../LICENSE",
+          "to": "LICENSE.txt"
+        },
+        {
+          "from": "../THIRD-PARTY.txt",
+          "to": "THIRD-PARTY.txt"
+        }
+      ]
+    },
+    "appImage": {
+      "artifactName": "CHM-${version}-linux-x86_64.AppImage"
     },
     "dmg": {
       "artifactName": "CHM-${version}-mac-${arch}.dmg"

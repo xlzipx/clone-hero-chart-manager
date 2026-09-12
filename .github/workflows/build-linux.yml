@@ -1,0 +1,82 @@
+name: Build Linux release
+
+# Builds the AppImage in the cloud so a Linux release does not need a Linux box.
+# Fires automatically when a version tag (v*) is pushed, and can also be run
+# manually from the Actions tab (which just produces the AppImage as an artifact).
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # needed to attach the AppImage to the release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      # Seed lokálního katalogu (snapshot obou databází, ~7 min) — přibalí se
+      # do AppImage, aby uživatel při prvním spuštění nemusel katalog stahovat.
+      - name: Build catalog seed
+        working-directory: app
+        run: node build/build-catalog-seed.cjs
+
+      - name: Fetch Linux native binaries (Onyx + 7-Zip)
+        run: |
+          set -euo pipefail
+          mkdir -p native/onyx-linux native/7zip-linux
+          # Onyx nemá pro Linux samostatnou CLI verzi (jako Windows) — vydává jen
+          # AppImage, který ale obsahuje stejnou binárku (probe ověřeno). Rozbalíme
+          # ho přes --appimage-extract a přibalíme celou `squashfs-root/` (obsahuje
+          # `usr/bin/onyx` ELF + `usr/lib/*.so` závislosti; binárka najde své .so
+          # přes RPATH). CHM pak spustí `usr/bin/onyx import` / `build` stejně jako
+          # na Win/Mac. AppRun je jen symlink na tu binárku.
+          curl -L -o /tmp/onyx.AppImage \
+            https://github.com/mtolly/onyx/releases/download/20251011/onyx-20251011-linux-x64.AppImage
+          chmod +x /tmp/onyx.AppImage
+          (cd /tmp && ./onyx.AppImage --appimage-extract >/dev/null)
+          mv /tmp/squashfs-root/* native/onyx-linux/
+          mv /tmp/squashfs-root/.[!.]* native/onyx-linux/ 2>/dev/null || true
+          # Sanity: binárka musí existovat a být spustitelná.
+          test -x native/onyx-linux/usr/bin/onyx
+          native/onyx-linux/usr/bin/onyx --help | head -3
+
+          # 7-Zip console (7zz) — statický Linux build (nepotřebuje .so knihovny).
+          curl -L -o /tmp/7zz.tar.xz \
+            https://github.com/ip7z/7zip/releases/download/26.02/7z2602-linux-x64.tar.xz
+          mkdir -p /tmp/7zz-out
+          tar -xf /tmp/7zz.tar.xz -C /tmp/7zz-out
+          cp /tmp/7zz-out/7zz native/7zip-linux/7zz
+          chmod +x native/7zip-linux/7zz
+
+      - name: Build AppImage
+        working-directory: app
+        run: npm run dist:linux -- --publish never
+
+      - name: Upload AppImage as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chm-linux-appimage
+          path: app/dist/*.AppImage
+          if-no-files-found: error
+
+      - name: Attach AppImage to the release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/dist/*.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

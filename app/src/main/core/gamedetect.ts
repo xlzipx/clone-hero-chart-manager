@@ -3,6 +3,9 @@
 // Windows: plná podpora CH i YARG (tasklist / PowerShell SetForegroundWindow).
 // macOS:   plná podpora CH i YARG (open / pgrep / osascript). YARG má oficiální
 //          macOS universal build (přes YARC Launcher).
+// Linux:   YARG nativně (ELF binárka), CH jen když uživatel nastaví cestu (např.
+//          na Proton wrapper skript). Detekce běhu přes `pgrep -f`. Focus restore
+//          přes `wmctrl` (best-effort — když není nainstalovaný, jen launch).
 
 import { exec, execFile, spawn } from 'child_process'
 import { existsSync, readdirSync, statSync } from 'fs'
@@ -10,7 +13,7 @@ import { homedir } from 'os'
 import { dirname, join } from 'path'
 import { promisify } from 'util'
 import { getConfig } from './config'
-import { isMac, isWin } from './platform'
+import { isLinux, isMac, isWin } from './platform'
 import { errMsg } from '../../shared/errors'
 
 const execAsync = promisify(exec)
@@ -21,6 +24,10 @@ const PROC_YARG = 'YARG.exe'
 /** Jména procesů uvnitř .app bundlu na macOS (Contents/MacOS/<name>). */
 const PROC_CH_MAC = 'Clone Hero'
 const PROC_YARG_MAC = 'YARG'
+/** Linux: YARG Unity build má typicky binárku `YARG.x86_64` (Unity default); CH
+ *  se na Linuxu spouští přes Proton/Wine, tak název procesu je `Clone Hero.exe`. */
+const PROC_YARG_LINUX = 'YARG'
+const PROC_CH_LINUX = 'Clone Hero'
 
 export type GameId = 'clone-hero' | 'yarg'
 export type RunningGame = GameId | null
@@ -71,6 +78,34 @@ function findAppBundle(roots: string[], appName: string, maxDepth: number): stri
     if (hit) return hit
   }
   return null
+}
+
+/**
+ * Linux: rekurzivně hledá první existující soubor daného jména pod `root`.
+ * Používá se pro YARG binárku (`YARG.x86_64` / `YARG`), kterou YARC Launcher
+ * schovává do vnořených složek s verzí.
+ */
+function findElfBinary(root: string, names: string[], maxDepth: number): string | null {
+  const walk = (dir: string, depth: number): string | null => {
+    let entries: import('fs').Dirent[]
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return null
+    }
+    for (const e of entries) {
+      if (e.isFile() && names.includes(e.name)) return join(dir, e.name)
+    }
+    if (depth >= maxDepth) return null
+    for (const e of entries) {
+      if (e.isDirectory()) {
+        const hit = walk(join(dir, e.name), depth + 1)
+        if (hit) return hit
+      }
+    }
+    return null
+  }
+  return walk(root, 0)
 }
 
 /**
@@ -134,6 +169,28 @@ export function detectYargExe(): string | null {
       'YARG.app',
       5
     )
+  }
+
+  if (isLinux) {
+    // YARG má oficiální Linux build (Unity, ELF binárka). Uživatel ho obvykle
+    // stáhne přes YARC Launcher; hledáme v běžných místech, jméno spustitelného
+    // souboru se může lišit mezi verzemi (`YARG.x86_64` nebo `YARG`).
+    const home = homedir()
+    const linuxRoots = [
+      join(home, 'YARG'),
+      join(home, '.local', 'share', 'YARG'),
+      join(home, '.local', 'share', 'YARC'),
+      join(home, '.local', 'share', 'YARC Launcher'),
+      join(home, '.local', 'share', 'in.yarg.launcher'),
+      join(home, 'Downloads', 'YARG')
+    ]
+    for (const root of linuxRoots) {
+      if (!existsSync(root)) continue
+      // Do hloubky 4: launcher často dělá vnořené GUID/version složky.
+      const hit = findElfBinary(root, ['YARG.x86_64', 'YARG'], 4)
+      if (hit) return hit
+    }
+    return null
   }
 
   if (!isWin) return null
@@ -203,7 +260,26 @@ export function yargExeStatus(): { path: string | null; autoDetected: boolean } 
 export async function runningGame(): Promise<RunningGame> {
   if (isMac) return runningGameMac()
   if (isWin) return runningGameWin()
+  if (isLinux) return runningGameLinux()
   return null
+}
+
+async function runningGameLinux(): Promise<RunningGame> {
+  // pgrep -f: přizpůsobit se různým jménům procesu (YARG.x86_64, YARG, wrapper
+  // scripty). CH přes Proton má jméno procesu jako `Clone Hero.exe` — často
+  // schované za `wine`/`proton` wrapperem, takže hledáme fuzzy.
+  try {
+    await execAsync(`pgrep -f "${PROC_CH_LINUX}"`, { timeout: 2500 })
+    return 'clone-hero'
+  } catch {
+    /* CH neběží — zkus YARG */
+  }
+  try {
+    await execAsync(`pgrep -f "${PROC_YARG_LINUX}"`, { timeout: 2500 })
+    return 'yarg'
+  } catch {
+    return null
+  }
 }
 
 async function runningGameWin(): Promise<RunningGame> {
@@ -262,7 +338,9 @@ export function launchGame(): { ok: true } | { ok: false; error: string } {
       ok: false,
       error: isMac
         ? "Couldn't find Clone Hero.app. Install it to /Applications or set the path in Settings."
-        : "Couldn't find Clone Hero.exe. Set the correct Songs folder in Settings (Clone Hero.exe is its parent)."
+        : isLinux
+          ? "Clone Hero doesn't have a native Linux build. Set a custom launcher path in Settings (e.g. a Wine/Proton wrapper script)."
+          : "Couldn't find Clone Hero.exe. Set the correct Songs folder in Settings (Clone Hero.exe is its parent)."
     }
   }
   try {
@@ -285,18 +363,17 @@ export function launchGame(): { ok: true } | { ok: false; error: string } {
   }
 }
 
-/** Spustí YARG (detach). Windows i macOS. */
+/** Spustí YARG (detach). Windows / macOS / Linux. */
 export function launchYarg(): { ok: true } | { ok: false; error: string } {
-  if (!isWin && !isMac) {
-    return { ok: false, error: 'Launching YARG is only supported on Windows and macOS.' }
-  }
   const exe = detectYargExe()
   if (!exe) {
     return {
       ok: false,
       error: isMac
         ? "Couldn't find YARG.app. Install YARG via the YARC Launcher, or set the path in Settings."
-        : "Couldn't find YARG.exe. Set the path manually in Settings — typically at G:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe."
+        : isLinux
+          ? "Couldn't find the YARG Linux binary. Install YARG via the YARC Launcher, or set the path in Settings (typically YARG.x86_64 inside its install folder)."
+          : "Couldn't find YARG.exe. Set the path manually in Settings — typically at G:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe."
     }
   }
   try {
@@ -325,8 +402,8 @@ export function launchYarg(): { ok: true } | { ok: false; error: string } {
 export async function bringGameToFront(
   prefer?: GameId
 ): Promise<{ ok: true; game?: GameId } | { ok: false; error: string }> {
-  if (!isWin && !isMac) {
-    return { ok: false, error: 'Only supported on Windows and macOS.' }
+  if (!isWin && !isMac && !isLinux) {
+    return { ok: false, error: 'Unsupported platform.' }
   }
 
   // Pokud máme preferenci a ta hra běží, použij ji; jinak co aktuálně běží.
@@ -339,6 +416,20 @@ export async function bringGameToFront(
     // Žádná neběží → spusť preferovanou (CH default).
     if (prefer === 'yarg') return launchYarg()
     return launchGame()
+  }
+
+  if (isLinux) {
+    // Focus restore přes `wmctrl -a` (best-effort — wmctrl často není defaultně
+    // nainstalované, pak jen tiše nic neděláme; hra běží dál a uživatel si ji
+    // vybere z panelu). Alt+Tab je pro tenhle scénář stejně jednodušší.
+    const needle = target === 'yarg' ? PROC_YARG_LINUX : PROC_CH_LINUX
+    return new Promise((resolve) => {
+      execFile('wmctrl', ['-a', needle], { timeout: 3000 }, (err) => {
+        // wmctrl neinstalovaný / okno nenajde → to není chyba, hra prostě běží.
+        if (err && !/ENOENT/i.test(err.message)) resolve({ ok: true, game: target as GameId })
+        else resolve({ ok: true, game: target as GameId })
+      })
+    })
   }
 
   if (isMac) {
