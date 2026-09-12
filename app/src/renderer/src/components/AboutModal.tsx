@@ -4,7 +4,7 @@ import redditLogo from '../assets/reddit_logo.png'
 import xLogo from '../assets/X_logo.jpg'
 import zipeekLogo from '../assets/zipeek_logo.webp'
 import { useStore } from '../store'
-import { IS_MAC } from '../platform'
+import { IS_LINUX, IS_MAC } from '../platform'
 import { Icon } from './Icon'
 
 const REPO_URL = 'https://github.com/xlzipx/clone-hero-chart-manager'
@@ -87,7 +87,7 @@ export function AboutModal(): JSX.Element | null {
             <div className="about__meta">
               {version ? <span className="about__ver">v{version}</span> : null}
               <span>MIT licence</span>
-              <span>{IS_MAC ? 'macOS' : 'Windows'}</span>
+              <span>{IS_MAC ? 'macOS' : IS_LINUX ? 'Linux' : 'Windows'}</span>
             </div>
           </div>
 

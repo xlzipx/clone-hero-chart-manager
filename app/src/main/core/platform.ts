@@ -1,7 +1,7 @@
 // Centrální abstrakce OS specifik. Cílem je držet `process.platform` větvení na
 // jednom místě: jména přibalených binárek (onyx, 7-Zip), jména herních procesů
-// a app bundlů se liší mezi Windows a macOS. Zbytek kódu se ptá tady, ne na
-// `process.platform` roztroušeně.
+// a app bundlů se liší mezi Windows, macOS a Linuxem. Zbytek kódu se ptá tady,
+// ne na `process.platform` roztroušeně.
 
 import { chmodSync, statSync } from 'fs'
 

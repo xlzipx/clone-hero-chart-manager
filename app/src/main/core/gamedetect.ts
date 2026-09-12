@@ -3,8 +3,10 @@
 // Windows: plná podpora CH i YARG (tasklist / PowerShell SetForegroundWindow).
 // macOS:   plná podpora CH i YARG (open / pgrep / osascript). YARG má oficiální
 //          macOS universal build (přes YARC Launcher).
-// Linux:   YARG nativně (ELF binárka), CH jen když uživatel nastaví cestu (např.
-//          na Proton wrapper skript). Detekce běhu přes `pgrep -f`. Focus restore
+// Linux:   Oba mají oficiální nativní build. YARG (YARC Launcher, ELF `YARG` /
+//          `YARG.x86_64`) i Clone Hero (`Linux.x86_64-Standalone.tar` z
+//          clonehero.net, ELF `CloneHero.x86_64`; případně Flathub balíček
+//          `net.clonehero.CloneHero`). Detekce běhu přes `pgrep -f`. Focus restore
 //          přes `wmctrl` (best-effort — když není nainstalovaný, jen launch).
 
 import { exec, execFile, spawn } from 'child_process'
@@ -118,6 +120,31 @@ export function detectChExe(): string | null {
 
   if (isMac) {
     for (const p of macChAppCandidates()) if (existsSync(p)) return p
+    return null
+  }
+
+  if (isLinux) {
+    // CH má oficiální nativní Linux build (`Linux.x86_64-Standalone.tar` z
+    // clonehero.net) — Unity binárka jmenem `CloneHero.x86_64`. Podíváme se
+    // vedle Songs složky (typické rozložení: `~/Clone Hero/Songs` a vedle
+    // `CloneHero.x86_64`), do běžných domácích cest a k Flathub sandbox exportu.
+    const home = homedir()
+    if (cfg.songsDir) {
+      const parent = dirname(cfg.songsDir)
+      const candidate = join(parent, 'CloneHero.x86_64')
+      if (existsSync(candidate)) return candidate
+    }
+    const linuxCandidates = [
+      join(home, 'Clone Hero', 'CloneHero.x86_64'),
+      join(home, 'clonehero', 'CloneHero.x86_64'),
+      join(home, 'Games', 'Clone Hero', 'CloneHero.x86_64'),
+      join(home, '.local', 'share', 'Clone Hero', 'CloneHero.x86_64'),
+      // Flathub balíček (`net.clonehero.CloneHero`) — spouští se přes `flatpak run`,
+      // ale runtime binárka je pod /var/lib/flatpak nebo v ~/.local/share/flatpak.
+      join(home, '.local', 'share', 'flatpak', 'app', 'net.clonehero.CloneHero', 'current', 'active', 'files', 'CloneHero.x86_64'),
+      '/var/lib/flatpak/app/net.clonehero.CloneHero/current/active/files/CloneHero.x86_64'
+    ]
+    for (const p of linuxCandidates) if (existsSync(p)) return p
     return null
   }
 
@@ -339,7 +366,7 @@ export function launchGame(): { ok: true } | { ok: false; error: string } {
       error: isMac
         ? "Couldn't find Clone Hero.app. Install it to /Applications or set the path in Settings."
         : isLinux
-          ? "Clone Hero doesn't have a native Linux build. Set a custom launcher path in Settings (e.g. a Wine/Proton wrapper script)."
+          ? "Couldn't find CloneHero.x86_64. Install Clone Hero from clonehero.net (extract Linux.x86_64-Standalone.tar) or Flathub, and set the path in Settings if it's in a non‑default location."
           : "Couldn't find Clone Hero.exe. Set the correct Songs folder in Settings (Clone Hero.exe is its parent)."
     }
   }

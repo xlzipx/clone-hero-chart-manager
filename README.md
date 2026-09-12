@@ -10,7 +10,7 @@
 
 # Clone Hero Chart Manager (CHM)
 
-A **Windows and macOS** desktop app for searching, downloading and automatically
+A **Windows, macOS and Linux** desktop app for searching, downloading and automatically
 converting Clone Hero charts from the [RhythmVerse](https://rhythmverse.co/songfiles/game)
 and [Chorus Encore](https://www.enchor.us) databases — with drag‑and‑drop
 manual installs, an in‑game hotkey reminder pill, and one‑click launch of
@@ -183,6 +183,15 @@ clicks — a whole setlist from a playlist you already love. See
   and focus‑back (AppleScript `activate`) work for Clone Hero and YARG (YARG has
   an official macOS universal build via the YARC Launcher). Songs auto‑detects
   from `~/Clone Hero/Songs` and other common locations.
+- **Linux** — both games have official native Linux builds and are
+  auto‑detected. YARG is found in the usual YARC Launcher install paths
+  (`~/YARG`, `~/.local/share/…`). Clone Hero (`CloneHero.x86_64` from
+  `Linux.x86_64-Standalone.tar` on clonehero.net, or the
+  [Flathub build](https://flathub.org/apps/net.clonehero.CloneHero)) is
+  probed next to the Songs folder, in common home locations, and in the
+  Flatpak app export. Detection of a running game uses `pgrep -f`;
+  focus‑restore is best‑effort via `wmctrl` when it's installed (otherwise
+  the launch alone brings the window forward through your window manager).
 
 ### Hotkey reminder pill (optional)
 - Tiny **glassmorphism pill** floating in a corner of the screen while
@@ -246,7 +255,8 @@ Clone Hero Song Downloader/
 > **Windows** ships as a signed‑by‑you installer / portable `.exe` with full
 > auto‑update. **macOS** ships as an unsigned `.dmg` (see below) — everything in
 > the app works the same, but the first launch needs a right‑click → Open and
-> updates are manual.
+> updates are manual. **Linux** ships as a portable `.AppImage` — download,
+> `chmod +x` and run; updates are manual (grab the new AppImage from Releases).
 
 ### Windows — Installer (recommended)
 
@@ -275,6 +285,21 @@ On Apple Silicon the bundled Onyx converter runs through **Rosetta 2** — insta
 it once with `softwareupdate --install-rosetta --agree-to-license` if you don't
 have it. To build the `.dmg` yourself, see [docs/mac-build.md](docs/mac-build.md).
 
+### Linux
+
+Download **`CHM-<version>-linux-x86_64.AppImage`**, make it executable
+(`chmod +x CHM-<version>-linux-x86_64.AppImage`) and double‑click it (or run
+it from a terminal). AppImages are self‑contained and work on any modern
+distribution (Ubuntu, Fedora, Arch, Debian, …); nothing gets installed system‑wide.
+
+Everything the app needs is bundled inside: the **Onyx** converter (extracted
+from its Linux AppImage), **7‑Zip 26.02** (static `7zz` binary) and the local
+catalog snapshot. Both YARG and Clone Hero have official native Linux builds —
+CHM auto‑detects them in common locations (extract CH's
+`Linux.x86_64-Standalone.tar` from [clonehero.net](https://clonehero.net/) or
+install the [Flathub build](https://flathub.org/apps/net.clonehero.CloneHero);
+YARG through the YARC Launcher).
+
 ### Updates
 
 On **Windows** the installer build keeps itself up to date: CHM checks GitHub
@@ -286,6 +311,10 @@ the new `.exe` yourself.
 On **macOS** auto‑install isn't available (that needs an Apple‑signed build), so
 CHM does the same check and shows a **View release** banner / button that opens
 the new GitHub release — you download the new `.dmg` and replace the app.
+
+On **Linux** it works the same way as macOS — CHM checks for a new release and
+shows the **View release** banner. Grab the newer `.AppImage`, `chmod +x` and
+replace the old one.
 
 ### First launch
 
@@ -299,6 +328,10 @@ On first launch the app tries to auto‑detect your Clone Hero installation:
 On **macOS** it probes the usual locations instead (`~/Clone Hero/Songs`,
 `~/Documents/Clone Hero/Songs`, `~/Music/…`, and Clone Hero's Application
 Support folder) and picks the first that exists.
+
+On **Linux** it probes `~/Clone Hero/Songs`, `~/Documents/…`, `~/Music/…`,
+`~/Downloads/…` and `~/.local/share/Clone Hero/Songs` and picks the first
+that exists.
 
 If detection fails, **Settings opens automatically** and you point it at your
 `Songs` folder once. Everything else is configured from there.
@@ -323,7 +356,16 @@ npm install
 npm run dist:mac        # → app/dist/CHM-<version>-mac-<arch>.dmg (+ .zip)
 ```
 
-Both platforms write into **`app/dist/`** — those are the files published to
+**Linux** (must be built on Linux — AppImage packaging can't be done from
+Windows/macOS; CI does it on `ubuntu-latest`):
+
+```bash
+cd app
+npm install
+npm run dist:linux      # → app/dist/CHM-<version>-linux-x86_64.AppImage
+```
+
+All three platforms write into **`app/dist/`** — those are the files published to
 [GitHub Releases](https://github.com/xlzipx/clone-hero-chart-manager/releases)
 (the Windows installer also emits `latest.yml` / `.blockmap` for auto‑update).
 
@@ -337,13 +379,20 @@ present locally under `native/`:
 
 - **Onyx CLI** — Windows: `native/onyx/onyx-command-line-*/onyx.exe`
   (`onyx-command-line-*-windows-x64.zip`); macOS: `native/onyx-mac/`
-  (`onyx-*-macos-x64.zip`). Grab them from the
+  (`onyx-*-macos-x64.zip`); Linux: `native/onyx-linux/` — Onyx has no separate
+  Linux CLI zip, so extract its AppImage instead
+  (`./onyx-*-linux-x64.AppImage --appimage-extract` and move `squashfs-root/*`
+  into `native/onyx-linux/`; the ELF binary at `usr/bin/onyx` accepts the same
+  `import` / `build` commands). Grab all of them from the
   [Onyx releases](https://github.com/mtolly/onyx/releases).
 - **7‑Zip** (LGPL — needed for RAR5) — Windows: `7z.exe` / `7z.dll` in
   `native/7zip/` from https://www.7-zip.org; macOS: the `7zz` binary in
-  `native/7zip-mac/`.
+  `native/7zip-mac/`; Linux: the `7zz` binary in `native/7zip-linux/`
+  (`7z*-linux-x64.tar.xz` from https://github.com/ip7z/7zip/releases).
 
 The full macOS build walkthrough is in [docs/mac-build.md](docs/mac-build.md).
+The Linux AppImage build is automated in `.github/workflows/build-linux.yml`
+and needs no local setup — push a `v*` tag or run the workflow manually.
 
 `scripts\make-release.ps1` packages the portable .exe with Onyx + 7‑Zip
 sidecars and a README into a Release folder + ZIP if you want a "drop
