@@ -15,7 +15,7 @@ import { homedir } from 'os'
 import { dirname, join } from 'path'
 import { promisify } from 'util'
 import { getConfig } from './config'
-import { isLinux, isMac, isWin } from './platform'
+import { cleanChildEnv, isLinux, isMac, isWin } from './platform'
 import { errMsg } from '../../shared/errors'
 
 const execAsync = promisify(exec)
@@ -26,10 +26,12 @@ const PROC_YARG = 'YARG.exe'
 /** Jména procesů uvnitř .app bundlu na macOS (Contents/MacOS/<name>). */
 const PROC_CH_MAC = 'Clone Hero'
 const PROC_YARG_MAC = 'YARG'
-/** Linux: YARG Unity build má typicky binárku `YARG.x86_64` (Unity default); CH
- *  se na Linuxu spouští přes Proton/Wine, tak název procesu je `Clone Hero.exe`. */
-const PROC_YARG_LINUX = 'YARG'
-const PROC_CH_LINUX = 'Clone Hero'
+/** Linux: oba mají nativní Unity build, jméno procesu = jméno binárky. Používáme
+ *  KOMPLETNÍ Unity název (`CloneHero.x86_64`, `YARG.x86_64`), aby to matchovalo
+ *  jen skutečnou hru, ne třeba náš vlastní „Chart Manager" proces (`pgrep -f
+ *  "Clone Hero"` by chytnul CHM samotný, kvůli productName). */
+const PROC_YARG_LINUX = 'YARG.x86_64'
+const PROC_CH_LINUX = 'CloneHero.x86_64'
 
 export type GameId = 'clone-hero' | 'yarg'
 export type RunningGame = GameId | null
@@ -135,14 +137,20 @@ export function detectChExe(): string | null {
       if (existsSync(candidate)) return candidate
     }
     const linuxCandidates = [
+      // Default nativního tar buildu (skrytá `.clonehero/` v home).
+      join(home, '.clonehero', 'CloneHero.x86_64'),
+      // Viditelné rozbalení tar souboru — různé konvence.
       join(home, 'Clone Hero', 'CloneHero.x86_64'),
       join(home, 'clonehero', 'CloneHero.x86_64'),
       join(home, 'Games', 'Clone Hero', 'CloneHero.x86_64'),
       join(home, '.local', 'share', 'Clone Hero', 'CloneHero.x86_64'),
-      // Flathub balíček (`net.clonehero.CloneHero`) — spouští se přes `flatpak run`,
-      // ale runtime binárka je pod /var/lib/flatpak nebo v ~/.local/share/flatpak.
+      // Flatpak (`net.clonehero.CloneHero`) — detekuje instalaci; přímý spawn
+      // ale sandboxem omezený, Flatpak uživatel radši nastaví `flatpak run`
+      // wrapper skript v Settings.
       join(home, '.local', 'share', 'flatpak', 'app', 'net.clonehero.CloneHero', 'current', 'active', 'files', 'CloneHero.x86_64'),
-      '/var/lib/flatpak/app/net.clonehero.CloneHero/current/active/files/CloneHero.x86_64'
+      join(home, '.local', 'share', 'flatpak', 'app', 'net.clonehero.CloneHero', 'current', 'active', 'files', 'bin', 'CloneHero.x86_64'),
+      '/var/lib/flatpak/app/net.clonehero.CloneHero/current/active/files/CloneHero.x86_64',
+      '/var/lib/flatpak/app/net.clonehero.CloneHero/current/active/files/bin/CloneHero.x86_64'
     ]
     for (const p of linuxCandidates) if (existsSync(p)) return p
     return null
@@ -292,17 +300,19 @@ export async function runningGame(): Promise<RunningGame> {
 }
 
 async function runningGameLinux(): Promise<RunningGame> {
-  // pgrep -f: přizpůsobit se různým jménům procesu (YARG.x86_64, YARG, wrapper
-  // scripty). CH přes Proton má jméno procesu jako `Clone Hero.exe` — často
-  // schované za `wine`/`proton` wrapperem, takže hledáme fuzzy.
+  // pgrep -f s escapovanou tečkou: matchuje CELÝ argv[] (unity build spouští
+  // přímo `CloneHero.x86_64` / `YARG.x86_64`, přes Flatpak taky, protože bwrap
+  // předá cmdline). Escapujeme `.`, aby to nebyl regex „libovolný znak" (jinak
+  // by `pgrep -f "CloneHero.x86_64"` chytl i „CloneHeroXx86_64"). Vlastní CHM
+  // proces (Chart Manager) tento pattern už neobsahuje — false positive vyřešen.
   try {
-    await execAsync(`pgrep -f "${PROC_CH_LINUX}"`, { timeout: 2500 })
+    await execAsync(`pgrep -f 'CloneHero\\.x86_64'`, { timeout: 2500 })
     return 'clone-hero'
   } catch {
     /* CH neběží — zkus YARG */
   }
   try {
-    await execAsync(`pgrep -f "${PROC_YARG_LINUX}"`, { timeout: 2500 })
+    await execAsync(`pgrep -f 'YARG\\.x86_64'`, { timeout: 2500 })
     return 'yarg'
   } catch {
     return null
@@ -357,6 +367,7 @@ export async function isGameRunning(): Promise<boolean> {
 // Spuštění / focus restore
 // ─────────────────────────────────────────────────────────────────────
 
+
 /** Spustí Clone Hero (detach), aby app nečekala. */
 export function launchGame(): { ok: true } | { ok: false; error: string } {
   const exe = detectChExe()
@@ -381,7 +392,8 @@ export function launchGame(): { ok: true } | { ok: false; error: string } {
       cwd: dirname(exe),
       detached: true,
       stdio: 'ignore',
-      windowsHide: false
+      windowsHide: false,
+      env: cleanChildEnv() // Linux: očistí AppImage env, aby hra nastartovala
     })
     child.unref()
     return { ok: true }
@@ -413,7 +425,8 @@ export function launchYarg(): { ok: true } | { ok: false; error: string } {
       cwd: dirname(exe),
       detached: true,
       stdio: 'ignore',
-      windowsHide: false
+      windowsHide: false,
+      env: cleanChildEnv() // Linux: očistí AppImage env, aby hra nastartovala
     })
     child.unref()
     return { ok: true }
@@ -449,12 +462,13 @@ export async function bringGameToFront(
     // Focus restore přes `wmctrl -a` (best-effort — wmctrl často není defaultně
     // nainstalované, pak jen tiše nic neděláme; hra běží dál a uživatel si ji
     // vybere z panelu). Alt+Tab je pro tenhle scénář stejně jednodušší.
-    const needle = target === 'yarg' ? PROC_YARG_LINUX : PROC_CH_LINUX
+    // `wmctrl -a` matchuje TITULEK okna, ne process — Unity nastavuje window
+    // title z productName ("Clone Hero" / "YARG"), ne z názvu binárky.
+    const needle = target === 'yarg' ? 'YARG' : 'Clone Hero'
     return new Promise((resolve) => {
-      execFile('wmctrl', ['-a', needle], { timeout: 3000 }, (err) => {
+      execFile('wmctrl', ['-a', needle], { timeout: 3000 }, () => {
         // wmctrl neinstalovaný / okno nenajde → to není chyba, hra prostě běží.
-        if (err && !/ENOENT/i.test(err.message)) resolve({ ok: true, game: target as GameId })
-        else resolve({ ok: true, game: target as GameId })
+        resolve({ ok: true, game: target as GameId })
       })
     })
   }

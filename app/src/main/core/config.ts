@@ -96,12 +96,19 @@ function detectSongsDir(): string {
     return join(home, 'Clone Hero', 'Songs')
   }
 
-  // Linux: CH nemá oficiální Linux build (běhá přes Proton nebo Wine), takže
-  // jde spíš o rozumný default k ručnímu úpravě v Settings. Zkusíme viditelné
-  // domácí kandidáty a Steam Proton prefix; jinak padáme na ~/Clone Hero/Songs.
+  // Linux: CH má oficiální nativní build (`Linux.x86_64-Standalone.tar`), který
+  // default ukládá do skryté `~/.clonehero/Songs/`. Kromě toho zkusíme běžné
+  // viditelné složky (uživatel může tar rozbalit kamkoli) a Flatpak sandbox
+  // export (`net.clonehero.CloneHero`).
   if (isLinux) {
     const home = homedir()
     const linuxCandidates = [
+      // Default nativního CH tar buildu (skrytá složka).
+      join(home, '.clonehero', 'Songs'),
+      // Flatpak sandbox (net.clonehero.CloneHero) — data pod ~/.var/app/…
+      join(home, '.var', 'app', 'net.clonehero.CloneHero', 'data', 'CloneHero', 'Songs'),
+      join(home, '.var', 'app', 'net.clonehero.CloneHero', 'data', 'Songs'),
+      // Uživatelské viditelné rozbalení tar souboru.
       join(home, 'Clone Hero', 'Songs'),
       join(home, 'Documents', 'Clone Hero', 'Songs'),
       join(home, 'Music', 'Clone Hero', 'Songs'),
@@ -109,7 +116,7 @@ function detectSongsDir(): string {
       join(home, '.local', 'share', 'Clone Hero', 'Songs')
     ]
     for (const c of linuxCandidates) if (existsSync(c)) return c
-    return join(home, 'Clone Hero', 'Songs')
+    return join(home, '.clonehero', 'Songs')
   }
 
   const fallback = 'G:\\Clone Hero\\Songs'

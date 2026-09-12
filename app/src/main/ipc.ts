@@ -13,7 +13,7 @@ import type {
   SortKey
 } from '../shared/types'
 import { getConfig, setConfig } from './core/config'
-import { isMac } from './core/platform'
+import { isLinux, isMac } from './core/platform'
 import {
   getLoudness,
   queryCatalog,
@@ -311,20 +311,31 @@ export function registerIpc(): void {
 
   ipcMain.handle('dialog:chooseExe', async () => {
     const win = getOverlay() ?? undefined
-    const res = await dialog.showOpenDialog(win as BrowserWindow, {
-      title: isMac ? 'Select Clone Hero.app' : 'Select Clone Hero.exe',
-      // macOS: .app je „package" (bundle) → openFile ho vybrat umí; nabídneme
-      // i openDirectory pro jistotu. Windows zůstává na výběru .exe.
-      properties: isMac ? ['openFile', 'openDirectory'] : ['openFile'],
-      filters: isMac
-        ? [
-            { name: 'Application', extensions: ['app'] },
-            { name: 'All files', extensions: ['*'] }
-          ]
+    const title = isMac
+      ? 'Select Clone Hero.app'
+      : isLinux
+        ? 'Select CloneHero.x86_64 (or launcher script)'
+        : 'Select Clone Hero.exe'
+    // Linux binárka NEMÁ příponu (`CloneHero.x86_64` je Unity ELF, bez `.exe`)
+    // — filtr `exe` by ji zamaskoval, takže na Linuxu ho vypnutý; „All files"
+    // s výchozí volbou. macOS má `.app` bundle (openFile ho vybrat umí).
+    const filters = isMac
+      ? [
+          { name: 'Application', extensions: ['app'] },
+          { name: 'All files', extensions: ['*'] }
+        ]
+      : isLinux
+        ? [{ name: 'All files', extensions: ['*'] }]
         : [
             { name: 'Executable', extensions: ['exe'] },
             { name: 'All files', extensions: ['*'] }
           ]
+    const res = await dialog.showOpenDialog(win as BrowserWindow, {
+      title,
+      // macOS: .app je „package" (bundle) → openFile ho vybrat umí; nabídneme
+      // i openDirectory pro jistotu. Windows/Linux jen openFile.
+      properties: isMac ? ['openFile', 'openDirectory'] : ['openFile'],
+      filters
     })
     return res.canceled || res.filePaths.length === 0 ? null : res.filePaths[0]
   })

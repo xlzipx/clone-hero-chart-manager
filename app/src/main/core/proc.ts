@@ -1,6 +1,7 @@
 // Pomocník pro spouštění externích procesů.
 
 import { spawn } from 'child_process'
+import { cleanChildEnv } from './platform'
 
 export interface RunResult {
   code: number
@@ -23,7 +24,13 @@ export function run(
     // stdin = 'ignore': dítě uvidí na stdin okamžitě EOF, takže se nezasekne
     // čekáním na vstup (např. 7z prompt "Enter password" u šifrovaného archivu),
     // což by jinak zablokovalo CELOU frontu úloh (pump na job čeká).
-    const child = spawn(exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(exe, args, {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      // Linux/AppImage: očistí zděděné knihovní cesty, aby přibalený onyx a
+      // 7zz nezvedli AppImage libs místo systémových a nespadli hned na startu.
+      env: cleanChildEnv()
+    })
     // Zrušení úlohy → zabij proces (konverze onyx trvá minuty; jinak by uživatel
     // čekal na doběhnutí). `close` handler pak resolve s nenulovým kódem a volající
     // (onyxConvert) hodí chybu, kterou runJob interpretuje jako zrušení.
