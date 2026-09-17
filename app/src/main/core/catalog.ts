@@ -144,17 +144,21 @@ function migrate(d: Database.Database): void {
   // z API. mergeKey/songKey jsou JS funkce (sdílené) → řádky projít v JS; ~235k
   // řádků zabere jednotky sekund JEDNORÁZOVĚ při prvním otevření po migraci.
   //
-  // merge_key má VERZI: když se změní jeho vzorec (např. přidání podpisu
-  // obtížností), přepočítají se VŠECHNY řádky, ne jen prázdné. norm_key vzorec
-  // stabilní → stačí dopočíst prázdné.
+  // merge_key / norm_key mají verze: když se změní jejich vzorec, přepočítají
+  // se VŠECHNY řádky, ne jen prázdné. Jinak stačí dopočíst prázdné (typicky po
+  // ALTER TABLE ADD COLUMN, kdy sloupec u existujících řádků má default '').
   const MERGE_KEY_VERSION = '2' // 1 = artist|title|charter, 2 = + podpis obtížností
-  const storedVer = (
-    d.prepare(`SELECT value v FROM meta WHERE key = 'merge_key_version'`).get() as
-      | { v: string }
-      | undefined
-  )?.v
-  const recomputeMerge = storedVer !== MERGE_KEY_VERSION
-  const where = recomputeMerge ? '1=1' : `merge_key = '' OR norm_key = ''`
+  // norm_key v2 přidal: strip rich-text tagů (<color=…>Ado</color> → Ado),
+  // NFD normalizaci diakritiky (Está → Esta) a unicode-aware letters (\p{L}),
+  // aby písně s barevným artistem v song.ini a s accenty / kanji / cyrilicí
+  // sedly na čisté klíče ze search API při „Hide owned".
+  const NORM_KEY_VERSION = '2'
+  const metaGet = (k: string): string | undefined =>
+    (d.prepare(`SELECT value v FROM meta WHERE key = ?`).get(k) as { v: string } | undefined)?.v
+  const recomputeMerge = metaGet('merge_key_version') !== MERGE_KEY_VERSION
+  const recomputeNorm = metaGet('norm_key_version') !== NORM_KEY_VERSION
+  const where =
+    recomputeMerge || recomputeNorm ? '1=1' : `merge_key = '' OR norm_key = ''`
   const missing = (d.prepare(`SELECT COUNT(*) n FROM charts WHERE ${where}`).get() as { n: number })
     .n
   if (missing > 0) {
@@ -192,10 +196,13 @@ function migrate(d: Database.Database): void {
     run()
     console.log(`[catalog] migrated keys for ${rows.length} rows`)
   }
-  // Verzi zapiš VŽDY (i u prázdné/čerstvé DB) — aby ji nesl i přibalený seed
-  // a nové instalace nemusely zbytečně přepočítávat klíče, co už jsou v2.
+  // Verze zapiš VŽDY (i u prázdné/čerstvé DB) — aby je nesl i přibalený seed
+  // a nové instalace nemusely zbytečně přepočítávat klíče, co už jsou aktuální.
   d.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('merge_key_version', ?)`).run(
     MERGE_KEY_VERSION
+  )
+  d.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('norm_key_version', ?)`).run(
+    NORM_KEY_VERSION
   )
 }
 

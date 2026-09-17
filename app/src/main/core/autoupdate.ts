@@ -14,6 +14,7 @@
 import { app, ipcMain, type BrowserWindow } from 'electron'
 import updaterPkg from 'electron-updater'
 import { checkForUpdate, isNewer } from './update'
+import { getConfig } from './config'
 import { isMac } from './platform'
 import type { UpdateCheckResult } from '../../shared/types'
 import { errMsg } from '../../shared/errors'
@@ -111,7 +112,10 @@ export function initAutoUpdate(getWin: () => BrowserWindow | null): void {
   // Kontrola po startu — ODLOŽENÁ o pár sekund, ať síť + práce electron-updateru
   // nekonkuruje prvnímu vykreslení a úvodnímu hledání. Update není nic urgentního.
   // Chyby (nepackovaný build, portable, offline) jdou do 'error' handleru (fallback).
+  // Když uživatel auto-check vypnul, po startu nic nekontrolujeme (a tím pádem
+  // nevystřelí ani 'update-available' banner). Ruční „Check for updates" funguje dál.
   setTimeout(() => {
+    if (!getConfig().autoCheckUpdates) return
     autoUpdater.checkForUpdates().catch(() => {
       /* zpracováno v 'error' */
     })
@@ -142,8 +146,10 @@ function initManualUpdate(send: (channel: string, payload?: unknown) => void): v
     return { status: 'uptodate', version: info.current }
   })
 
-  // Odložený check po startu (stejná logika jako u Windows fallbacku).
+  // Odložený check po startu (stejná logika jako u Windows fallbacku). Když má
+  // uživatel auto-check vypnutý, přeskočíme — banner naskočí až po ručním checku.
   setTimeout(() => {
+    if (!getConfig().autoCheckUpdates) return
     void checkForUpdate()
       .then((info) => {
         if (info?.hasUpdate) {

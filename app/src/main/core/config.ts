@@ -209,7 +209,11 @@ function defaults(): AppConfig {
     // bit-identické chování jako dřív (i po aktualizaci; `{...def, ...parsed}`
     // níže dosadí tyhle defaulty do starých configů, které pole ještě nemají).
     folderTemplate: DEFAULT_FOLDER_TEMPLATE,
-    autoTargetFolder: false
+    autoTargetFolder: false,
+    // Auto-check nových verzí při startu — dosavadní chování. Kdo nechce být
+    // upozorňován (blikající banner vlevo dole), si to v Nastavení vypne a
+    // update si zjistí ručně přes „Check for updates".
+    autoCheckUpdates: true
   }
 }
 

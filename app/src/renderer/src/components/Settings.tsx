@@ -457,6 +457,33 @@ export function Settings(): JSX.Element | null {
               </section>
 
               <section className="settings-group">
+                <h3 className="settings-group__title">Updates</h3>
+                <fieldset className="field">
+                  <span>
+                    Automatic update check
+                    <span
+                      className="info"
+                      title="When on, the app checks GitHub for a newer release a few seconds after launch and shows a notification in the bottom-left. Turn off if you'd rather only check for updates manually."
+                    >
+                      <Icon name="info" size={13} />
+                    </span>
+                  </span>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={draft.autoCheckUpdates}
+                      onChange={(e) => setDraft({ ...draft, autoCheckUpdates: e.target.checked })}
+                    />
+                    <span>Check for updates on startup</span>
+                  </label>
+                  <p className="field__hint">
+                    When off, the app won't notify you about new versions on its own — use{' '}
+                    <em>Check for updates</em> in the sidebar whenever you want to look.
+                  </p>
+                </fieldset>
+              </section>
+
+              <section className="settings-group">
                 <h3 className="settings-group__title">Game overlay</h3>
           <fieldset className="field">
             <span>

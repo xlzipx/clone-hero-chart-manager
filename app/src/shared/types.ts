@@ -295,6 +295,13 @@ export interface AppConfig {
    * false (výchozí) = ukázat TargetFolderModal jako dosud.
    */
   autoTargetFolder: boolean
+  /**
+   * Zapnout kontrolu nových verzí při startu appky. true (výchozí) = jako dosud —
+   * po pár sekundách proběhne check a když je novější verze, vyskočí banner
+   * v levém spodním rohu. false = při startu nic; nová verze se zjistí jen po
+   * ručním kliknutí na „Check for updates" v Nastavení / v postranním pruhu.
+   */
+  autoCheckUpdates: boolean
 }
 
 export type RhythmVerseSystem = 'ch' | 'ps' | 'rb3' | 'all'

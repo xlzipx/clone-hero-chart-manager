@@ -10,7 +10,7 @@
 //          přes `wmctrl` (best-effort — když není nainstalovaný, jen launch).
 
 import { exec, execFile, spawn } from 'child_process'
-import { existsSync, readdirSync, statSync } from 'fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
 import { promisify } from 'util'
@@ -300,23 +300,52 @@ export async function runningGame(): Promise<RunningGame> {
 }
 
 async function runningGameLinux(): Promise<RunningGame> {
-  // pgrep -f s escapovanou tečkou: matchuje CELÝ argv[] (unity build spouští
-  // přímo `CloneHero.x86_64` / `YARG.x86_64`, přes Flatpak taky, protože bwrap
-  // předá cmdline). Escapujeme `.`, aby to nebyl regex „libovolný znak" (jinak
-  // by `pgrep -f "CloneHero.x86_64"` chytl i „CloneHeroXx86_64"). Vlastní CHM
-  // proces (Chart Manager) tento pattern už neobsahuje — false positive vyřešen.
+  // Nechodíme přes `pgrep` — z AppImage běhu (kontaminovaný LD_LIBRARY_PATH /
+  // PATH, občas i chybějící procps v hostitelské PATH na immutable distrech
+  // typu Bazzite/Silverblue) to bývá nespolehlivé. Místo toho scanujeme
+  // `/proc/<PID>/cmdline` přímo přes fs — vidíme všechny procesy na hostiteli
+  // včetně Flatpak/bwrap wrapperů (jejich cmdline stále obsahuje jméno binárky).
+  //
+  // Vlastní CHM proces vyloučíme podle PID + fallback po jménu (kdyby náhodou
+  // něco v argv obsahovalo „CloneHero" — např. cesta k logu — přeskočíme jen
+  // svůj vlastní PID; matchujeme na plnou binárku „CloneHero.x86_64" resp.
+  // „YARG.x86_64", takže náš productName „Clone Hero Chart Manager" nechytne).
+  const selfPid = process.pid
+  let entries: string[]
   try {
-    await execAsync(`pgrep -f 'CloneHero\\.x86_64'`, { timeout: 2500 })
-    return 'clone-hero'
-  } catch {
-    /* CH neběží — zkus YARG */
-  }
-  try {
-    await execAsync(`pgrep -f 'YARG\\.x86_64'`, { timeout: 2500 })
-    return 'yarg'
+    entries = readdirSync('/proc')
   } catch {
     return null
   }
+  let chFound = false
+  let yargFound = false
+  for (const name of entries) {
+    // /proc obsahuje spoustu nečíselných entries (self, sys, meminfo, …).
+    if (!/^\d+$/.test(name)) continue
+    const pid = Number(name)
+    if (pid === selfPid) continue
+    let cmdline: string
+    try {
+      // cmdline je NUL-separated seznam argv. Načteme jako string; substring
+      // match funguje dobře i tak, protože jméno binárky se nezalomí přes NUL.
+      cmdline = readFileSync(`/proc/${name}/cmdline`, 'utf8')
+    } catch {
+      // Procesy mizí za běhu (EACCES, ENOENT) — bez šumu pokračuj.
+      continue
+    }
+    if (!cmdline) continue
+    if (!chFound && cmdline.includes('CloneHero.x86_64')) {
+      chFound = true
+      if (yargFound) break
+    } else if (!yargFound && cmdline.includes('YARG.x86_64')) {
+      yargFound = true
+      if (chFound) break
+    }
+  }
+  // Když by běžely obě, preferujeme CH (dokumentované chování).
+  if (chFound) return 'clone-hero'
+  if (yargFound) return 'yarg'
+  return null
 }
 
 async function runningGameWin(): Promise<RunningGame> {
@@ -459,16 +488,28 @@ export async function bringGameToFront(
   }
 
   if (isLinux) {
-    // Focus restore přes `wmctrl -a` (best-effort — wmctrl často není defaultně
-    // nainstalované, pak jen tiše nic neděláme; hra běží dál a uživatel si ji
-    // vybere z panelu). Alt+Tab je pro tenhle scénář stejně jednodušší.
-    // `wmctrl -a` matchuje TITULEK okna, ne process — Unity nastavuje window
-    // title z productName ("Clone Hero" / "YARG"), ne z názvu binárky.
+    // Focus restore přes `wmctrl -a` s fallbackem na `xdotool` (KDE / GNOME
+    // často nemá wmctrl defaultně, ale xdotool bývá jinde). Ani jedno není
+    // fatální — hra běží dál, uživatel si ji přepne z panelu.
+    // Matchujeme TITULEK okna (Unity nastavuje productName „Clone Hero" /
+    // „YARG"), ne jméno procesu.
     const needle = target === 'yarg' ? 'YARG' : 'Clone Hero'
     return new Promise((resolve) => {
-      execFile('wmctrl', ['-a', needle], { timeout: 3000 }, () => {
-        // wmctrl neinstalovaný / okno nenajde → to není chyba, hra prostě běží.
-        resolve({ ok: true, game: target as GameId })
+      execFile('wmctrl', ['-a', needle], { timeout: 3000 }, (err) => {
+        if (!err) {
+          resolve({ ok: true, game: target as GameId })
+          return
+        }
+        // Fallback: xdotool search --name … windowactivate
+        execFile(
+          'sh',
+          ['-c', `xdotool search --name '${needle.replace(/'/g, "'\\''")}' | head -n 1 | xargs -r xdotool windowactivate`],
+          { timeout: 3000 },
+          () => {
+            // Neúspěch bereme jako „focus se nepodařil, hra ale běží" — ok.
+            resolve({ ok: true, game: target as GameId })
+          }
+        )
       })
     })
   }

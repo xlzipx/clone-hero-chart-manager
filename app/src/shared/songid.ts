@@ -8,9 +8,28 @@
  */
 import type { InstrumentDifficulties, SongResult, SortKey } from './types'
 
-/** Normalizace textu na porovnání: malá písmena, jen alfanumerika. */
+/**
+ * Normalizace textu pro porovnání identity písně („stejná píseň, jiný zápis").
+ *
+ * Fáze:
+ *  1. Strip Clone Hero / Unity rich-text tagů (`<color=…>Ado</color>` → `Ado`).
+ *     Bez toho by artist v song.ini s barvou vyprodukoval klíč
+ *     `color00688fadocolor` a nesedl by na čistý „Ado" z API. Sada tagů
+ *     zrcadlí `stripRichTags` v main/core/songmeta.ts a `stripTags` v renderer/utils.ts.
+ *  2. NFD dekompozice + strip combining diacritických znamének (`Está` → `Esta`) —
+ *     jinak by `est` (accent zahozen) nesedl s `esta` (bez accentu). Pokrývá
+ *     hispánské / francouzské / české / vietnamské accenty jednotně.
+ *  3. Lowercase + drop všeho, co není Unicode letter / number (\p{L}\p{N}).
+ *     Zachová kanji, katakana, cyrillic, řečtinu…; strippuje mezery, závorky,
+ *     interpunkci, `×`, `【】` a podobně. `/u` flag zapíná unicode kategorie.
+ */
 export function normText(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]/g, '')
+  return s
+    .replace(/<\/?(?:color|b|i|u|s|size|material|quad|sprite|alpha|mark|noparse)\b[^>]*>/gi, '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, '')
 }
 
 /**
