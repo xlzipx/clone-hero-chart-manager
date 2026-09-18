@@ -511,28 +511,38 @@ export async function bringGameToFront(
   }
 
   if (isLinux) {
-    // Focus restore přes `wmctrl -a` s fallbackem na `xdotool` (KDE / GNOME
-    // často nemá wmctrl defaultně, ale xdotool bývá jinde). Ani jedno není
-    // fatální — hra běží dál, uživatel si ji přepne z panelu.
-    // Matchujeme TITULEK okna (Unity nastavuje productName „Clone Hero" /
-    // „YARG"), ne jméno procesu.
-    const needle = target === 'yarg' ? 'YARG' : 'Clone Hero'
+    // Focus restore přes okenní titulek (Unity nastavuje productName „Clone
+    // Hero" / „YARG"). POZOR na kolizi: `wmctrl -a 'Clone Hero'` matchuje
+    // titulek jako PODŘETĚZEC a náš vlastní titulek je „Clone Hero Chart
+    // Manager" → aktivovalo by NÁS, ne hru (u YARG kolize není, proto ten
+    // fungoval). Proto hledáme konkrétní window id přes `wmctrl -l` a u CH
+    // vyloučíme „Chart Manager". Fallback na `xdotool` (se stejným vyloučením).
+    // Nic z toho není fatální — hra běží dál, uživatel si ji přepne z panelu.
+    // (Pozn.: na čistém Waylandu wmctrl/xdotool okno neaktivují — bezpečnostní
+    // omezení kompozitoru; funguje pod X11 / XWayland, kde hry běží jako X klient.)
+    const script =
+      target === 'yarg'
+        ? `
+id=$(wmctrl -l 2>/dev/null | grep -i 'yarg' | head -n1 | cut -d' ' -f1)
+if [ -n "$id" ]; then wmctrl -i -a "$id"; exit $?; fi
+xdotool search --name 'YARG' 2>/dev/null | head -n1 | xargs -r xdotool windowactivate
+`
+        : `
+id=$(wmctrl -l 2>/dev/null | grep -i 'clone hero' | grep -vi 'chart manager' | head -n1 | cut -d' ' -f1)
+if [ -n "$id" ]; then wmctrl -i -a "$id"; exit $?; fi
+for w in $(xdotool search --name 'Clone Hero' 2>/dev/null); do
+  n=$(xdotool getwindowname "$w" 2>/dev/null)
+  case "$n" in
+    *"Chart Manager"*) : ;;
+    *) xdotool windowactivate "$w"; exit 0 ;;
+  esac
+done
+exit 1
+`
     return new Promise((resolve) => {
-      execFile('wmctrl', ['-a', needle], { timeout: 3000 }, (err) => {
-        if (!err) {
-          resolve({ ok: true, game: target as GameId })
-          return
-        }
-        // Fallback: xdotool search --name … windowactivate
-        execFile(
-          'sh',
-          ['-c', `xdotool search --name '${needle.replace(/'/g, "'\\''")}' | head -n 1 | xargs -r xdotool windowactivate`],
-          { timeout: 3000 },
-          () => {
-            // Neúspěch bereme jako „focus se nepodařil, hra ale běží" — ok.
-            resolve({ ok: true, game: target as GameId })
-          }
-        )
+      execFile('sh', ['-c', script], { timeout: 4000 }, () => {
+        // Neúspěch fokusu není chyba — hra běží, jen se nepovedlo přepnout.
+        resolve({ ok: true, game: target as GameId })
       })
     })
   }
