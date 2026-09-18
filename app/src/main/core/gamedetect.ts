@@ -6,11 +6,13 @@
 // Linux:   Oba mají oficiální nativní build. YARG (YARC Launcher, ELF `YARG` /
 //          `YARG.x86_64`) i Clone Hero (`Linux.x86_64-Standalone.tar` z
 //          clonehero.net, ELF `CloneHero.x86_64`; případně Flathub balíček
-//          `net.clonehero.CloneHero`). Detekce běhu přes `pgrep -f`. Focus restore
-//          přes `wmctrl` (best-effort — když není nainstalovaný, jen launch).
+//          `net.clonehero.CloneHero`). Detekce běhu čtením `/proc/<pid>/cmdline`
+//          (case-insensitive podřetězce „clonehero" / „yarg" napříč wrappery /
+//          Wine / Proton / Flatpak). Focus restore přes `wmctrl` → `xdotool`
+//          (best-effort — když ani jedno není, jen launch).
 
 import { exec, execFile, spawn } from 'child_process'
-import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
+import { existsSync, readdirSync, readFileSync, readlinkSync, statSync } from 'fs'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
 import { promisify } from 'util'
@@ -26,12 +28,6 @@ const PROC_YARG = 'YARG.exe'
 /** Jména procesů uvnitř .app bundlu na macOS (Contents/MacOS/<name>). */
 const PROC_CH_MAC = 'Clone Hero'
 const PROC_YARG_MAC = 'YARG'
-/** Linux: oba mají nativní Unity build, jméno procesu = jméno binárky. Používáme
- *  KOMPLETNÍ Unity název (`CloneHero.x86_64`, `YARG.x86_64`), aby to matchovalo
- *  jen skutečnou hru, ne třeba náš vlastní „Chart Manager" proces (`pgrep -f
- *  "Clone Hero"` by chytnul CHM samotný, kvůli productName). */
-const PROC_YARG_LINUX = 'YARG.x86_64'
-const PROC_CH_LINUX = 'CloneHero.x86_64'
 
 export type GameId = 'clone-hero' | 'yarg'
 export type RunningGame = GameId | null
@@ -300,48 +296,75 @@ export async function runningGame(): Promise<RunningGame> {
 }
 
 async function runningGameLinux(): Promise<RunningGame> {
-  // Nechodíme přes `pgrep` — z AppImage běhu (kontaminovaný LD_LIBRARY_PATH /
-  // PATH, občas i chybějící procps v hostitelské PATH na immutable distrech
-  // typu Bazzite/Silverblue) to bývá nespolehlivé. Místo toho scanujeme
-  // `/proc/<PID>/cmdline` přímo přes fs — vidíme všechny procesy na hostiteli
-  // včetně Flatpak/bwrap wrapperů (jejich cmdline stále obsahuje jméno binárky).
+  // Nechodíme přes `pgrep` ani přes přesné jméno procesu — na Linuxu se název
+  // binárky, obalovací skripty, Wine/Proton wrappery i Flatpak spouštěče hodně
+  // liší. Scanujeme `/proc/<pid>/cmdline` přímo přes fs (nejspolehlivější napříč
+  // distribucemi; funguje i z AppImage) a v CELÉM příkazovém řádku hledáme
+  // case-insensitive podřetězce. NUL bajty (oddělovače argv) nahradíme mezerami,
+  // pak mezery zahodíme úplně, aby stejný podřetězec „clonehero" trefil:
+  //   • Unity binárku       `CloneHero.x86_64`  (bez mezery)
+  //   • Wine/Proton         `Clone Hero.exe`    (s mezerou)
+  //   • Flatpak app-id      `net.clonehero.CloneHero`
+  // a „yarg" trefí `YARG.x86_64`, `YARG`, i launcher-spouštěné varianty.
   //
-  // Vlastní CHM proces vyloučíme podle PID + fallback po jménu (kdyby náhodou
-  // něco v argv obsahovalo „CloneHero" — např. cesta k logu — přeskočíme jen
-  // svůj vlastní PID; matchujeme na plnou binárku „CloneHero.x86_64" resp.
-  // „YARG.x86_64", takže náš productName „Clone Hero Chart Manager" nechytne).
-  const selfPid = process.pid
+  // Vlastní procesní strom CHM (Electron main + renderer/gpu/utility/zygote)
+  // MUSÍME vyloučit — jinak by náš productName „Clone Hero Chart Manager" dělal
+  // false positive. Vyloučíme ho spolehlivě porovnáním cíle symlinku
+  // `/proc/<pid>/exe` s naším vlastním (všechny naše subprocesy sdílejí tutéž
+  // binárku); jako pojistka navíc přeskočíme cokoli s „chartmanager" v cmdline.
+  let ownExe = ''
+  try {
+    ownExe = readlinkSync('/proc/self/exe')
+  } catch {
+    /* nejde přečíst → spolehneme se na „chartmanager" pojistku níž */
+  }
+
   let entries: string[]
   try {
     entries = readdirSync('/proc')
   } catch {
     return null
   }
+
   let chFound = false
   let yargFound = false
   for (const name of entries) {
     // /proc obsahuje spoustu nečíselných entries (self, sys, meminfo, …).
     if (!/^\d+$/.test(name)) continue
-    const pid = Number(name)
-    if (pid === selfPid) continue
+
+    // Vyluč celý náš vlastní procesní strom (stejná binárka jako my).
+    if (ownExe) {
+      try {
+        if (readlinkSync(`/proc/${name}/exe`) === ownExe) continue
+      } catch {
+        /* exe cizích procesů nepřečteme (EACCES/ENOENT) — pak to nejsme my */
+      }
+    }
+
     let cmdline: string
     try {
-      // cmdline je NUL-separated seznam argv. Načteme jako string; substring
-      // match funguje dobře i tak, protože jméno binárky se nezalomí přes NUL.
       cmdline = readFileSync(`/proc/${name}/cmdline`, 'utf8')
     } catch {
-      // Procesy mizí za běhu (EACCES, ENOENT) — bez šumu pokračuj.
-      continue
+      continue // proces zmizel za běhu / EACCES
     }
     if (!cmdline) continue
-    if (!chFound && cmdline.includes('CloneHero.x86_64')) {
+
+    // NUL → mezera, lowercase, pak zahodit VŠECHNY mezery (viz komentář výše).
+    const flat = cmdline.replace(/\0/g, ' ').toLowerCase().replace(/\s+/g, '')
+
+    // Pojistka proti false-positivu z vlastní appky (productName obsahuje
+    // „clone hero"), kdyby selhalo čtení exe symlinku výše.
+    if (flat.includes('chartmanager')) continue
+
+    if (!chFound && flat.includes('clonehero')) {
       chFound = true
       if (yargFound) break
-    } else if (!yargFound && cmdline.includes('YARG.x86_64')) {
+    } else if (!yargFound && flat.includes('yarg')) {
       yargFound = true
       if (chFound) break
     }
   }
+
   // Když by běžely obě, preferujeme CH (dokumentované chování).
   if (chFound) return 'clone-hero'
   if (yargFound) return 'yarg'
