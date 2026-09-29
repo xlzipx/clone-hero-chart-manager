@@ -59,7 +59,7 @@ export function TitleBar(): JSX.Element {
           title={
             showLibrary
               ? 'Back to searching for charts (your search is kept)'
-              : 'Browse and manage your Songs library: folders, metadata, playlists, duplicates'
+              : 'Browse and manage your Songs library: folders, metadata, setlists, duplicates'
           }
           onClick={() => setShowLibrary(!showLibrary)}
         >

@@ -42,7 +42,7 @@ export function setlistsDir(): string {
 
 function sanitizeSetlistName(name: string): string {
   const clean = name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim()
-  if (!clean) throw new Error('Invalid playlist name')
+  if (!clean) throw new Error('Invalid setlist name')
   return clean.slice(0, 100)
 }
 
@@ -220,8 +220,8 @@ export async function renamePlaylist(oldName: string, newName: string): Promise<
   const dst = join(dir, `${sanitizeSetlistName(newName)}.setlist`)
   // Zámek na zdrojový soubor serializuje rename proti add/remove nad ním.
   return withFileLock(src, async () => {
-    if (!existsSync(src)) throw new Error('Playlist not found')
-    if (existsSync(dst)) throw new Error('A playlist with that name already exists')
+    if (!existsSync(src)) throw new Error('Setlist not found')
+    if (existsSync(dst)) throw new Error('A setlist with that name already exists')
     await fsp.rename(src, dst)
   })
 }

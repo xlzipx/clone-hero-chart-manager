@@ -1,3 +1,4 @@
+import { FixBanner } from './components/FixBanner'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { DownloadQueue } from './components/DownloadQueue'
 import { FilterBar } from './components/FilterBar'
@@ -65,6 +66,7 @@ export function App(): JSX.Element {
   const setHideOwned = useStore((s) => s.setHideOwned)
   const sort = useStore((s) => s.sort)
   const surprise = useStore((s) => s.surprise)
+  const fixing = useStore((s) => s.fixTarget !== null || Object.keys(s.fixJobs).length > 0)
 
   // Deep režim: filtr nástroje/obtížnosti → zdrojem je celý stažený dotaz
   // (všechny stránky) a stránkuje se lokálně nad shodami.
@@ -112,7 +114,8 @@ export function App(): JSX.Element {
       // „Direct downloads only" — skryj official DLC a ruční hostitele (MEGA…);
       // stejné pravidlo jako tlačítko Download vs „Get on …" v řádku.
       if (directOnly && !isAutoDownloadable(song)) return false
-      if (hideOwned && ownedKeys.has(songKey(song.artist, song.title))) return false
+      // Při „Fix it" je hledaná píseň v knihovně (rozbitá), skrýt ji nesmíme.
+      if (hideOwned && !fixing && ownedKeys.has(songKey(song.artist, song.title))) return false
       return true
     })
     // Řazení jde PRIMÁRNĚ serverově (viz store + API klienti), takže stránky
@@ -129,6 +132,7 @@ export function App(): JSX.Element {
     else arr.sort((a, b) => (b.lengthSeconds ?? 0) - (a.lengthSeconds ?? 0))
     return arr
   }, [
+    fixing,
     source,
     surprise,
     database,
@@ -490,6 +494,7 @@ export function App(): JSX.Element {
       <>
       <FilterBar />
 
+      <FixBanner />
       <SearchBar />
 
       {source.length > 0 && !error ? (

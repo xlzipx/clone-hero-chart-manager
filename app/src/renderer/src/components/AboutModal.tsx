@@ -33,7 +33,7 @@ const FEATURES = [
   'Preview a song before you download it, so you know what you are getting.',
   'Rock Band charts are converted to Clone Hero for you.',
   'Paste a Spotify playlist and get a chart for every song that has one.',
-  'Keep the library tidy: duplicates, playlists, metadata and artwork.'
+  'Keep the library tidy: duplicates, setlists, metadata and artwork.'
 ]
 
 /** About okno — otevírá se klikem na logo v titlebaru. */

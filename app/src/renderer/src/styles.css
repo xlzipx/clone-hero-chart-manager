@@ -8885,8 +8885,31 @@ button.plrow__na:hover {
 .lv__hinst button.on {
   opacity: 1;
 }
+/* Směr řazení: malá šipka vedle popisku / ikony (místo podtržení). */
+.lvsort {
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  margin-left: 3px;
+  vertical-align: middle;
+  opacity: 0;
+  color: var(--text);
+}
+.lvsort--on {
+  opacity: 1;
+}
+.lv__hinst button {
+  position: relative;
+}
+.lv__hinst .lvsort {
+  position: absolute;
+  top: 50%;
+  left: calc(50% + 12px);
+  margin: 0;
+  transform: translateY(-50%);
+}
 .lv__hinst button.on {
-  box-shadow: inset 0 -2px 0 var(--text);
+  background: var(--panel-hover);
 }
 
 /* Seznam */
@@ -8894,6 +8917,13 @@ button.plrow__na:hover {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+/* Záhlaví si drží stejně široký pruh pro scrollbar jako seznam pod ním,
+ * jinak by ikony nástrojů v záhlaví ujížděly vůči řádkům. */
+.lv__head {
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
 }
 .lv__list--list {
   padding: 6px 10px;
@@ -9372,4 +9402,247 @@ button.plrow__na:hover {
   .lvart-none--loading {
     animation: none;
   }
+}
+
+/* Stoh obalů vybraných písní v pravém panelu */
+.lvstack-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.lvstack {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  perspective: 1100px;
+  perspective-origin: 30% 60%;
+}
+.lvstack__card {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 72%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--panel);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transform-origin: left bottom;
+  transition:
+    transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.32s ease,
+    filter 0.32s ease;
+}
+.lvstack__card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+}
+.lvstack__none {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+.lvstack__count {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+/* Obaly ve stohu nesou i třídu .song__art (kvůli tlačítku ukázky), velikost
+ * a animace ale řídí stoh. */
+.lvstack__card.song__art {
+  height: auto;
+  border-radius: 12px;
+}
+.lvstack__card:not(.lvstack__card--front) {
+  cursor: pointer;
+}
+.lvstack__card--front {
+  cursor: default;
+}
+/* Nová složka ve výběru cíle (Move to / Copy to) */
+.lvpick__crumbs .lvpick__new {
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+}
+.lvpick__crumbs .lvpick__new:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.lvpick__newrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text-dim);
+}
+.lvpick__newrow input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+}
+.lvpick__newrow button {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+/* „Fix it" pro rozbité písně */
+.lvfix {
+  margin-left: 8px;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--lv-warn, #f5a524);
+  background: var(--lv-warn, #f5a524);
+  color: #1a1204;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lvfix:hover {
+  filter: brightness(1.1);
+}
+.fixbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 20px 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--text);
+  background: rgba(245, 165, 36, 0.1);
+  border: 1px solid rgba(245, 165, 36, 0.45);
+}
+.fixbar > svg {
+  color: #f5a524;
+  flex-shrink: 0;
+}
+.fixbar > span {
+  flex: 1;
+  min-width: 0;
+}
+.fixbar--done {
+  background: rgba(var(--accent-rgb), 0.08);
+  border-color: rgba(var(--accent-rgb), 0.4);
+}
+.fixbar--done > svg {
+  color: var(--accent);
+}
+.fixbar__btn {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.fixbar__btn:hover {
+  background: var(--panel-hover);
+}
+.fixbar__spin {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(245, 165, 36, 0.3);
+  border-top-color: #f5a524;
+  animation: fixspin 0.8s linear infinite;
+}
+@keyframes fixspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Hromadná lišta nad seznamem je při výběru víc položek zbytečná, dokud je
+ * vidět pravý panel se stejnými akcemi (panel mizí pod 1400 px, viz výše). */
+@media (min-width: 1401px) {
+  .lv__bulk--multi {
+    display: none;
+  }
+}
+/* Pravý panel: údaje o písni a tlačítka (stejné pro jednu položku i výběr) */
+.lvsum {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lvsum__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.lvsum__head .lv__dtitle {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lvsum__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.lvsum .lv__ddiffs {
+  margin-top: 4px;
+}
+.lv__dlabel {
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--tline, var(--border));
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.lv__dactions--grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.lv__dactions--grid > button {
+  min-width: 0;
+  padding-left: 8px;
+  padding-right: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Pilulka zdrojové databáze u výsledku hledání */
+.badge--db {
+  letter-spacing: 0.02em;
+}
+.song__meta .badge.badge--db-rv {
+  color: #7cc4ff;
+  border-color: rgba(124, 196, 255, 0.45);
+  background: rgba(124, 196, 255, 0.1);
+}
+.song__meta .badge.badge--db-chorus {
+  color: #c9a7ff;
+  border-color: rgba(201, 167, 255, 0.45);
+  background: rgba(201, 167, 255, 0.1);
 }

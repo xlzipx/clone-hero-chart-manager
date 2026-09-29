@@ -5,7 +5,7 @@ import { app, BrowserWindow, Menu, screen, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { getConfig } from './core/config'
+import { getConfig, setConfig } from './core/config'
 import { isWin } from './core/platform'
 import { bringGameToFront, runningGame } from './core/gamedetect'
 import { hideReminder, showReminder } from './reminder'
@@ -73,13 +73,33 @@ export function createOverlay(): BrowserWindow {
   const minW = Math.min(dip(1100), width)
   const minH = Math.min(dip(700), height)
 
+  // Poslední velikost a poloha okna. Použije se, jen když okno pořád leží
+  // aspoň zčásti na některém připojeném monitoru (jinak by se po odpojení
+  // druhého monitoru otevřelo mimo obrazovku) a vejde se na něj.
+  const saved = getConfig().windowState
+  let bounds: { x?: number; y?: number; width: number; height: number } = { width: winW, height: winH }
+  if (saved && saved.width > 0 && saved.height > 0) {
+    const area = screen.getDisplayMatching(saved).workArea
+    const overlapW = Math.min(saved.x + saved.width, area.x + area.width) - Math.max(saved.x, area.x)
+    const overlapH = Math.min(saved.y + saved.height, area.y + area.height) - Math.max(saved.y, area.y)
+    if (overlapW >= 120 && overlapH >= 60) {
+      const w = Math.max(minW, Math.min(saved.width, area.width))
+      const h = Math.max(minH, Math.min(saved.height, area.height))
+      bounds = {
+        width: w,
+        height: h,
+        x: Math.min(Math.max(saved.x, area.x), area.x + area.width - w),
+        y: Math.min(Math.max(saved.y, area.y), area.y + area.height - h)
+      }
+    }
+  }
+
   const win = new BrowserWindow({
     title: 'Clone Hero Chart Manager',
-    width: winW,
-    height: winH,
+    ...bounds,
     minWidth: minW,
     minHeight: minH,
-    center: true,
+    center: bounds.x === undefined,
     show: false,
     /**
      * Windows: `titleBarStyle: 'hidden'` nechá okno s NATIVNÍM rámem, jen bez
@@ -152,7 +172,30 @@ export function createOverlay(): BrowserWindow {
 
   // Neprůhledné okno se ukáže bez triků — DWM u něj nedělá ten „poloprůhledný
   // zásek" jako u transparentního, takže stačí prostý show() po prvním vykreslení.
+  if (saved?.maximized && bounds.x !== undefined) win.maximize()
   win.once('ready-to-show', () => win.show())
+
+  // Ukládání polohy a velikosti: po změně (s krátkou prodlevou, ať se při
+  // tažení nezapisuje config desetkrát za sekundu) a při zavření okna.
+  // Ukládá se „normální" velikost, takže po odmaximalizování se okno vrátí
+  // tam, kde bylo.
+  let saveTimer: NodeJS.Timeout | null = null
+  const saveState = (): void => {
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = null
+    if (win.isDestroyed() || win.isMinimized() || win.isFullScreen()) return
+    const b = win.getNormalBounds()
+    setConfig({ windowState: { x: b.x, y: b.y, width: b.width, height: b.height, maximized: win.isMaximized() } })
+  }
+  const queueSave = (): void => {
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(saveState, 600)
+  }
+  win.on('resize', queueSave)
+  win.on('move', queueSave)
+  win.on('maximize', queueSave)
+  win.on('unmaximize', queueSave)
+  win.on('close', saveState)
 
   // Stav maximalizace posíláme rendereru, ať přepne ikonu tlačítka (maximalizovat
   // ↔ obnovit). Frameless okno nemá nativní tlačítko, řešíme si ho v UI.

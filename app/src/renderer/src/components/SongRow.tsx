@@ -260,13 +260,26 @@ function SongRowBase({
         </div>
         <div className="song__meta">
           <span className="badge badge--len">{formatLength(song.lengthSeconds)}</span>
+          {/* Zdrojová databáze. Encore má klíč „enchor:…", vše ostatní je RhythmVerse. */}
+          {song.key.startsWith('enchor:') ? (
+            <span className="badge badge--db badge--db-chorus" title="From Chorus Encore">
+              Chorus
+            </span>
+          ) : (
+            <span className="badge badge--db badge--db-rv" title="From RhythmVerse">
+              RV
+            </span>
+          )}
           {song.official ? (
             <span className="badge badge--dlc">Official DLC</span>
           ) : (
-            <span className={`badge ${song.needsConversion ? 'badge--convert' : 'badge--native'}`}>
-              {formatLabel(song.gameFormat)}
-              {song.needsConversion ? ' → CH' : ''}
-            </span>
+            // Formát „RV" by jen opakoval pilulku databáze vedle.
+            formatLabel(song.gameFormat) === 'RV' ? null : (
+              <span className={`badge ${song.needsConversion ? 'badge--convert' : 'badge--native'}`}>
+                {formatLabel(song.gameFormat)}
+                {song.needsConversion ? ' → CH' : ''}
+              </span>
+            )
           )}
           {song.expertOnly === true ? (
             <span className="badge badge--expert">Expert only</span>

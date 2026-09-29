@@ -178,7 +178,7 @@ export function BulkRenameDialog({
             type="button"
             className={mode === 'tpl' ? 'on' : ''}
             disabled={!hasSongs}
-            title={hasSongs ? undefined : 'Only works for songs'}
+            title={hasSongs ? undefined : 'Needs a song.ini, so it only works for songs'}
             onClick={() => setMode('tpl')}
           >
             From template
@@ -240,6 +240,11 @@ export function BulkRenameDialog({
             </label>
           </div>
         )}
+        {mode === 'fr' && !hasSongs ? (
+          <p className="field__hint">
+            Folders are renamed with Find &amp; replace. From template needs a song.ini, so it only works for songs.
+          </p>
+        ) : null}
 
         <div className="lvpreview">
           <table>
@@ -304,7 +309,24 @@ export function FolderPickerDialog({
   const [dirs, setDirs] = useState<LibEntry[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Nová složka přímo v dialogu: po vytvoření do ní rovnou vstoupíme.
+  const [newName, setNewName] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
   const verb = mode === 'move' ? 'Move' : 'Copy'
+
+  const createFolder = async (): Promise<void> => {
+    const name = cleanSegment(newName ?? '')
+    if (!name) return
+    setError(null)
+    try {
+      await window.api.libCreateFolder(at, name)
+      setNewName(null)
+      setAt(at ? `${at}/${name}` : name)
+      setReload((x) => x + 1)
+    } catch (e) {
+      setError(errMsg(e))
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -316,7 +338,7 @@ export function FolderPickerDialog({
     return () => {
       cancelled = true
     }
-  }, [at])
+  }, [at, reload])
 
   const segs = at.split(/[\\/]/).filter(Boolean)
   const sourceParent = startAt
@@ -364,12 +386,52 @@ export function FolderPickerDialog({
               </button>
             </span>
           ))}
+          <span className="lib__spacer" />
+          <button
+            type="button"
+            className="lvpick__new"
+            disabled={busy || newName !== null}
+            onClick={() => setNewName('')}
+            title="Create a new folder here"
+          >
+            <Icon name="folderPlus" size={14} /> New folder
+          </button>
         </div>
         <div className="lvpick">
+          {newName !== null ? (
+            <form
+              className="lvpick__newrow"
+              onSubmit={(e) => {
+                e.preventDefault()
+                void createFolder()
+              }}
+            >
+              <Icon name="folderPlus" size={15} />
+              <input
+                autoFocus
+                value={newName}
+                spellCheck={false}
+                placeholder="Folder name"
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.stopPropagation()
+                    setNewName(null)
+                  }
+                }}
+              />
+              <button type="submit" className="btn-primary" disabled={!cleanSegment(newName)}>
+                Create
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => setNewName(null)}>
+                Cancel
+              </button>
+            </form>
+          ) : null}
           {dirs === null ? (
             <p className="wn__muted">Loading…</p>
           ) : dirs.length === 0 ? (
-            <p className="field__hint">No subfolders here.</p>
+            newName === null ? <p className="field__hint">No subfolders here.</p> : null
           ) : (
             dirs.map((d) => {
               const rel = at ? `${at}/${d.name}` : d.name

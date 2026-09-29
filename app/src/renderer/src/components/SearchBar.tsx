@@ -64,6 +64,9 @@ export function SearchBar(): JSX.Element {
   const [suggestLoading, setSuggestLoading] = useState(false)
   const [suggestError, setSuggestError] = useState(false)
   const [hoverIdx, setHoverIdx] = useState(-1)
+  // První focus je od `autoFocus` při připojení (návrat z Library, „Fix it")
+  // a ten našeptávač otevírat nemá, jen uživatelův klik / Tab.
+  const autoFocused = useRef(false)
   const lastReqId = useRef(0)
 
   // Debounced fetch — zruš starší requesty přes rostoucí req-id.
@@ -192,6 +195,10 @@ export function SearchBar(): JSX.Element {
                 setHoverIdx(-1)
               }}
               onFocus={() => {
+                if (!autoFocused.current) {
+                  autoFocused.current = true
+                  return
+                }
                 if (query.trim().length >= 2) setSuggestOpen(true)
               }}
               onKeyDown={onInputKey}

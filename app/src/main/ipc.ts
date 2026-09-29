@@ -51,12 +51,14 @@ import {
   libReadMeta,
   libRemoveFromPlaylist,
   libAlbumThumbs,
+  libAlbumCovers,
   libSongDetail,
   libSongInfo,
   libRename,
   libRenamePlaylist,
   libReveal,
   libTrash,
+  libReplaceBroken,
   libWriteMeta
 } from './core/librarymgr'
 import { mergeBoth } from '../shared/songid'
@@ -227,6 +229,9 @@ export function registerIpc(): void {
     libRename(relItem, newName)
   )
   ipcMain.handle('lib:trash', (_e, relItem: string) => libTrash(relItem))
+  ipcMain.handle('lib:replaceBroken', (_e, brokenRel: string, installAbs: string) =>
+    libReplaceBroken(brokenRel, installAbs)
+  )
   ipcMain.handle('lib:moveOut', (_e, relItems: string[], destAbsDir: string) =>
     libMoveOut(relItems, destAbsDir)
   )
@@ -241,6 +246,7 @@ export function registerIpc(): void {
   ipcMain.handle('lib:songInfo', (_e, rels: string[]) => libSongInfo(rels))
   ipcMain.handle('lib:songDetail', (_e, rel: string) => libSongDetail(rel))
   ipcMain.handle('lib:albumThumbs', (_e, rels: string[]) => libAlbumThumbs(rels))
+  ipcMain.handle('lib:albumCovers', (_e, rels: string[]) => libAlbumCovers(rels))
   ipcMain.handle('lib:findDuplicates', (_e, scope?: string[]) =>
     libFindDuplicates(Array.isArray(scope) ? scope : undefined)
   )

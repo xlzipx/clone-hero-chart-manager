@@ -304,6 +304,10 @@ export interface AppConfig {
   autoCheckUpdates: boolean
   /** Zobrazení písní v Library: karty (obal, obtížnosti, ukázka) nebo kompaktní seznam. */
   libraryView: 'cards' | 'list'
+  /** Poslední řazení v Library (klíč z nabídky řazení + směr), obnoví se po restartu. */
+  librarySort: { key: string; dir: 1 | -1 }
+  /** Poslední poloha a velikost hlavního okna (DIP); null = výchozí uprostřed. */
+  windowState: { x: number; y: number; width: number; height: number; maximized: boolean } | null
 }
 
 export type RhythmVerseSystem = 'ch' | 'ps' | 'rb3' | 'all'
@@ -311,14 +315,17 @@ export type RhythmVerseSystem = 'ch' | 'ps' | 'rb3' | 'all'
 /** Zdrojová databáze chartů. */
 export type Database = 'rhythmverse' | 'enchor' | 'both'
 
+export type LibProblem = 'chart' | 'audio' | 'both'
+
 /** Položka ve správci knihovny (složka/soubor). */
 export interface LibEntry {
   name: string
   type: 'dir' | 'file'
   isSong: boolean
-  /** Složka má zvukové stopy, ale chybí jí soubor s notami (notes.mid / notes.chart):
-   *  Clone Hero ji nenačte. Typicky nedokončený převod. */
-  incomplete?: boolean
+  /** Rozbitá složka písně, co v ní chybí: 'chart' = notes.mid / notes.chart,
+   *  'audio' = zvukové stopy, 'both' = obojí (zbyl jen song.ini). Clone Hero ji
+   *  nezahraje. Typicky nedokončený převod nebo stahování. */
+  problem?: LibProblem
   /** Velikost souboru v bajtech (u složek 0 — velikost se dopočítává jinak). */
   size: number
   /** Čas poslední změny (ms epoch) — pro řazení „naposledy změněné". */
@@ -485,6 +492,8 @@ export interface RendererApi {
   libCreateFolder(rel: string, name: string): Promise<void>
   libRename(relItem: string, newName: string): Promise<void>
   libTrash(relItem: string): Promise<void>
+  /** „Fix it": rozbitou složku do koše, nově staženou na její místo. */
+  libReplaceBroken(brokenRel: string, installAbs: string): Promise<string>
   /** Přesune položky knihovny do složky MIMO knihovnu (karanténa duplicit — funguje i tam, kde koš ne, např. Wine). */
   libMoveOut(relItems: string[], destAbsDir: string): Promise<void>
   libMove(src: string, destDir: string): Promise<void>
@@ -499,6 +508,8 @@ export interface RendererApi {
   libSongDetail(rel: string): Promise<SongDetail>
   /** Malé náhledy obalů (JPEG data URI ~112 px) pro karty v Library; null = bez obalu. */
   libAlbumThumbs(rels: string[]): Promise<Record<string, string | null>>
+  /** Větší obaly (~320 px) pro stoh vybraných písní v pravém panelu. */
+  libAlbumCovers(rels: string[]): Promise<Record<string, string | null>>
   /** Zapíše zadaná metadata do song.ini. */
   libWriteMeta(relItem: string, fields: SongMeta): Promise<void>
   /** Najde duplicity v knihovně (identické + varianty téže písně). */

@@ -4,7 +4,7 @@
 import { nativeImage, shell } from 'electron'
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'fs'
 import { readdir } from 'fs/promises'
-import { basename, extname, join, relative, resolve, sep } from 'path'
+import { basename, dirname, extname, join, relative, resolve, sep } from 'path'
 import { getConfig } from './config'
 import { readAlbumArt, readSongInfo, readSongMeta, writeSongMeta } from './songmeta'
 import {
@@ -27,7 +27,8 @@ import type {
   PlaylistInfo,
   PlaylistSong,
   SongDetail,
-  SongMeta
+  SongMeta,
+  LibProblem
 } from '../../shared/types'
 
 const SONG_MARKERS = ['song.ini', 'notes.chart', 'notes.mid']
@@ -36,7 +37,7 @@ export interface LibEntry {
   name: string
   type: 'dir' | 'file'
   isSong: boolean
-  incomplete?: boolean
+  problem?: LibProblem
 }
 
 function rootDir(): string {
@@ -64,14 +65,22 @@ function sanitizeName(name: string): string {
 const AUDIO_EXT = /\.(ogg|opus|mp3|wav|flac|m4a|mogg)$/i
 
 /** Je složka píseň? A pokud ne, vypadá jako rozbitá píseň (audio bez chartu)? */
-function inspectDir(abs: string): { isSong: boolean; incomplete: boolean } {
+function inspectDir(abs: string): { isSong: boolean; problem?: LibProblem } {
   try {
     const names = readdirSync(abs)
     const lower = names.map((x) => x.toLowerCase())
     const isSong = SONG_MARKERS.some((m) => lower.includes(m))
-    return { isSong, incomplete: !isSong && names.some((n) => AUDIO_EXT.test(n)) }
+    const hasChart = lower.includes('notes.chart') || lower.includes('notes.mid')
+    const hasAudio = names.some((n) => AUDIO_EXT.test(n))
+    const hasIni = lower.includes('song.ini')
+    // Složka „vypadá jako píseň" (má aspoň jednu její část), ale něco chybí.
+    let problem: LibProblem | undefined
+    if (!hasChart && hasAudio) problem = 'chart'
+    else if (hasChart && !hasAudio) problem = 'audio'
+    else if (!hasChart && !hasAudio && hasIni) problem = 'both'
+    return problem ? { isSong, problem } : { isSong }
   } catch {
-    return { isSong: false, incomplete: false }
+    return { isSong: false }
   }
 }
 
@@ -248,6 +257,34 @@ export async function libTrash(relItem: string): Promise<void> {
   invalidateOwnedIndex()
 }
 
+/**
+ * „Fix it": po stažení náhrady rozbité písně pošle rozbitou složku do koše.
+ * Když nová složka skončila vedle ní jen s „ (2)" kvůli kolizi názvů, vrátí jí
+ * původní název. Složku, kterou uživatel mezitím opravil sám (už nic
+ * nechybí), nechá být. Vrací relativní cestu nové složky.
+ */
+export async function libReplaceBroken(brokenRel: string, installAbs: string): Promise<string> {
+  const broken = safeAbs(brokenRel)
+  if (broken === rootDir()) throw new Error('Cannot replace the Songs root')
+  let inst = safeAbs(relative(rootDir(), resolve(installAbs)))
+  if (existsSync(broken) && inspectDir(broken).problem) {
+    await shell.trashItem(broken)
+    const name = basename(broken)
+    const instName = basename(inst)
+    if (
+      dirname(inst) === dirname(broken) &&
+      !existsSync(broken) &&
+      instName.toLowerCase().startsWith(`${name.toLowerCase()} (`)
+    ) {
+      renameSync(inst, broken)
+      inst = broken
+    }
+  }
+  invalidateLibraryIndex()
+  invalidateOwnedIndex()
+  return relative(rootDir(), inst).split(sep).join('/')
+}
+
 export function libMove(srcRelItem: string, destRelDir: string): void {
   const src = safeAbs(srcRelItem)
   const destDir = safeAbs(destRelDir)
@@ -359,7 +396,7 @@ export async function libSongInfo(rels: string[]): Promise<LibSongInfo[]> {
 const thumbCache = new Map<string, string | null>()
 const ART_NAMES = ['album.png', 'album.jpg', 'album.jpeg', 'album.webp']
 
-async function albumThumb(folderAbs: string): Promise<string | null> {
+async function albumThumb(folderAbs: string, size = 112): Promise<string | null> {
   for (const n of ART_NAMES) {
     const p = join(folderAbs, n)
     let st
@@ -368,14 +405,14 @@ async function albumThumb(folderAbs: string): Promise<string | null> {
     } catch {
       continue
     }
-    const key = `${p}|${st.mtimeMs}`
+    const key = `${p}|${st.mtimeMs}|${size}`
     const hit = thumbCache.get(key)
     if (hit !== undefined) return hit
     let out: string | null = null
     try {
       const img = nativeImage.createFromPath(p)
       if (!img.isEmpty()) {
-        const small = img.resize({ width: 112, height: 112, quality: 'good' })
+        const small = img.resize({ width: size, height: size, quality: 'good' })
         out = `data:image/jpeg;base64,${small.toJPEG(82).toString('base64')}`
       }
     } catch {
@@ -395,6 +432,19 @@ export async function libAlbumThumbs(rels: string[]): Promise<Record<string, str
   for (const rel of rels) {
     try {
       out[rel] = await albumThumb(safeAbs(rel))
+    } catch {
+      out[rel] = null
+    }
+  }
+  return out
+}
+
+/** Větší obaly (~320 px) pro stoh vybraných písní v pravém panelu. */
+export async function libAlbumCovers(rels: string[]): Promise<Record<string, string | null>> {
+  const out: Record<string, string | null> = {}
+  for (const rel of rels) {
+    try {
+      out[rel] = await albumThumb(safeAbs(rel), 320)
     } catch {
       out[rel] = null
     }

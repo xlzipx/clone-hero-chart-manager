@@ -114,9 +114,9 @@ export function Settings(): JSX.Element | null {
   const setShowSettings = useStore((s) => s.setShowSettings)
   const saveConfig = useStore((s) => s.saveConfig)
   const [draft, setDraft] = useState<AppConfig | null>(config)
-  // Šablona složky je zabalená (pokročilé) — stav si drží napříč otevřeními okna,
-  // ať to kdo ji používá nemusí rozklikávat pořád dokola.
-  const [tplOpen, setTplOpen] = useState(false)
+  // Šablona složky je při otevření Nastavení rozbalená, aby byla vidět hned;
+  // sbalit ji jde šipkou v záhlaví sekce.
+  const [tplOpen, setTplOpen] = useState(true)
   const [exeStatus, setExeStatus] = useState<{ path: string | null; autoDetected: boolean } | null>(
     null
   )

@@ -14,7 +14,7 @@ import type {
   SortKey
 } from '../../shared/types'
 import { SORT_DEFAULT_DIR } from '../../shared/types'
-import { mergeBoth, songKey } from '../../shared/songid'
+import { mergeBoth, normText, songKey } from '../../shared/songid'
 import { asError, errMsg, OFFLINE_MSG, userMsg } from '../../shared/errors'
 import {
   ENCORE_PER_PAGE_MAX,
@@ -91,6 +91,16 @@ interface AppState {
   config: AppConfig | null
   showSettings: boolean
   showLibrary: boolean
+  /** „Fix it": rozbitá složka z Library, pro kterou se v Search hledá náhrada. */
+  fixTarget: { rel: string; name: string; artist: string; title: string } | null
+  /** Rozjeté náhrady: id stahování → rozbitá složka, kterou po dokončení nahradí. */
+  fixJobs: Record<string, { rel: string; name: string }>
+  /** Krátká zpráva o výsledku opravy (zobrazí se v pruhu nad hledáním). */
+  fixNotice: string | null
+  /** Hledání „Fix it" nenašlo interpreta, ukazují se všechny verze názvu. */
+  fixLoose: boolean
+  /** Složka opravené písně (pro „Show in library" ve zprávě o dokončení). */
+  fixDoneRel: string | null
   /** Cíl pro „In library": relativní cesty (k Songs) kopií písně k odhalení v Library
    *  Manageru. null = manager otevřen normálně (kořen). Víc cest = duplikáty. */
   libraryReveal: string[] | null
@@ -205,6 +215,8 @@ interface AppState {
   player: PlayerState
   /** Naplní frontu VŠEMI písněmi pod danou složkou a spustí přehrávání. */
   playFolder: (rel: string, label: string) => Promise<void>
+  /** Více písní / složek z Library naráz, v daném pořadí, jako jedna fronta. */
+  playFolders: (rels: string[], label: string) => Promise<void>
   /** Naplní frontu písněmi setlistu (jen nalezenými) a spustí přehrávání. */
   playPlaylist: (name: string, label: string) => Promise<void>
   /** Přehraje písničku na dané POZICI ve frontě (index do `order`). */
@@ -254,6 +266,10 @@ interface AppState {
   setSelectedIndex: (i: number) => void
   setShowSettings: (v: boolean) => void
   setShowLibrary: (v: boolean) => void
+  /** Přepne na Search s dotazem na píseň a další stažení nahradí rozbitou složku. */
+  startFix: (rel: string, name: string, artist: string, title: string) => void
+  cancelFix: () => void
+  dismissFixNotice: () => void
   /** Otevře Library Manager rovnou na dané písni (kopiích) a vybere ji. */
   openLibraryAt: (rels: string[]) => void
   setShowWhatsNew: (v: boolean) => void
@@ -863,6 +879,60 @@ export const useStore = create<AppState>((set, get) => {
 
   /** Zařadí JEDNU píseň a zapamatuje jobId (guard proti dvojkliku + stav řádku).
    *  Chybu vloží do `error`. */
+  /**
+   * Hledání náhrady pro „Fix it". RhythmVerse hledá frázi v názvu NEBO
+   * interpretovi (spojení „interpret název" nenajde nic), Encore naopak po
+   * slovech a spojení zvládne. Každá databáze proto dostane svůj dotaz a
+   * výsledky se pak zúží na ty, kde sedí interpret i název. Když nic nesedí,
+   * ukážou se všechny verze názvu.
+   */
+  const fixSearch = async (artist: string, title: string): Promise<void> => {
+    const { system, database, records } = get()
+    const myReq = ++searchSeq
+    set({
+      query: artist ? `${artist} - ${title}` : title,
+      loading: true,
+      error: null,
+      surprise: false,
+      deep: false,
+      deepSongs: [],
+      results: [],
+      fixLoose: false
+    })
+    const [rv, en] = await Promise.allSettled([
+      database === 'enchor' ? Promise.resolve(null) : window.api.search(title, 1, 100, system, 'rhythmverse'),
+      database === 'rhythmverse'
+        ? Promise.resolve(null)
+        : window.api.search(artist ? `${artist} ${title}` : title, 1, 50, system, 'enchor')
+    ])
+    if (myReq !== searchSeq) return
+    if (rv.status === 'rejected' && en.status === 'rejected') {
+      set({ loading: false, error: userMsg(rv.reason) })
+      return
+    }
+    const all = mergeBoth(
+      rv.status === 'fulfilled' && rv.value ? rv.value.songs : [],
+      en.status === 'fulfilled' && en.value ? en.value.songs : [],
+      'relevance'
+    )
+    const a = normText(artist)
+    const t = normText(title)
+    const near = (x: string, y: string): boolean => !!x && !!y && (x.includes(y) || y.includes(x))
+    const exact = all.filter((s) => near(normText(s.title), t) && (!a || near(normText(s.artist), a)))
+    const loose = all.filter((s) => near(normText(s.title), t))
+    const pick = exact.length ? exact : loose.length ? loose : all
+    const songs = pick.slice(0, Math.max(records, 50))
+    set({
+      results: songs,
+      totalFiltered: songs.length,
+      resultCount: songs.length,
+      page: 1,
+      loading: false,
+      selectedIndex: 0,
+      fixLoose: !exact.length && !!a
+    })
+  }
+
   const enqueueOne = async (song: SongResult, subfolder?: string): Promise<void> => {
     try {
       const jobId = await window.api.enqueueDownload(song, subfolder)
@@ -1363,6 +1433,11 @@ export const useStore = create<AppState>((set, get) => {
   config: null,
   showSettings: false,
   showLibrary: false,
+  fixTarget: null,
+  fixJobs: {},
+  fixNotice: null,
+  fixLoose: false,
+  fixDoneRel: null,
   libraryReveal: null,
   showWhatsNew: false,
   whatsNewSince: null,
@@ -1423,6 +1498,17 @@ export const useStore = create<AppState>((set, get) => {
       tracks = await window.api.playerListFolder(rel)
     } catch {
       /* prázdno → nic nehraj */
+    }
+    startPlayerQueue(tracks, label)
+  },
+  playFolders: async (rels, label) => {
+    const tracks: PlayerTrack[] = []
+    for (const rel of rels) {
+      try {
+        tracks.push(...(await window.api.playerListFolder(rel)))
+      } catch {
+        /* nečitelná složka → přeskoč */
+      }
     }
     startPlayerQueue(tracks, label)
   },
@@ -2007,6 +2093,13 @@ export const useStore = create<AppState>((set, get) => {
     if (!v) void get().loadOwnedKeys()
   },
   openLibraryAt: (rels) => set({ libraryReveal: rels, showLibrary: true }),
+  startFix: (rel, name, artist, title) => {
+    set({ fixTarget: { rel, name, artist, title }, fixNotice: null })
+    get().setShowLibrary(false)
+    void fixSearch(artist, title)
+  },
+  cancelFix: () => set({ fixTarget: null }),
+  dismissFixNotice: () => set({ fixNotice: null, fixDoneRel: null }),
   setShowWhatsNew: (v) => set({ showWhatsNew: v }),
   setShowPlaylistImport: (v) => set({ showPlaylistImport: v }),
   setShowAbout: (v) => set({ showAbout: v }),
@@ -2132,6 +2225,24 @@ export const useStore = create<AppState>((set, get) => {
   },
 
   openDownload: async (song) => {
+    // Režim „Fix it": stáhni rovnou vedle rozbité složky (bez dotazu na cíl)
+    // a zapamatuj si, kterou složku má hotové stažení nahradit.
+    const fix = get().fixTarget
+    if (fix) {
+      if (get().enqueuedKeys[song.key]) return
+      const parent = fix.rel.split('/').slice(0, -1).join('/')
+      try {
+        const jobId = await window.api.enqueueDownload(song, parent || undefined)
+        set((s) => ({
+          fixTarget: null,
+          enqueuedKeys: { ...s.enqueuedKeys, [song.key]: jobId },
+          fixJobs: { ...s.fixJobs, [jobId]: fix }
+        }))
+      } catch (e) {
+        set({ error: userMsg(e) })
+      }
+      return
+    }
     // „Auto" = neptat se, cestu určí šablona z nastavení (main ji aplikuje při
     // instalaci). Podsložku NEposíláme — jinak by se ruční volba z minula sčítala
     // se šablonou a chart by skončil jinde, než ukazuje náhled v Nastavení.
@@ -2307,6 +2418,31 @@ export const useStore = create<AppState>((set, get) => {
 
   applyJobUpdate: (job) => {
     set((s) => ({ jobs: { ...s.jobs, [job.id]: job } }))
+    const fix = get().fixJobs[job.id]
+    if (fix && (job.stage === 'done' || job.stage === 'error' || job.stage === 'canceled')) {
+      set((s) => {
+        const { [job.id]: _done, ...rest } = s.fixJobs
+        return { fixJobs: rest }
+      })
+      if (job.stage === 'done' && job.installPath) {
+        void window.api
+          .libReplaceBroken(fix.rel, job.installPath)
+          .then((rel) =>
+            set({ fixNotice: `Fixed “${fix.name}”. The broken folder was moved to the trash.`, fixDoneRel: rel })
+          )
+          .catch((e) =>
+            set({ fixNotice: `Downloaded, but the broken folder couldn’t be removed: ${userMsg(e)}`, fixDoneRel: null })
+          )
+      } else {
+        set({
+          fixDoneRel: null,
+          fixNotice:
+            job.stage === 'canceled'
+              ? `Fix for “${fix.name}” canceled. The broken folder was kept.`
+              : `Download failed, so “${fix.name}” was kept as it was.`
+        })
+      }
+    }
     // Auto-dismiss úspěšného downloadu po 5 sekundách jako lehká notifikace.
     // Chybové joby zůstávají, dokud uživatel nestiskne „Clear history" — chce
     // si přečíst, co se pokazilo.

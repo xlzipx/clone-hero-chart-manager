@@ -114,7 +114,7 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
     <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal modal--plm" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal__head">
-          <h2>Playlists</h2>
+          <h2>Setlists</h2>
           <button className="modal__close" onClick={onClose}>
             <Icon name="close" size={16} />
           </button>
@@ -127,7 +127,7 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
               <p className="wn__muted plm__pad">Loading…</p>
             ) : lists.length === 0 ? (
               <p className="wn__muted plm__pad">
-                No playlists yet. Select songs in the library and use Add to playlist.
+                No setlists yet. Select songs in the library and use Add to setlist.
               </p>
             ) : (
               lists.map((p) => (
@@ -172,7 +172,7 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
                   </button>
                   <button
                     className="plm__iconbtn plm__iconbtn--danger"
-                    title="Delete playlist"
+                    title="Delete setlist"
                     onClick={(e) => {
                       e.stopPropagation()
                       setConfirmDel(p.name)
@@ -188,7 +188,7 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
           {/* Obsah vybraného setlistu */}
           <div className="plm__songs">
             {!sel ? (
-              <p className="wn__muted plm__pad">Select a playlist to see its songs.</p>
+              <p className="wn__muted plm__pad">Select a setlist to see its songs.</p>
             ) : songsLoading ? (
               <p className="wn__muted plm__pad">Resolving songs…</p>
             ) : songs && songs.length > 0 ? (
@@ -251,13 +251,13 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
                       disabled={checked.size === 0 || busy}
                       onClick={removeChecked}
                     >
-                      Remove from playlist
+                      Remove from setlist
                     </button>
                   </div>
                 </div>
               </>
             ) : (
-              <p className="wn__muted plm__pad">This playlist is empty.</p>
+              <p className="wn__muted plm__pad">This setlist is empty.</p>
             )}
           </div>
         </div>
@@ -271,7 +271,7 @@ export function PlaylistManagerModal({ onClose }: { onClose: () => void }): JSX.
           >
             <div className="lib__dialog">
               <p>
-                Delete playlist <strong>{confirmDel}</strong>? The songs stay in your library, only
+                Delete setlist <strong>{confirmDel}</strong>? The songs stay in your library, only
                 the setlist is removed.
               </p>
               <div className="lib__dialog-foot">

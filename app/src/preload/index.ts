@@ -99,6 +99,8 @@ const api = {
   libRename: (relItem: string, newName: string) =>
     ipcRenderer.invoke('lib:rename', relItem, newName) as Promise<void>,
   libTrash: (relItem: string) => ipcRenderer.invoke('lib:trash', relItem) as Promise<void>,
+  libReplaceBroken: (brokenRel: string, installAbs: string) =>
+    ipcRenderer.invoke('lib:replaceBroken', brokenRel, installAbs) as Promise<string>,
   libMoveOut: (relItems: string[], destAbsDir: string) =>
     ipcRenderer.invoke('lib:moveOut', relItems, destAbsDir) as Promise<void>,
   libMove: (src: string, destDir: string) =>
@@ -117,6 +119,8 @@ const api = {
     ipcRenderer.invoke('lib:songDetail', rel) as Promise<SongDetail>,
   libAlbumThumbs: (rels: string[]) =>
     ipcRenderer.invoke('lib:albumThumbs', rels) as Promise<Record<string, string | null>>,
+  libAlbumCovers: (rels: string[]) =>
+    ipcRenderer.invoke('lib:albumCovers', rels) as Promise<Record<string, string | null>>,
   libFindDuplicates: (scope?: string[]) =>
     ipcRenderer.invoke('lib:findDuplicates', scope) as Promise<DupGroup[]>,
   libListPlaylists: () => ipcRenderer.invoke('lib:listPlaylists') as Promise<PlaylistInfo[]>,

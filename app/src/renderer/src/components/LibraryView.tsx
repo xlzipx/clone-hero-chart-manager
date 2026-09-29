@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { InstrumentDifficulties, LibEntry, LibSongInfo, SongDetail } from '../../../shared/types'
+import type { InstrumentDifficulties, LibEntry, LibProblem, LibSongInfo, SongDetail } from '../../../shared/types'
 import { errMsg } from '../../../shared/errors'
 import { IS_MAC } from '../platform'
 import { useStore } from '../store'
@@ -7,7 +7,7 @@ import { formatLength, INSTRUMENTS, stripTags } from '../utils'
 import { RichText } from './RichText'
 import { LocalPreview } from './LocalPreview'
 import { DuplicatesModal } from './DuplicatesModal'
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
 import { InstrumentDifficulty } from './InstrumentDifficulty'
 import { PlaylistDialog } from './PlaylistDialog'
 import { PlaylistManagerModal } from './PlaylistManagerModal'
@@ -79,6 +79,11 @@ type Ctx = { x: number; y: number } | null
 
 // Mezi přepnutími Search ↔ Library si pamatujeme otevřenou složku a náhledy.
 let lastCwd = ''
+// Hledání a filtry drží jen po dobu běhu appky (po restartu začínají čisté,
+// aby uživatel nehledal, proč mu v knihovně chybí písně).
+let lastQ = ''
+let lastFilters: Filters = NO_FILTERS
+let lastFiltersOpen = false
 const thumbCache = new Map<string, string | null>()
 
 /** Metadata volného .sng odhadnutá z názvu souboru („Artist - Title.sng"). */
@@ -112,6 +117,8 @@ export function LibraryView(): JSX.Element {
   const playFolder = useStore((s) => s.playFolder)
   const libraryReveal = useStore((s) => s.libraryReveal)
   const config = useStore((s) => s.config)
+  const saveConfig = useStore((s) => s.saveConfig)
+  const playFolders = useStore((s) => s.playFolders)
 
   const [cwd, setCwd] = useState(lastCwd)
   const [entries, setEntries] = useState<LibEntry[]>([])
@@ -125,11 +132,14 @@ export function LibraryView(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
 
   const [view, setView] = useState<'cards' | 'list'>(config?.libraryView ?? 'cards')
-  const [sortKey, setSortKey] = useState<SortKey>('name')
-  const [sortDir, setSortDir] = useState<1 | -1>(1)
-  const [q, setQ] = useState('')
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    const k = config?.librarySort?.key
+    return SORTS.some((s) => s.id === k) ? (k as SortKey) : 'name'
+  })
+  const [sortDir, setSortDir] = useState<1 | -1>(() => (config?.librarySort?.dir === -1 ? -1 : 1))
+  const [q, setQ] = useState(lastQ)
+  const [filters, setFilters] = useState<Filters>(lastFilters)
+  const [filtersOpen, setFiltersOpen] = useState(lastFiltersOpen)
 
   const [focus, setFocus] = useState<string | null>(null)
   const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -295,7 +305,7 @@ export function LibraryView(): JSX.Element {
         const rel = cwd ? `${cwd}/${e.name}` : e.name
         const isSng = e.type === 'file' && /\.sng$/i.test(e.name)
         const kind: Kind =
-          e.type === 'dir' ? (e.isSong ? 'song' : e.incomplete ? 'broken' : 'folder') : isSng ? 'song' : 'file'
+          e.type === 'dir' ? (e.problem ? 'broken' : e.isSong ? 'song' : 'folder') : isSng ? 'song' : 'file'
         return { e, name: e.name, rel, kind, isSng }
       }),
     [entries, cwd]
@@ -392,12 +402,39 @@ export function LibraryView(): JSX.Element {
     })
   }, [visible])
 
-  const setSort = (k: SortKey): void => {
-    if (k === sortKey) setSortDir((d) => (d === 1 ? -1 : 1))
-    else {
-      setSortKey(k)
-      setSortDir(DESC_FIRST.has(k) ? -1 : 1)
+  useEffect(() => {
+    lastQ = q
+    lastFilters = filters
+    lastFiltersOpen = filtersOpen
+  }, [q, filters, filtersOpen])
+
+  // Řazení se ukládá do configu, takže vydrží přepnutí na Search i restart.
+  const sortSaved = useRef(false)
+  useEffect(() => {
+    if (!sortSaved.current) {
+      sortSaved.current = true
+      return
     }
+    void saveConfig({ librarySort: { key: sortKey, dir: sortDir } })
+  }, [sortKey, sortDir, saveConfig])
+
+  // Záhlaví sloupců: 1. klik = výchozí směr, 2. = opačný, 3. = zpět na název složky.
+  const setSort = (k: SortKey): void => {
+    const first: 1 | -1 = DESC_FIRST.has(k) ? -1 : 1
+    if (k !== sortKey) {
+      setSortKey(k)
+      setSortDir(first)
+    } else if (k === 'name' || sortDir === first) setSortDir((d) => (d === 1 ? -1 : 1))
+    else {
+      setSortKey('name')
+      setSortDir(1)
+    }
+  }
+  const sortHint = (k: SortKey, label: string): string => {
+    const first: 1 | -1 = DESC_FIRST.has(k) ? -1 : 1
+    if (k !== sortKey) return `Sort by ${label}`
+    if (sortDir === first) return `Sorted by ${label}. Click to reverse`
+    return `Sorted by ${label}. Click to turn off`
   }
 
   // ── Líné načítání náhledů obalů ──────────────────────────────────
@@ -482,6 +519,11 @@ export function LibraryView(): JSX.Element {
     })
     setAnchor(name)
   }
+  // Jediná zaškrtnutá položka se ukáže v pravém panelu, akce v něm pak míří
+  // na ni (targetNames bere zaškrtnuté) a lišta nad seznamem může zmizet.
+  useEffect(() => {
+    if (checked.size === 1) setFocus([...checked][0])
+  }, [checked])
   const allChecked = visible.length > 0 && visible.every((i) => checked.has(i.name))
   const someChecked = !allChecked && visible.some((i) => checked.has(i.name))
   const toggleAll = (): void => setChecked(allChecked ? new Set() : new Set(visible.map((i) => i.name)))
@@ -516,15 +558,21 @@ export function LibraryView(): JSX.Element {
   }
 
   // Stabilní handlery pro memoizované řádky.
-  const h = useRef({ rowClick, rowOpen, rowCtx, toggleCheck, observe })
-  h.current = { rowClick, rowOpen, rowCtx, toggleCheck, observe }
+  const startFix = useStore((s) => s.startFix)
+  const fixItem = (it: Item): void => {
+    const q = fixQuery(it.name)
+    startFix(it.rel, it.name, q.artist, q.title)
+  }
+  const h = useRef({ rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem })
+  h.current = { rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem }
   const handlers = useMemo<RowHandlers>(
     () => ({
       click: (n, e) => h.current.rowClick(n, e),
       open: (it) => h.current.rowOpen(it),
       ctx: (n, e) => h.current.rowCtx(n, e),
       check: (n) => h.current.toggleCheck(n),
-      observe: (el) => h.current.observe(el)
+      observe: (el) => h.current.observe(el),
+      fix: (it) => h.current.fixItem(it)
     }),
     []
   )
@@ -642,10 +690,12 @@ export function LibraryView(): JSX.Element {
 
   const changeView = (v: 'cards' | 'list'): void => {
     setView(v)
-    void window.api.setConfig({ libraryView: v })
+    void saveConfig({ libraryView: v })
   }
 
   // ── Render ────────────────────────────────────────────────────────
+  // Do přehrávače jdou vybrané písně i složky (hrají se celé), v pořadí seznamu.
+  const playableChecked = checked.size > 1 ? visible.filter((i) => checked.has(i.name) && (i.kind === 'song' || i.kind === 'folder') && !i.isSng) : []
   const targets = targetNames()
   const targetSongs = bulkItems(targets).filter((i) => i.isSong && !i.isSng).length
   const single = targets.length === 1 ? items.find((i) => i.name === targets[0]) : undefined
@@ -662,7 +712,7 @@ export function LibraryView(): JSX.Element {
           <div className="lv__treelabel">Tools</div>
           <button type="button" className="lv__titem" onClick={() => setPlmOpen(true)}>
             <Icon name="note" size={15} />
-            <span className="lv__tname">Playlists</span>
+            <span className="lv__tname">Setlists</span>
           </button>
           <button type="button" className="lv__titem" onClick={() => setDupOpen(true)}>
             <Icon name="copy" size={15} />
@@ -876,7 +926,7 @@ export function LibraryView(): JSX.Element {
                   aria-pressed={filters.broken}
                   onClick={() => setFilters((f) => ({ ...f, broken: !f.broken }))}
                 >
-                  <Icon name="alert" size={14} /> Missing chart{brokenCount ? ` (${brokenCount})` : ''}
+                  <Icon name="alert" size={14} /> Broken songs{brokenCount ? ` (${brokenCount})` : ''}
                 </button>
               </div>
               <button className="lv__link lv__fclear" type="button" disabled={!activeFilterCount} onClick={() => setFilters(NO_FILTERS)}>
@@ -905,7 +955,9 @@ export function LibraryView(): JSX.Element {
         {error ? <div className="lib__error">⚠ {error}</div> : null}
 
         {checked.size > 0 ? (
-          <div className="lv__bulk">
+          // Stejné akce má pravý panel, takže se lišta schová; na užším okně,
+          // kde panel není, zůstane (viz styles.css).
+          <div className="lv__bulk lv__bulk--multi">
             <span className="lv__bulkcount">{checked.size} selected</span>
             <button className="lib__btn" onClick={openRename}>
               <Icon name="charter" size={14} /> Rename…
@@ -917,7 +969,7 @@ export function LibraryView(): JSX.Element {
               <Icon name="copy" size={14} /> Copy to…
             </button>
             <button className="lib__btn" disabled={!targetSongs} onClick={openPlaylist}>
-              <Icon name="note" size={14} /> Add to playlist
+              <Icon name="note" size={14} /> Add to setlist
             </button>
             <button className="lib__btn lv__danger" onClick={openDelete}>
               <Icon name="trash" size={14} /> Delete
@@ -940,12 +992,21 @@ export function LibraryView(): JSX.Element {
             <>
               <span />
               <span className="lv__hsorts">
-                {(['title', 'artist', 'album', 'length'] as SortKey[]).map((k) => (
-                  <button key={k} type="button" className={sortKey === k ? 'on' : ''} onClick={() => setSort(k)}>
-                    {SORTS.find((s) => s.id === k)?.label}
-                    {sortKey === k ? (sortDir === 1 ? ' ▲' : ' ▼') : ''}
-                  </button>
-                ))}
+                {(['title', 'artist', 'album', 'length'] as SortKey[]).map((k) => {
+                  const label = SORTS.find((s) => s.id === k)?.label ?? k
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      className={sortKey === k ? 'on' : ''}
+                      title={sortHint(k, label.toLowerCase())}
+                      onClick={() => setSort(k)}
+                    >
+                      {label}
+                      <SortArrow on={sortKey === k} dir={sortDir} />
+                    </button>
+                  )
+                })}
               </span>
               <span className="lv__hinst">
                 {INSTRUMENTS.map((i) => {
@@ -955,10 +1016,11 @@ export function LibraryView(): JSX.Element {
                       key={i.id}
                       type="button"
                       className={sortKey === k ? 'on' : ''}
-                      title={`Sort by ${i.label} difficulty`}
+                      title={sortHint(k, `${i.label} difficulty`)}
                       onClick={() => setSort(k)}
                     >
-                      <Icon name={i.icon} size={16} color={i.color} />
+                      <Icon name={i.icon} size={18} color={i.color} />
+                      <SortArrow on={sortKey === k} dir={sortDir} />
                     </button>
                   )
                 })}
@@ -970,7 +1032,8 @@ export function LibraryView(): JSX.Element {
             <>
               <span />
               <button type="button" className={`lv__hname ${sortKey === 'name' ? 'on' : ''}`} onClick={() => setSort('name')}>
-                Name{sortKey === 'name' ? (sortDir === 1 ? ' ▲' : ' ▼') : ''}
+                Name
+                <SortArrow on={sortKey === 'name'} dir={sortDir} />
               </button>
               <span />
             </>
@@ -1038,10 +1101,10 @@ export function LibraryView(): JSX.Element {
             <button
               type="button"
               className={`lv__brokenlink ${filters.broken ? 'lv__brokenlink--on' : ''}`}
-              title={filters.broken ? 'Show everything again' : 'Show only folders that are missing a chart file'}
+              title={filters.broken ? 'Show everything again' : 'Show only song folders with missing files'}
               onClick={() => setFilters((f) => ({ ...f, broken: !f.broken }))}
             >
-              <Icon name="alert" size={13} /> {brokenCount} missing a chart
+              <Icon name="alert" size={13} /> {brokenCount} broken {brokenCount === 1 ? 'song' : 'songs'}
             </button>
           ) : null}
           <div className="lib__spacer" />
@@ -1062,17 +1125,23 @@ export function LibraryView(): JSX.Element {
       <aside className="lv__detail" aria-label="Details">
         {checked.size > 1 ? (
           <div className="lv__dmulti">
-            <div className="lv__dart lv__dart--none">
-              <Icon name="copy" size={42} />
-            </div>
-            <div className="lv__dtitle">{checked.size} items selected</div>
-            <div className="lv__dsub">Use the bar above the list for bulk actions.</div>
-            <div className="lv__dactions">
-              <button className="btn-primary" onClick={openRename}>Rename {checked.size} items…</button>
-              <button className="btn-secondary" onClick={() => openPick('move')}>Move to…</button>
-              <button className="btn-secondary" onClick={() => openPick('copy')}>Copy to…</button>
-              <button className="btn-secondary lv__danger" onClick={openDelete}>Delete {checked.size} items</button>
-            </div>
+            <CoverStack
+              items={visible.filter((i) => checked.has(i.name) && i.kind === 'song')}
+              infos={infos}
+            />
+            <div className="lv__dlabel">{checked.size} items selected</div>
+            <PanelActions
+              onPlay={
+                playableChecked.length
+                  ? () => void playFolders(playableChecked.map((i) => i.rel), `${playableChecked.length} selected`)
+                  : undefined
+              }
+              onPlaylist={targetSongs ? openPlaylist : undefined}
+              onRename={openRename}
+              onMove={() => openPick('move')}
+              onCopy={() => openPick('copy')}
+              onDelete={openDelete}
+            />
           </div>
         ) : focusItem ? (
           <DetailPanel
@@ -1085,6 +1154,11 @@ export function LibraryView(): JSX.Element {
             onMeta={() => setMetaFor({ rel: focusItem.rel, title: focusItem.name })}
             onReveal={() => window.api.libReveal(focusItem.rel)}
             onDelete={() => setDialog({ type: 'delete', names: [focusItem.name] })}
+            onFix={() => fixItem(focusItem)}
+            onPlaylist={focusItem.kind === 'song' && !focusItem.isSng ? openPlaylist : undefined}
+            onRename={openRename}
+            onMove={() => openPick('move')}
+            onCopy={() => openPick('copy')}
           />
         ) : (
           <div className="lv__dempty">
@@ -1131,7 +1205,7 @@ export function LibraryView(): JSX.Element {
             ) : null}
             {targetSongs > 0 ? (
               <button className="ctxmenu__item" onClick={() => { openPlaylist(); setCtx(null) }}>
-                <Icon name="note" size={14} /> Add to playlist ({targetSongs})
+                <Icon name="note" size={14} /> Add to setlist ({targetSongs})
               </button>
             ) : null}
             {targets.length ? (
@@ -1246,8 +1320,61 @@ export function LibraryView(): JSX.Element {
   )
 }
 
-const BROKEN_HINT =
-  'This folder has audio but no chart file (notes.mid or notes.chart), so Clone Hero won’t load it.'
+/** Texty k rozbité složce podle toho, co v ní chybí. */
+const PROBLEM: Record<LibProblem, { badge: string; sub: string; hint: string; head: string; body: JSX.Element }> = {
+  chart: {
+    badge: 'Missing chart',
+    sub: 'Audio only, no chart file · Clone Hero won’t load it',
+    hint: 'This folder has audio but no chart file (notes.mid or notes.chart), so Clone Hero won’t load it.',
+    head: 'Missing chart file.',
+    body: (
+      <>
+        This folder has the song’s audio but no <code>notes.mid</code> or <code>notes.chart</code>, so Clone
+        Hero won’t load it. It’s usually an unfinished conversion.
+      </>
+    )
+  },
+  audio: {
+    badge: 'Missing audio',
+    sub: 'Chart only, no audio files · Clone Hero can’t play it',
+    hint: 'This folder has a chart but no audio files (song.ogg, guitar.ogg, …), so Clone Hero can’t play it.',
+    head: 'Missing audio.',
+    body: (
+      <>
+        This folder has the chart but no audio files (like <code>song.ogg</code> or <code>guitar.ogg</code>), so
+        Clone Hero can’t play it. It’s usually an interrupted download or copy.
+      </>
+    )
+  },
+  both: {
+    badge: 'Missing chart & audio',
+    sub: 'Only song.ini, no chart or audio · Clone Hero won’t load it',
+    hint: 'This folder has only song.ini, with no chart file and no audio, so Clone Hero won’t load it.',
+    head: 'Missing chart and audio.',
+    body: (
+      <>
+        This folder only has <code>song.ini</code>. The chart (<code>notes.mid</code> or{' '}
+        <code>notes.chart</code>) and the audio files are both missing, so Clone Hero won’t load it.
+      </>
+    )
+  }
+}
+/** Interpret a název z názvu rozbité složky („Artist - Title (RB3 Version)"). */
+function fixQuery(name: string): { artist: string; title: string } {
+  const clean = (x: string): string =>
+    x
+      .replace(/\((?:rb\d?|rock band[^)]*?)\s*version\)/gi, '')
+      .replace(/(\w)_(s|t|m|d|ll|re|ve)\b/gi, "$1'$2")
+      .replace(/_+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  const base = name.replace(/\.sng$/i, '')
+  const dash = base.indexOf(' - ')
+  return dash > 0
+    ? { artist: clean(base.slice(0, dash)), title: clean(base.slice(dash + 3)) }
+    : { artist: '', title: clean(base) }
+}
+const problemOf = (it: Item): (typeof PROBLEM)[LibProblem] => PROBLEM[it.e.problem ?? 'chart']
 
 interface RowHandlers {
   click: (name: string, e: React.MouseEvent) => void
@@ -1255,6 +1382,7 @@ interface RowHandlers {
   ctx: (name: string, e: React.MouseEvent) => void
   check: (name: string) => void
   observe: (el: HTMLElement | null) => void
+  fix: (it: Item) => void
 }
 
 const LibRow = memo(function LibRow({
@@ -1307,8 +1435,8 @@ const LibRow = memo(function LibRow({
         />
         <span className="lvli__name">{it.name}</span>
         {it.kind === 'broken' ? (
-          <span className="lib__tag lvtag-broken" title={BROKEN_HINT}>
-            missing chart
+          <span className="lib__tag lvtag-broken" title={problemOf(it).hint}>
+            {problemOf(it).badge.toLowerCase()}
           </span>
         ) : it.kind === 'song' ? (
           <span className="lib__tag">song</span>
@@ -1329,7 +1457,7 @@ const LibRow = memo(function LibRow({
 
   if (it.kind === 'broken') {
     return (
-      <div className={`song lvcard lvcard--plain lvcard--broken ${cls}`} {...common} title={BROKEN_HINT}>
+      <div className={`song lvcard lvcard--plain lvcard--broken ${cls}`} {...common} title={problemOf(it).hint}>
         {check}
         <div className="song__art lvart-icon lvart-broken">
           <Icon name="alert" size={26} />
@@ -1338,12 +1466,23 @@ const LibRow = memo(function LibRow({
           <div className="song__title" title={it.name}>
             {it.name}
           </div>
-          <div className="song__artist lvbroken-sub">Audio only, no chart file · Clone Hero won’t load it</div>
+          <div className="song__artist lvbroken-sub">{problemOf(it).sub}</div>
         </div>
         <div className="lvbroken-cell">
           <span className="lvbroken-badge">
-            <Icon name="alert" size={13} /> Missing chart
+            <Icon name="alert" size={13} /> {problemOf(it).badge}
           </span>
+          <button
+            type="button"
+            className="lvfix"
+            title="Search the database for this song and replace the folder with a fresh download"
+            onClick={(e) => {
+              e.stopPropagation()
+              h.fix(it)
+            }}
+          >
+            Fix it
+          </button>
         </div>
         <span />
         <button className="lvkebab" type="button" aria-label="More actions" onClick={(e) => h.ctx(it.name, e)}>
@@ -1430,7 +1569,12 @@ function DetailPanel({
   onPlay,
   onMeta,
   onReveal,
-  onDelete
+  onDelete,
+  onFix,
+  onPlaylist,
+  onRename,
+  onMove,
+  onCopy
 }: {
   it: Item
   info: LibSongInfo | undefined
@@ -1441,7 +1585,13 @@ function DetailPanel({
   onMeta: () => void
   onReveal: () => void
   onDelete: () => void
+  onFix: () => void
+  onPlaylist?: () => void
+  onRename: () => void
+  onMove: () => void
+  onCopy: () => void
 }): JSX.Element {
+  const manage = { onPlaylist, onRename, onMove, onCopy, onDelete }
   if (it.kind === 'broken') {
     return (
       <div className="lv__dsong">
@@ -1450,11 +1600,13 @@ function DetailPanel({
         </div>
         <div className="lv__dtitle">{it.name}</div>
         <div className="lvbroken-note">
-          <strong>Missing chart file.</strong> This folder has the song’s audio but no{' '}
-          <code>notes.mid</code> or <code>notes.chart</code>, so Clone Hero won’t load it. It’s
-          usually an unfinished conversion. Download the chart again, or delete the folder.
+          <strong>{problemOf(it).head}</strong> {problemOf(it).body} Download the chart again, or delete the
+          folder.
         </div>
         <div className="lv__dactions">
+          <button className="btn-primary" onClick={onFix} title="Search the database for this song and replace the folder with a fresh download">
+            <Icon name="download" size={13} /> Fix it
+          </button>
           <button className="btn-secondary" onClick={onOpen}>Open folder</button>
           <button className="btn-secondary" onClick={onReveal}>{IS_MAC ? 'Show in Finder' : 'Show in Explorer'}</button>
           <button className="btn-secondary lv__danger" onClick={onDelete}>
@@ -1474,17 +1626,14 @@ function DetailPanel({
         <div className="lv__dsub">
           {it.kind === 'folder' ? (count === undefined ? 'Folder' : `${count} ${count === 1 ? 'song' : 'songs'}`) : 'File'}
         </div>
-        <div className="lv__dactions">
-          {it.kind === 'folder' ? (
-            <>
-              <button className="btn-primary" onClick={onOpen}>Open folder</button>
-              <button className="btn-secondary" onClick={onPlay}>
-                <Icon name="play" size={13} /> Listen in music player
-              </button>
-            </>
-          ) : null}
-          <button className="btn-secondary" onClick={onReveal}>{IS_MAC ? 'Show in Finder' : 'Show in Explorer'}</button>
-        </div>
+        <div className="lv__dlabel">{it.kind === 'folder' ? 'Folder' : 'File'}</div>
+        <PanelActions
+          {...manage}
+          primary={it.kind === 'folder' ? { label: 'Open folder', icon: 'folder', onClick: onOpen } : undefined}
+          onPlay={it.kind === 'folder' ? onPlay : undefined}
+          playLabel="Listen in music player"
+          onReveal={onReveal}
+        />
       </div>
     )
   }
@@ -1501,49 +1650,261 @@ function DetailPanel({
         )}
         {!it.isSng ? <LocalPreview previewKey={`libd:${it.rel}`} rel={it.rel} size={22} /> : null}
       </div>
-      <div className="lv__dtitle">{d?.title ? <RichText text={d.title} /> : it.name}</div>
-      {d?.artist ? (
-        <div className="lv__dartist">
-          <RichText text={d.artist} />
-        </div>
-      ) : null}
-      <div className="lv__dsub">
-        {[d?.album ? stripTags(d.album) : null, d?.year || null, d?.genre ? stripTags(d.genre) : null].filter(Boolean).join(' · ')}
-      </div>
-      <div className="lv__dactions">
-        {!it.isSng ? (
-          <>
-            <button className="btn-primary" onClick={onPlay}>
-              <Icon name="play" size={13} /> Play in music player
-            </button>
-            <button className="btn-secondary" onClick={onMeta}>Edit metadata</button>
-          </>
-        ) : null}
-        <button className="btn-secondary" onClick={onReveal}>{IS_MAC ? 'Show in Finder' : 'Show in Explorer'}</button>
-      </div>
-      {d ? (
-        <div className="lv__ddiffs">
-          <InstrumentDifficulty difficulties={d.difficulties} />
-        </div>
-      ) : null}
+      <SongSummary info={d ?? undefined} fallback={it.name} />
+      <div className="lv__dlabel">Song</div>
+      <PanelActions
+        {...manage}
+        onPlay={it.isSng ? undefined : onPlay}
+        onMeta={it.isSng ? undefined : onMeta}
+        onReveal={onReveal}
+      />
       <dl className="lv__dkv">
-        {d?.charter ? (
-          <>
-            <dt>Charter</dt>
-            <dd>
-              <RichText text={d.charter} />
-            </dd>
-          </>
-        ) : null}
-        {d?.lengthSeconds ? (
-          <>
-            <dt>Length</dt>
-            <dd>{formatLength(d.lengthSeconds)}</dd>
-          </>
-        ) : null}
         <dt>Folder</dt>
         <dd className="lv__dpath">{it.rel}</dd>
       </dl>
+    </div>
+  )
+}
+
+/** Šipka směru řazení v záhlaví; místo drží i vypnutá, ať popisky neposkakují. */
+function SortArrow({ on, dir }: { on: boolean; dir: 1 | -1 }): JSX.Element {
+  return (
+    <span className={`lvsort ${on ? 'lvsort--on' : ''}`} aria-hidden="true">
+      <Icon name="caret" size={10} style={{ transform: dir === 1 ? 'rotate(180deg)' : 'none' }} />
+    </span>
+  )
+}
+
+// Větší obaly pro stoh ve výběru (sdílené mezi výběry, ať se nenačítají znovu).
+const coverCache = new Map<string, string | null>()
+const coverInflight = new Set<string>()
+const STACK_DEPTH = 4
+const STACK_CARD = 72 // šířka obalu v % šířky stohu (musí sedět s .lvstack__card)
+
+/**
+ * Stoh obalů vybraných písní. Vidět jsou první čtyři, kolečko myši nad
+ * stohem jimi točí dokola (bez konce); obaly se dotahují jen kolem aktuální
+ * pozice. Přední obal má stejné tlačítko ukázky jako detail jedné písně.
+ */
+function CoverStack({ items, infos }: { items: Item[]; infos: Record<string, LibSongInfo> }): JSX.Element {
+  // pos roste/klesá bez omezení, aktuální index je pos mod n.
+  const [pos, setPos] = useState(0)
+  const [, bump] = useState(0)
+  const ref = useRef<HTMLDivElement>(null)
+  const n = items.length
+  const at = n ? ((pos % n) + n) % n : 0
+  const idx = (k: number): number => (((at + k) % n) + n) % n
+
+  // Vrstvy k = 0 … DEPTH (poslední je neviditelná rezerva, ze které se vysune
+  // další obal) a k = −1 (právě odjetý obal). Při malém výběru by se stejná
+  // píseň objevila dvakrát, takže každý index bereme jen jednou.
+  const layers: { k: number; it: Item }[] = []
+  if (n) {
+    const used = new Set<number>()
+    for (const k of [...Array.from({ length: STACK_DEPTH + 1 }, (_, j) => j), -1]) {
+      const j = idx(k)
+      if (used.has(j)) continue
+      used.add(j)
+      layers.push({ k, it: items[j] })
+    }
+  }
+
+  const want = n
+    ? [...new Set(Array.from({ length: STACK_DEPTH + 4 }, (_, j) => items[idx(j - 1)].rel))].filter(
+        (r) => !coverCache.has(r) && !coverInflight.has(r)
+      )
+    : []
+  const wantKey = want.join('|')
+  useEffect(() => {
+    if (!want.length) return
+    want.forEach((r) => coverInflight.add(r))
+    void window.api
+      .libAlbumCovers(want)
+      .then((res) => {
+        for (const [k, v] of Object.entries(res)) coverCache.set(k, v)
+      })
+      .finally(() => {
+        want.forEach((r) => coverInflight.delete(r))
+        bump((x) => x + 1)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantKey])
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el || n < 2) return
+    let acc = 0
+    const onWheel = (e: WheelEvent): void => {
+      e.preventDefault()
+      acc += e.deltaY
+      if (Math.abs(acc) < 40) return
+      const step = acc > 0 ? 1 : -1
+      acc = 0
+      setPos((p) => p + step)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [n])
+
+  if (!n) {
+    return (
+      <div className="lv__dart lv__dart--none">
+        <Icon name="copy" size={42} />
+      </div>
+    )
+  }
+  const front = items[at]
+  const info = infos[front.rel]
+  // Vycentrování celého stohu: obal má 72 % šířky, každá další vrstva ho
+  // posune o 12 % doprava a 10 % nahoru a zmenší o 7 %.
+  const m = Math.min(STACK_DEPTH, n) - 1
+  const left = `${(100 - STACK_CARD * (1 + 0.05 * m)) / 2}%`
+  const bottom = `${(100 - STACK_CARD * (1 + 0.03 * m)) / 2}%`
+  return (
+    <div className="lvstack-wrap">
+      <div ref={ref} className="lvstack" title={n > 1 ? 'Scroll to browse the selected songs' : undefined}>
+        {layers.map(({ k, it }) => {
+          const hidden = k < 0 || k >= STACK_DEPTH
+          const src = coverCache.get(it.rel)
+          return (
+            <div
+              key={it.rel}
+              className={`lvstack__card song__art ${k === 0 ? 'lvstack__card--front' : ''}`}
+              title={k > 0 && !hidden ? 'Bring to front' : undefined}
+              // Zadní obal se klikem přesune dopředu; přední řeší tlačítko ukázky.
+              onClick={k > 0 && !hidden ? () => setPos((p) => p + k) : undefined}
+              style={{
+                pointerEvents: hidden ? 'none' : undefined,
+                left,
+                bottom,
+                zIndex: 20 - k,
+                opacity: hidden ? 0 : 1,
+                transform:
+                  k < 0
+                    ? 'translate(-18%, 14%) rotateY(-12deg) scale(1.04)'
+                    : `translate(${k * 12}%, ${-k * 10}%) rotateY(-12deg) scale(${1 - k * 0.07})`,
+                filter: `brightness(${1 - Math.max(0, Math.min(k, STACK_DEPTH)) * 0.17})`
+              }}
+            >
+              {src ? (
+                <img src={src} alt="" draggable={false} />
+              ) : (
+                <div className={`lvstack__none ${src === undefined ? 'lvart-none--loading' : ''}`}>
+                  <Icon name="note" size={34} />
+                </div>
+              )}
+              {k === 0 && !it.isSng ? <LocalPreview previewKey={`libs:${it.rel}`} rel={it.rel} size={22} /> : null}
+            </div>
+          )
+        })}
+      </div>
+      <SongSummary info={info} fallback={front.name} count={n > 1 ? `${at + 1} / ${n}` : undefined} />
+    </div>
+  )
+}
+
+/** Údaje o písni v pravém panelu, stejně u jedné písně i u stohu výběru. */
+function SongSummary({
+  info,
+  fallback,
+  count
+}: {
+  info: LibSongInfo | undefined
+  fallback: string
+  count?: string
+}): JSX.Element {
+  const sub = [info?.album ? stripTags(info.album) : null, info?.year || null, info?.genre ? stripTags(info.genre) : null]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <div className="lvsum">
+      <div className="lvsum__head">
+        <div className="lv__dtitle">{info?.title ? <RichText text={info.title} /> : fallback}</div>
+        {count ? <span className="lvstack__count">{count}</span> : null}
+      </div>
+      {info?.artist ? (
+        <div className="lv__dartist">
+          <RichText text={info.artist} />
+        </div>
+      ) : null}
+      {sub ? <div className="lv__dsub">{sub}</div> : null}
+      {info?.charter || info?.lengthSeconds ? (
+        <div className="lvsum__meta">
+          {info.lengthSeconds ? <span className="badge badge--len">{formatLength(info.lengthSeconds)}</span> : null}
+          {info.charter ? (
+            <span className="song__charter">
+              <Icon name="charter" size={12} /> <RichText text={info.charter} />
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      {info ? (
+        <div className="lv__ddiffs">
+          <InstrumentDifficulty difficulties={info.difficulties} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * Tlačítka pravého panelu ve stejném pořadí pro jednu položku i výběr:
+ * hlavní akce, Add to setlist, pak správa souborů ve dvou sloupcích.
+ */
+function PanelActions({
+  primary,
+  onPlay,
+  playLabel = 'Play in music player',
+  onPlaylist,
+  onMeta,
+  onReveal,
+  onRename,
+  onMove,
+  onCopy,
+  onDelete
+}: {
+  primary?: { label: string; icon: IconName; onClick: () => void }
+  onPlay?: () => void
+  playLabel?: string
+  onPlaylist?: () => void
+  onMeta?: () => void
+  onReveal?: () => void
+  onRename: () => void
+  onMove: () => void
+  onCopy: () => void
+  onDelete: () => void
+}): JSX.Element {
+  return (
+    <div className="lv__dactions">
+      {primary ? (
+        <button className="btn-primary" onClick={primary.onClick}>
+          <Icon name={primary.icon} size={13} /> {primary.label}
+        </button>
+      ) : null}
+      {onPlay ? (
+        <button className={primary ? 'btn-secondary' : 'btn-primary'} onClick={onPlay}>
+          <Icon name="play" size={13} /> {playLabel}
+        </button>
+      ) : null}
+      {onPlaylist ? (
+        <button className="btn-secondary" onClick={onPlaylist}>
+          <Icon name="note" size={13} /> Add to setlist
+        </button>
+      ) : null}
+      <div className="lv__dactions--grid">
+        {onMeta ? <button className="btn-secondary" onClick={onMeta}>Edit metadata</button> : null}
+        {onReveal ? (
+          <button className="btn-secondary" onClick={onReveal}>
+            {IS_MAC ? 'Show in Finder' : 'Show in Explorer'}
+          </button>
+        ) : null}
+        <button className="btn-secondary" onClick={onRename}>Rename…</button>
+        <button className="btn-secondary" onClick={onMove}>Move to…</button>
+        <button className="btn-secondary" onClick={onCopy}>Copy to…</button>
+        <button className="btn-secondary lv__danger" onClick={onDelete}>
+          <Icon name="trash" size={13} /> Delete
+        </button>
+      </div>
     </div>
   )
 }

@@ -45,14 +45,14 @@ export function PlaylistDialog({
     <div className="lib__dialog-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="lib__dialog lib__dialog--playlist">
         <p className="metadlg__head">
-          Add to playlist <span className="metadlg__sub">{rels.length} song{rels.length === 1 ? '' : 's'}</span>
+          Add to setlist <span className="metadlg__sub">{rels.length} song{rels.length === 1 ? '' : 's'}</span>
         </p>
 
         {result ? (
           <>
             <p className="wn__p">
               Added <strong>{result.added}</strong>, skipped {result.skipped} already in it
-              {result.missingHash ? `, ${result.missingHash} had no chart file` : ''}. Playlist now
+              {result.missingHash ? `, ${result.missingHash} had no chart file` : ''}. Setlist now
               has <strong>{result.total}</strong> songs.
             </p>
             <p className="field__hint">Open the setlist in Clone Hero to play it.</p>
@@ -65,7 +65,7 @@ export function PlaylistDialog({
         ) : (
           <>
             <label className="metadlg__field">
-              <span>New playlist</span>
+              <span>New setlist</span>
               <div className="field__row">
                 <input
                   autoFocus
@@ -90,7 +90,7 @@ export function PlaylistDialog({
             </label>
 
             {playlists === null ? (
-              <p className="wn__muted">Loading playlists…</p>
+              <p className="wn__muted">Loading setlists…</p>
             ) : playlists.length > 0 ? (
               <div className="pldlg__existing">
                 <span className="metadlg__field-label">Or add to an existing one</span>
@@ -109,7 +109,7 @@ export function PlaylistDialog({
                 </div>
               </div>
             ) : (
-              <p className="field__hint">No playlists yet. Create your first one above.</p>
+              <p className="field__hint">No setlists yet. Create your first one above.</p>
             )}
 
             {error ? <p className="lib__error">⚠ {error}</p> : null}

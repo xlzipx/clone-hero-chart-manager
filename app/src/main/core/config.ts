@@ -214,7 +214,9 @@ function defaults(): AppConfig {
     // upozorňován (blikající banner vlevo dole), si to v Nastavení vypne a
     // update si zjistí ručně přes „Check for updates".
     autoCheckUpdates: true,
-    libraryView: 'cards'
+    libraryView: 'cards',
+    librarySort: { key: 'name', dir: 1 },
+    windowState: null
   }
 }
 
