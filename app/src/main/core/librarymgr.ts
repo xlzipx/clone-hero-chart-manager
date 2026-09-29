@@ -1,7 +1,7 @@
 // Správce knihovny Songs: procházení, vytváření složek, přejmenování, mazání
 // (do koše), přesun a kopírování. Vše je bezpečně omezené na songsDir.
 
-import { shell } from 'electron'
+import { nativeImage, shell } from 'electron'
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'fs'
 import { readdir } from 'fs/promises'
 import { basename, extname, join, relative, resolve, sep } from 'path'
@@ -36,6 +36,7 @@ export interface LibEntry {
   name: string
   type: 'dir' | 'file'
   isSong: boolean
+  incomplete?: boolean
 }
 
 function rootDir(): string {
@@ -58,12 +59,19 @@ function sanitizeName(name: string): string {
   return clean
 }
 
-function isSongDir(abs: string): boolean {
+// Zvukové stopy chartu. Složka, která je má, ale chybí jí soubor s notami, je
+// nejspíš nedokončený převod (typicky RB → CH, kde se zkopírovalo jen audio).
+const AUDIO_EXT = /\.(ogg|opus|mp3|wav|flac|m4a|mogg)$/i
+
+/** Je složka píseň? A pokud ne, vypadá jako rozbitá píseň (audio bez chartu)? */
+function inspectDir(abs: string): { isSong: boolean; incomplete: boolean } {
   try {
-    const e = readdirSync(abs).map((x) => x.toLowerCase())
-    return SONG_MARKERS.some((m) => e.includes(m))
+    const names = readdirSync(abs)
+    const lower = names.map((x) => x.toLowerCase())
+    const isSong = SONG_MARKERS.some((m) => lower.includes(m))
+    return { isSong, incomplete: !isSong && names.some((n) => AUDIO_EXT.test(n)) }
   } catch {
-    return false
+    return { isSong: false, incomplete: false }
   }
 }
 
@@ -111,7 +119,7 @@ export function libList(rel: string): { path: string; entries: LibEntry[] } {
       continue
     }
     const common = { size: st.size, mtimeMs: st.mtimeMs, birthtimeMs: st.birthtimeMs }
-    if (st.isDirectory()) entries.push({ name, type: 'dir', isSong: isSongDir(full), ...common })
+    if (st.isDirectory()) entries.push({ name, type: 'dir', ...inspectDir(full), ...common })
     else if (st.isFile()) entries.push({ name, type: 'file', isSong: false, ...common })
   }
   entries.sort((a, b) =>
@@ -346,6 +354,54 @@ export async function libSongInfo(rels: string[]): Promise<LibSongInfo[]> {
   }
   return out
 }
+// Miniatury obalů pro karty v Library. Klíč = cesta + mtime obalu, takže
+// změněný obal se přegeneruje a nezměněný se čte z paměti.
+const thumbCache = new Map<string, string | null>()
+const ART_NAMES = ['album.png', 'album.jpg', 'album.jpeg', 'album.webp']
+
+async function albumThumb(folderAbs: string): Promise<string | null> {
+  for (const n of ART_NAMES) {
+    const p = join(folderAbs, n)
+    let st
+    try {
+      st = statSync(p)
+    } catch {
+      continue
+    }
+    const key = `${p}|${st.mtimeMs}`
+    const hit = thumbCache.get(key)
+    if (hit !== undefined) return hit
+    let out: string | null = null
+    try {
+      const img = nativeImage.createFromPath(p)
+      if (!img.isEmpty()) {
+        const small = img.resize({ width: 112, height: 112, quality: 'good' })
+        out = `data:image/jpeg;base64,${small.toJPEG(82).toString('base64')}`
+      }
+    } catch {
+      out = null
+    }
+    thumbCache.set(key, out)
+    // Dekódování obrázku je synchronní — mezi obaly pusť event loop dál.
+    await new Promise((r) => setImmediate(r))
+    return out
+  }
+  return null
+}
+
+/** Malé náhledy obalů (data URI JPEG ~112 px) pro dávku písní; null = obal není. */
+export async function libAlbumThumbs(rels: string[]): Promise<Record<string, string | null>> {
+  const out: Record<string, string | null> = {}
+  for (const rel of rels) {
+    try {
+      out[rel] = await albumThumb(safeAbs(rel))
+    } catch {
+      out[rel] = null
+    }
+  }
+  return out
+}
+
 /** Detail otevřené písně: metadata + obal alba (data URI). */
 export async function libSongDetail(rel: string): Promise<SongDetail> {
   const abs = safeAbs(rel)

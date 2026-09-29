@@ -50,6 +50,7 @@ import {
   libPlaylistSongs,
   libReadMeta,
   libRemoveFromPlaylist,
+  libAlbumThumbs,
   libSongDetail,
   libSongInfo,
   libRename,
@@ -239,6 +240,7 @@ export function registerIpc(): void {
   )
   ipcMain.handle('lib:songInfo', (_e, rels: string[]) => libSongInfo(rels))
   ipcMain.handle('lib:songDetail', (_e, rel: string) => libSongDetail(rel))
+  ipcMain.handle('lib:albumThumbs', (_e, rels: string[]) => libAlbumThumbs(rels))
   ipcMain.handle('lib:findDuplicates', (_e, scope?: string[]) =>
     libFindDuplicates(Array.isArray(scope) ? scope : undefined)
   )

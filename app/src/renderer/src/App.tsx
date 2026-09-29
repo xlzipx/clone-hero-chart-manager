@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { DownloadQueue } from './components/DownloadQueue'
 import { FilterBar } from './components/FilterBar'
 import { Icon } from './components/Icon'
-import { LibraryManager } from './components/LibraryManager'
+import { LibraryView } from './components/LibraryView'
 import { LocalDropModal } from './components/LocalDropModal'
 import { MarketplaceModal } from './components/MarketplaceModal'
 import { AboutModal } from './components/AboutModal'
@@ -61,6 +61,7 @@ export function App(): JSX.Element {
   const advFilters = useStore((s) => s.filters)
   const ownedKeys = useStore((s) => s.ownedKeys)
   const hideOwned = useStore((s) => s.hideOwned)
+  const showLibrary = useStore((s) => s.showLibrary)
   const setHideOwned = useStore((s) => s.setHideOwned)
   const sort = useStore((s) => s.sort)
   const surprise = useStore((s) => s.surprise)
@@ -483,6 +484,10 @@ export function App(): JSX.Element {
         <Sidebar />
         <main className="content">
       <TitleBar />
+      {showLibrary ? (
+        <LibraryView />
+      ) : (
+      <>
       <FilterBar />
 
       <SearchBar />
@@ -729,6 +734,8 @@ export function App(): JSX.Element {
           </div>
         </div>
       )}
+      </>
+      )}
         </main>
       </div>
 
@@ -736,7 +743,6 @@ export function App(): JSX.Element {
       <Settings />
       <TargetFolderModal />
       <MarketplaceModal />
-      <LibraryManager />
       <LocalDropModal />
       <WhatsNew />
       <PlaylistImportModal />

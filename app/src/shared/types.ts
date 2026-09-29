@@ -302,6 +302,8 @@ export interface AppConfig {
    * ručním kliknutí na „Check for updates" v Nastavení / v postranním pruhu.
    */
   autoCheckUpdates: boolean
+  /** Zobrazení písní v Library: karty (obal, obtížnosti, ukázka) nebo kompaktní seznam. */
+  libraryView: 'cards' | 'list'
 }
 
 export type RhythmVerseSystem = 'ch' | 'ps' | 'rb3' | 'all'
@@ -314,6 +316,9 @@ export interface LibEntry {
   name: string
   type: 'dir' | 'file'
   isSong: boolean
+  /** Složka má zvukové stopy, ale chybí jí soubor s notami (notes.mid / notes.chart):
+   *  Clone Hero ji nenačte. Typicky nedokončený převod. */
+  incomplete?: boolean
   /** Velikost souboru v bajtech (u složek 0 — velikost se dopočítává jinak). */
   size: number
   /** Čas poslední změny (ms epoch) — pro řazení „naposledy změněné". */
@@ -492,6 +497,8 @@ export interface RendererApi {
   libSongInfo(rels: string[]): Promise<LibSongInfo[]>
   /** Detail otevřené písně (metadata + obal alba jako data URI). */
   libSongDetail(rel: string): Promise<SongDetail>
+  /** Malé náhledy obalů (JPEG data URI ~112 px) pro karty v Library; null = bez obalu. */
+  libAlbumThumbs(rels: string[]): Promise<Record<string, string | null>>
   /** Zapíše zadaná metadata do song.ini. */
   libWriteMeta(relItem: string, fields: SongMeta): Promise<void>
   /** Najde duplicity v knihovně (identické + varianty téže písně). */

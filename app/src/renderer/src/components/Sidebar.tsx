@@ -43,6 +43,8 @@ export function Sidebar(): JSX.Element {
   const surpriseMe = useStore((s) => s.surpriseMe)
   const setShowPlaylistImport = useStore((s) => s.setShowPlaylistImport)
   const openWhatsNew = useStore((s) => s.openWhatsNew)
+  // Volby hledání (databáze, systém, Surprise me) z Library vrací na hledání.
+  const setShowLibrary = useStore((s) => s.setShowLibrary)
 
   // Launch / focus her — přesunuto z TitleBaru, logika beze změny.
   const [runningGame, setRunningGame] = useState<Game>(null)
@@ -200,7 +202,14 @@ export function Sidebar(): JSX.Element {
           (respektuje dotaz i filtry). „Import playlist" = dohledat charty
           z odkazu na playlist. */}
       <div className="side-actions">
-        <button type="button" className="side-surprise" onClick={() => surpriseMe()}>
+        <button
+          type="button"
+          className="side-surprise"
+          onClick={() => {
+            setShowLibrary(false)
+            void surpriseMe()
+          }}
+        >
           <Icon name="dice" size={20} className="side-surprise__dice" />
           <span className="side-surprise__text">
             <span className="side-surprise__title">Surprise me</span>
@@ -244,6 +253,7 @@ export function Sidebar(): JSX.Element {
               title={d.hint}
               className={`side-item ${database === d.id ? 'side-item--on' : ''}`}
               onClick={() => {
+                setShowLibrary(false)
                 setDatabase(d.id)
                 // Vždy re-search: prázdný dotaz výsledky vyčistí (RV/Both)
                 // nebo přepne na browse-all (Encore) — žádné zatuchlé výsledky.
@@ -272,6 +282,7 @@ export function Sidebar(): JSX.Element {
                 title={sys.hint}
                 className={`side-item ${system === sys.id ? 'side-item--on' : ''}`}
                 onClick={() => {
+                  setShowLibrary(false)
                   setSystem(sys.id)
                   // Re-search i v browse režimu (prázdný dotaz), ne jen u textu.
                   void doSearch(1)

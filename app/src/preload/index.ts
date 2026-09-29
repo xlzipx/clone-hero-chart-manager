@@ -115,6 +115,8 @@ const api = {
     ipcRenderer.invoke('lib:songInfo', rels) as Promise<LibSongInfo[]>,
   libSongDetail: (rel: string) =>
     ipcRenderer.invoke('lib:songDetail', rel) as Promise<SongDetail>,
+  libAlbumThumbs: (rels: string[]) =>
+    ipcRenderer.invoke('lib:albumThumbs', rels) as Promise<Record<string, string | null>>,
   libFindDuplicates: (scope?: string[]) =>
     ipcRenderer.invoke('lib:findDuplicates', scope) as Promise<DupGroup[]>,
   libListPlaylists: () => ipcRenderer.invoke('lib:listPlaylists') as Promise<PlaylistInfo[]>,

@@ -11,6 +11,7 @@ import { TipsTicker } from './TipsTicker'
 export function TitleBar(): JSX.Element {
   const setShowSettings = useStore((s) => s.setShowSettings)
   const setShowLibrary = useStore((s) => s.setShowLibrary)
+  const showLibrary = useStore((s) => s.showLibrary)
   const setShowAbout = useStore((s) => s.setShowAbout)
   const [maximized, setMaximized] = useState(false)
 
@@ -54,12 +55,16 @@ export function TitleBar(): JSX.Element {
 
       <div className="titlebar__actions">
         <button
-          className="titlebar__library"
-          title="Browse and manage your Songs library: folders, metadata, playlists, duplicates"
-          onClick={() => setShowLibrary(true)}
+          className={`titlebar__library ${showLibrary ? 'titlebar__library--back' : ''}`}
+          title={
+            showLibrary
+              ? 'Back to searching for charts (your search is kept)'
+              : 'Browse and manage your Songs library: folders, metadata, playlists, duplicates'
+          }
+          onClick={() => setShowLibrary(!showLibrary)}
         >
-          <Icon name="folder" size={15} />
-          <span>My Library</span>
+          <Icon name={showLibrary ? 'search' : 'folder'} size={15} />
+          <span>{showLibrary ? 'Back to search' : 'My Library'}</span>
         </button>
         <button className="titlebar__btn" title="Settings" onClick={() => setShowSettings(true)}>
           <Icon name="settings" size={16} />

@@ -8382,3 +8382,994 @@ button.plrow__na:hover {
     animation: none;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   Library přes celé okno (1.4.0): strom složek | seznam | detail.
+   Nahrazuje dřívější modal „Library manager". Karty písní používají
+   stejné třídy jako výsledky hledání (.song…), aby obě obrazovky
+   vypadaly jednotně.
+   ══════════════════════════════════════════════════════════════════ */
+.lv {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 300px;
+  margin: 6px 20px 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--content-bg, #0f1a31);
+}
+@media (max-width: 1400px) {
+  .lv {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+  .lv__detail {
+    display: none !important;
+  }
+}
+@media (max-width: 980px) {
+  .lv {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lv__tree {
+    display: none !important;
+  }
+}
+
+/* ── Strom ── */
+.lv__tree {
+  background: var(--bg-side);
+  border-right: 1px solid var(--tline, var(--border));
+  overflow-y: auto;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+.lv__treesec {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Sekce oddělené vyrytou čárou (tmavá rýha + světlý lem, jako jinde v appce). */
+.lv__treesec + .lv__treesec {
+  border-top: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  padding-top: 14px;
+}
+.lv__treelabel {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 0 8px 7px;
+}
+.lv__titem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+}
+.lv__titem svg {
+  flex: none;
+  opacity: 0.8;
+}
+.lv__tname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lv__tcount {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.lv__titem:hover {
+  background: var(--panel-hover);
+  color: var(--text);
+}
+.lv__titem--on {
+  background: var(--box-hi);
+  color: var(--text);
+}
+.lv__titem--on .lv__tcount {
+  color: var(--text-dim);
+}
+
+/* ── Hlavní sloupec ── */
+.lv__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.lv__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--tline, var(--border));
+}
+.lv__bar > * {
+  flex-shrink: 0;
+}
+/* Drobečková navigace zabere zbytek místa a dlouhou cestu posune vodorovně. */
+.lv__bar > .lv__crumbs {
+  flex: 1 1 auto;
+  min-width: 150px;
+  scrollbar-width: none;
+}
+.lv__crumbs::-webkit-scrollbar {
+  display: none;
+}
+.lv__crumbs .crumb__wrap {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.lv__bar > .lv__search {
+  flex: 0 1 180px;
+}
+/* ── Rozbitá složka: audio bez souboru s notami (Clone Hero ji nenačte) ── */
+.lv {
+  --lv-warn: #f5a524;
+  --lv-warn-rgb: 245, 165, 36;
+}
+.lv__list .song.lvcard.lvcard--broken {
+  /* Výstražný proužek vlevo = stav, ne dekorace. */
+  box-shadow: inset 3px 0 0 var(--lv-warn);
+  background: rgba(var(--lv-warn-rgb), 0.045);
+}
+.lv__list .song.lvcard.lvcard--broken:hover {
+  background: rgba(var(--lv-warn-rgb), 0.08);
+}
+.lv__list .song.lvcard.lvcard--broken.song--selected {
+  background: rgba(var(--lv-warn-rgb), 0.12);
+  box-shadow: inset 3px 0 0 var(--lv-warn);
+}
+.lvart-broken {
+  color: var(--lv-warn) !important;
+  background: rgba(var(--lv-warn-rgb), 0.12) !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--lv-warn-rgb), 0.35);
+}
+.lvbroken-sub {
+  color: rgba(var(--lv-warn-rgb), 0.85) !important;
+}
+.lvbroken-cell {
+  display: flex;
+  align-items: center;
+  padding-left: 6px;
+}
+.lvbroken-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lv-warn);
+  background: rgba(var(--lv-warn-rgb), 0.12);
+  border: 1px solid rgba(var(--lv-warn-rgb), 0.4);
+}
+.lvtag-broken {
+  color: var(--lv-warn) !important;
+  border-color: rgba(var(--lv-warn-rgb), 0.45) !important;
+  background: rgba(var(--lv-warn-rgb), 0.1) !important;
+  text-transform: none;
+  letter-spacing: 0.2px;
+}
+.lvli--broken > svg {
+  color: var(--lv-warn);
+}
+.lvbroken-note {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(var(--lv-warn-rgb), 0.08);
+  border: 1px solid rgba(var(--lv-warn-rgb), 0.3);
+}
+.lvbroken-note strong {
+  color: var(--lv-warn);
+}
+.lvbroken-note code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text);
+}
+.lv__chip--warn svg {
+  color: var(--lv-warn);
+}
+.lv__chip--warn.lv__chip--on {
+  color: var(--lv-warn);
+  border-color: rgba(var(--lv-warn-rgb), 0.5);
+  background: rgba(var(--lv-warn-rgb), 0.12);
+}
+.lv__fclear {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.lv__filters {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+.lv__brokenlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--lv-warn-rgb), 0.4);
+  background: rgba(var(--lv-warn-rgb), 0.1);
+  color: var(--lv-warn);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lv__brokenlink:hover,
+.lv__brokenlink--on {
+  background: rgba(var(--lv-warn-rgb), 0.2);
+}
+
+/* Nadpisy skupin v nativním menu řazení (jinak bílé pozadí + světlý text). */
+.lib__sortsel optgroup {
+  background: var(--bg-solid);
+  color: var(--text-faint);
+  font-style: normal;
+  font-weight: 800;
+}
+.lv__search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 33px;
+  padding: 0 10px;
+  min-width: 90px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-faint);
+}
+.lv__search input {
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  width: 100%;
+  min-width: 0;
+}
+.lv__search:focus-within {
+  border-color: var(--accent);
+}
+.lib__btn--on {
+  background: var(--box-hi);
+  border-color: var(--border-strong);
+}
+.lv__fcount {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  background: var(--accent);
+  color: var(--on-pill, #fff);
+}
+.lv__seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+.lv__seg button {
+  width: 32px;
+  height: 27px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-dim);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.lv__seg button:hover {
+  color: var(--text);
+}
+.lv__seg button.on {
+  background: var(--accent);
+  color: var(--on-pill, #fff);
+}
+
+/* Panel filtrů */
+.lv__filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px 22px;
+  align-items: start;
+  padding: 14px 16px;
+  background: var(--box);
+  border-bottom: 1px solid var(--tline, var(--border));
+}
+.lv__fgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.lv__flabel {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.lv__fhint {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.lv__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lv__chip {
+  height: 30px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lv__chip:hover {
+  color: var(--text);
+}
+.lv__chip--on {
+  color: var(--text);
+  background: var(--box-hi);
+  border-color: var(--border-strong);
+}
+.lv__range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.lv__range .lib__sortsel {
+  border-right: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.lv__finput {
+  height: 32px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.lv__finput:focus {
+  border-color: var(--accent);
+}
+.lv__fend {
+  align-self: end;
+}
+.lv__link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.lv__link:hover:not(:disabled) {
+  color: var(--text);
+}
+.lv__link:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Lišta hromadných akcí */
+.lv__bulk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 9px 16px;
+  background: var(--box);
+  border-bottom: 1px solid var(--tline, var(--border));
+}
+.lv__bulkcount {
+  font-weight: 700;
+  font-size: 13px;
+  margin-right: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.lv__danger:hover:not(:disabled) {
+  color: var(--warn) !important;
+  border-color: var(--warn) !important;
+}
+
+/* Záhlaví sloupců */
+.lv__head {
+  display: grid;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--tline, var(--border));
+}
+.lv__head--cards {
+  grid-template-columns: 22px 64px minmax(150px, 1fr) 340px 20px 30px;
+}
+.lv__head--list {
+  grid-template-columns: 22px 20px minmax(0, 1fr) auto;
+  padding-left: 23px;
+}
+.lv__head button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.lv__head button:hover,
+.lv__head button.on {
+  color: var(--text);
+}
+.lv__hsorts {
+  display: flex;
+  gap: 16px;
+}
+.lv__hinst {
+  display: flex;
+  gap: 10px;
+  padding-left: 6px;
+}
+.lv__hinst button {
+  width: 56px;
+  display: grid;
+  place-items: center;
+  padding: 2px 0;
+  border-radius: 6px;
+  opacity: 0.55;
+}
+.lv__hinst button:hover,
+.lv__hinst button.on {
+  opacity: 1;
+}
+.lv__hinst button.on {
+  box-shadow: inset 0 -2px 0 var(--text);
+}
+
+/* Seznam */
+.lv__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.lv__list--list {
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lv__list .song.lvcard {
+  grid-template-columns: 22px 64px minmax(150px, 1fr) 340px 20px 30px;
+  border: none;
+  border-bottom: 1px solid var(--tline, var(--border));
+  border-radius: 0;
+  margin: 0;
+  padding: 13px 14px;
+  transform: none;
+  animation: none;
+  cursor: default;
+}
+.lv__list .song.lvcard:hover {
+  background: var(--panel-hover);
+}
+.lv__list .song.lvcard.song--checked {
+  background: rgba(var(--accent-rgb), 0.07);
+}
+.lv__list .song.lvcard.song--selected {
+  background: var(--box-hi);
+  box-shadow: none;
+}
+.lv__list .song__art {
+  width: 64px;
+  height: 64px;
+}
+.lvart-none,
+.lvart-icon {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+  background: var(--panel);
+}
+.lvart-icon {
+  border-radius: 11px;
+}
+.lvart-none--loading {
+  animation: lvpulse 1.2s ease-in-out infinite;
+}
+@keyframes lvpulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+.lvcard--plain .song__title {
+  font-size: 15px;
+}
+.lvcard .song__meta {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.lvdim {
+  color: var(--text-faint);
+}
+.lvkebab {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  color: var(--text-dim);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.lvkebab:hover {
+  background: var(--panel-hover);
+  color: var(--text);
+}
+.lvrow--cut {
+  opacity: 0.5;
+}
+
+/* Kompaktní seznam */
+.lvli {
+  display: grid;
+  grid-template-columns: 22px 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 13.5px;
+  cursor: default;
+  user-select: none;
+}
+.lvli:hover {
+  background: var(--panel);
+}
+.lvli.song--checked {
+  background: rgba(var(--accent-rgb), 0.07);
+}
+.lvli.lvrow--focus {
+  background: var(--box-hi);
+  border-color: var(--border-strong);
+  box-shadow: none;
+}
+.lvli__name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lvli .song__check .chk__box,
+.lv__list .song__check .chk__box {
+  opacity: 0.55;
+}
+.lvli:hover .chk__box,
+.lvli.song--checked .chk__box,
+.lv__list .song:hover .chk__box,
+.lv__list .song--checked .chk__box {
+  opacity: 1;
+}
+
+/* ── Detail ── */
+.lv__detail {
+  background: var(--bg-side);
+  border-left: 1px solid var(--tline, var(--border));
+  padding: 18px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.lv__dsong,
+.lv__dmulti {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lv__dartwrap.song__art {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 12px;
+}
+.lv__dartwrap.song__art:hover {
+  transform: none;
+}
+.lv__dart {
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 12px;
+  display: block;
+}
+.lv__dart--none {
+  display: grid;
+  place-items: center;
+  background: var(--panel);
+  color: var(--text-faint);
+}
+.lv__dtitle {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.lv__dartist {
+  font-size: 14px;
+  color: var(--text);
+  margin-top: -6px;
+}
+.lv__dsub {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.lv__dactions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lv__dactions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+/* Úzký panel: 5 nástrojů v mřížce, menší tečky, ať se vejdou bez přetečení. */
+.lv__ddiffs .instruments {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+}
+.lv__ddiffs .instrument {
+  width: auto;
+  min-width: 0;
+}
+.lv__ddiffs .dots {
+  gap: 2px;
+}
+.lv__ddiffs .dot {
+  width: 5px;
+  height: 5px;
+}
+.lv__detail {
+  overflow-x: hidden;
+}
+.lv__dkv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 7px 14px;
+  margin: 0;
+  font-size: 12.5px;
+}
+.lv__dkv dt {
+  color: var(--text-faint);
+}
+.lv__dkv dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lv__dpath {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.lv__dempty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+  padding: 20px;
+}
+
+/* ── Dialogy hromadných akcí ── */
+.lv .lib__dialog-overlay {
+  z-index: 50;
+  border-radius: 14px;
+}
+.lvdlg {
+  width: min(780px, 94%);
+  max-height: 88%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+.lvdlg--sm {
+  width: min(460px, 94%);
+}
+.lvdlg .metadlg__head {
+  margin: 0 !important;
+}
+.lvseg {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 3px;
+  gap: 2px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+.lvseg button {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lvseg button.on {
+  background: var(--accent);
+  color: var(--on-pill, #fff);
+}
+.lvseg button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.lvtags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lvtags button {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.lvtags button:hover {
+  color: var(--text);
+}
+.lvtwo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.lvpreview {
+  flex: 1;
+  min-height: 120px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.lvpreview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.lvpreview th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--box-hi);
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 8px 10px;
+}
+.lvpreview td {
+  padding: 7px 10px;
+  border-top: 1px solid var(--border);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.lvpreview__old {
+  color: var(--text-dim);
+}
+.lvpreview__new {
+  color: var(--text);
+  font-weight: 600;
+}
+.lvpreview__arr {
+  color: var(--text-faint);
+  width: 18px;
+}
+.lvst {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.lvst--ok {
+  color: var(--ok);
+}
+.lvst--fix {
+  color: #f0c36b;
+}
+.lvst--same,
+.lvst--skip {
+  color: var(--text-faint);
+}
+.lvfoot-note {
+  margin-right: auto;
+  align-self: center;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.lvpre {
+  white-space: pre-line;
+  margin: 0 !important;
+}
+.lvpick__crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+}
+.lvpick__crumbs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+.lvpick__crumbs button:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+.lvpick__sep {
+  color: var(--text-faint);
+}
+.lvpick {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 4px;
+}
+.lvpick button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-dim);
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.lvpick button span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lvpick button:hover:not(:disabled) {
+  background: var(--panel-hover);
+  color: var(--text);
+}
+.lvpick button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lv__toast {
+  position: absolute;
+  left: 50%;
+  bottom: 60px;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-pill, #fff);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+/* Tlačítko v horní liště v Library = „Back to search" (sekundární vzhled). */
+.titlebar__library.titlebar__library--back,
+[data-theme='graphite'] .titlebar__library.titlebar__library--back {
+  background: var(--pill, var(--panel));
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  box-shadow: none !important;
+}
+.titlebar__library.titlebar__library--back:hover,
+[data-theme='graphite'] .titlebar__library.titlebar__library--back:hover {
+  background: var(--pill-hi, var(--panel-hover));
+  color: var(--text);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lvart-none--loading {
+    animation: none;
+  }
+}

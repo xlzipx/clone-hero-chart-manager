@@ -61,6 +61,10 @@ export type IconName =
   | 'volume'
   | 'volumeMute'
   | 'levels'
+  | 'cards'
+  | 'list'
+  | 'arrowRight'
+  | 'alert'
 
 // Obsah jednotlivých ikon (viewBox 0 0 24 24). Stroke dědí currentColor.
 const PATHS: Record<IconName, JSX.Element> = {
@@ -166,6 +170,23 @@ const PATHS: Record<IconName, JSX.Element> = {
   filter: <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />,
   chevronLeft: <polyline points="15 6 9 12 15 18" />,
   chevronRight: <polyline points="9 6 15 12 9 18" />,
+  cards: (
+    <>
+      <rect x="3" y="4" width="6" height="6" rx="1" />
+      <path d="M12 6h9M12 9h6" />
+      <rect x="3" y="14" width="6" height="6" rx="1" />
+      <path d="M12 16h9M12 19h6" />
+    </>
+  ),
+  list: <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />,
+  arrowRight: <path d="M5 12h14M13 6l6 6-6 6" />,
+  alert: (
+    <>
+      <path d="M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9v4.5" />
+      <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none" />
+    </>
+  ),
   folder: (
     <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
   ),

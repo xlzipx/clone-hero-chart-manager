@@ -213,7 +213,8 @@ function defaults(): AppConfig {
     // Auto-check nových verzí při startu — dosavadní chování. Kdo nechce být
     // upozorňován (blikající banner vlevo dole), si to v Nastavení vypne a
     // update si zjistí ručně přes „Check for updates".
-    autoCheckUpdates: true
+    autoCheckUpdates: true,
+    libraryView: 'cards'
   }
 }
 

@@ -7,7 +7,7 @@ import {
 } from '../../../shared/foldertemplate'
 import type { AppConfig, ReminderPosition } from '../../../shared/types'
 import { useStore } from '../store'
-import { IS_MAC } from '../platform'
+import { IS_LINUX, IS_MAC } from '../platform'
 import { HotkeyInput } from './HotkeyInput'
 import { Icon } from './Icon'
 
@@ -321,7 +321,7 @@ export function Settings(): JSX.Element | null {
 
           <label className="field">
             <span>
-              {IS_MAC ? 'Clone Hero.app path' : 'Clone Hero.exe path'}
+              {IS_MAC ? 'Clone Hero.app path' : IS_LINUX ? 'Clone Hero path' : 'Clone Hero.exe path'}
               {exeStatus?.path === null && !draft.chExePath ? (
                 <em className="field__warn"> — couldn't auto-detect, set manually</em>
               ) : exeStatus?.autoDetected && !draft.chExePath ? (
@@ -337,7 +337,9 @@ export function Settings(): JSX.Element | null {
                     ? `Using: ${exeStatus.path}`
                     : IS_MAC
                       ? 'e.g. /Applications/Clone Hero.app'
-                      : 'e.g. C:\\Games\\Clone Hero\\Clone Hero.exe'
+                      : IS_LINUX
+                        ? 'e.g. ~/.clonehero/CloneHero.x86_64'
+                        : 'e.g. C:\\Games\\Clone Hero\\Clone Hero.exe'
                 }
                 value={draft.chExePath}
                 onChange={(e) => setDraft({ ...draft, chExePath: e.target.value })}
@@ -357,7 +359,7 @@ export function Settings(): JSX.Element | null {
 
           <label className="field">
             <span>
-              {IS_MAC ? 'YARG.app path' : 'YARG.exe path'}
+              {IS_MAC ? 'YARG.app path' : IS_LINUX ? 'YARG path' : 'YARG.exe path'}
               {yargStatus?.path === null && !draft.yargExePath ? (
                 <em className="field__hint" style={{ marginLeft: 6 }}>
                   — not detected (set manually if installed)
@@ -375,7 +377,9 @@ export function Settings(): JSX.Element | null {
                     ? `Using: ${yargStatus.path}`
                     : IS_MAC
                       ? 'e.g. /Applications/YARG.app'
-                      : 'e.g. C:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe'
+                      : IS_LINUX
+                        ? 'e.g. ~/YARG/YARG.x86_64'
+                        : 'e.g. C:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe'
                 }
                 value={draft.yargExePath}
                 onChange={(e) => setDraft({ ...draft, yargExePath: e.target.value })}
@@ -416,7 +420,7 @@ export function Settings(): JSX.Element | null {
               UI scale
               <span
                 className="info"
-                title="Make the whole interface bigger or smaller. This stacks on top of your Windows display scaling, so it's handy on very high-resolution (4K) screens where things can look small."
+                title="Make the whole interface bigger or smaller. This stacks on top of your system display scaling, so it's handy on very high-resolution (4K) screens where things can look small."
               >
                 <Icon name="info" size={13} />
               </span>
@@ -451,7 +455,7 @@ export function Settings(): JSX.Element | null {
               </button>
             </div>
             <p className="field__hint">
-              Stacks on top of Windows display scaling. Preview updates live; click Save to keep it.
+              Stacks on top of your system display scaling. Preview updates live; click Save to keep it.
             </p>
           </fieldset>
               </section>
