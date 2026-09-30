@@ -441,7 +441,7 @@ The **Launch / Switch to Clone Hero** and **Launch YARG** buttons live in the
 left sidebar, not the title bar.
 
 <p align="center">
-  <img alt="Settings: every section, from library paths to maintenance" width="820" src="https://chartmanager.pages.dev/assets/readme-settings.gif" />
+  <img alt="Settings: every section, from library paths to maintenance" width="820" src="https://chartmanager.pages.dev/assets/readme-settings-v2.gif" />
 </p>
 
 > **Scanning into the game:** Clone Hero has no external rescan command —
