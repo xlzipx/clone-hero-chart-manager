@@ -57,6 +57,10 @@ const PAGE_RETRIES = 2
 
 type Source = 'rv' | 'en'
 
+/** Běží dlouhá operace (první build / „Refresh everything")? Jen tehdy UI
+ *  ukazuje průběh; běžná delta za pár vteřin se nehlásí. */
+const longRun: Record<Source, boolean> = { rv: false, en: false }
+
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 let syncing = false
@@ -99,7 +103,8 @@ function statusFromDb(): CatalogStatus {
       en: { ready: enReady, progress: syncing ? srcProgress.en : 1 }
     },
     counts,
-    lastSync: last ? Number(last) : null
+    lastSync: last ? Number(last) : null,
+    longRun: syncing && (longRun.rv || longRun.en)
   }
 }
 
@@ -124,6 +129,24 @@ export function maybeBackfillForDataVersion(): boolean {
   return true
 }
 
+/**
+ * „Refresh the whole catalog" z Nastavení: kurzory na nulu, takže příští sync
+ * projede obě databáze od začátku a aktualizuje řádky na místě. Hotové
+ * `full_done` zůstává, filtry mezitím jedou na stávajících datech.
+ */
+export function refreshWholeCatalog(): void {
+  // Běží-li zrovna jiný sync, jeho konec by kurzory zase přepsal → obnova se
+  // jen zapamatuje a spustí hned po něm (viz konec syncCatalog).
+  if (syncing) {
+    refreshPending = true
+    return
+  }
+  catalog.setMeta('cursor:rv', '0')
+  catalog.setMeta('cursor:en', '0')
+  void syncCatalog()
+}
+let refreshPending = false
+
 /** Stránkovací funkce zdroje (enchor/rhythmverse mají identický tvar). */
 type PageFetcher = (page: number) => Promise<enchor.CatalogPageResult>
 
@@ -142,26 +165,57 @@ function withRetry(fetchPage: PageFetcher): PageFetcher {
   }
 }
 
-/** Delta sync hotového zdroje: newest-first, stop na kurzoru. */
-async function deltaSync(src: Source): Promise<void> {
+/**
+ * Delta sync hotového zdroje: newest-first, stop na kurzoru. S kurzorem 0
+ * („Refresh everything" z Nastavení, backfill) projde celou databázi — pak
+ * stejným souběhem jako plný build (RhythmVerse 3 stránky naráz) a hlásí
+ * průběh. Běžná delta skončí po pár stránkách, bez hlášení.
+ */
+async function deltaSync(src: Source, concurrency: number): Promise<void> {
   const perPage = src === 'en' ? enchor.ENCHOR_CATALOG_PER_PAGE : rhythmverse.RV_CATALOG_RECORDS
   const fetchPage = withRetry(
     src === 'en' ? enchor.fetchCatalogPage : rhythmverse.fetchCatalogPage
   )
   const cursorRaw = catalog.getMeta(`cursor:${src}`)
+  const full = !cursorRaw || Number(cursorRaw) === 0
   const cursor = (cursorRaw ? Number(cursorRaw) : 0) - CURSOR_OVERLAP_MS
   const runStart = Date.now()
+  const par = full ? concurrency : 1
+  if (full) {
+    longRun[src] = true
+    srcProgress[src] = 0
+    emit()
+  }
 
-  let totalPages = 1
-  for (let page = 1; page <= totalPages; page++) {
-    const res = await fetchPage(page)
-    if (page === 1) totalPages = Math.max(1, Math.ceil(res.found / perPage))
-    if (res.items.length === 0) break
-    catalog.upsertMany(
-      res.items.map((it) => ({ src, uid: it.uid, modifiedMs: it.modifiedMs, song: it.song }))
-    )
-    if (res.items.every((it) => it.modifiedMs < cursor)) break
-    if (page < totalPages) await sleep(PAGE_DELAY_MS)
+  try {
+    let totalPages = 1
+    let known = false
+    outer: for (let start = 1; start <= totalPages; start += par) {
+      const batch: number[] = []
+      for (let p = start; p < start + par && (p <= totalPages || !known); p++) batch.push(p)
+      const pages =
+        batch.length > 1 ? await Promise.all(batch.map(fetchPage)) : [await fetchPage(batch[0])]
+      for (const res of pages) {
+        if (!known) {
+          totalPages = Math.max(1, Math.ceil(res.found / perPage))
+          known = true
+        }
+        if (res.items.length === 0) break outer
+        catalog.upsertMany(
+          res.items.map((it) => ({ src, uid: it.uid, modifiedMs: it.modifiedMs, song: it.song }))
+        )
+        if (!full && res.items.every((it) => it.modifiedMs < cursor)) break outer
+      }
+      if (full) {
+        srcProgress[src] = Math.min(0.99, batch[batch.length - 1] / totalPages)
+        emit()
+      }
+      if (start + par <= totalPages) await sleep(PAGE_DELAY_MS)
+    }
+  } finally {
+    longRun[src] = false
+    srcProgress[src] = 1
+    emit()
   }
   // Kurzor = začátek TOHOHLE běhu (vše starší je teď v DB).
   catalog.setMeta(`cursor:${src}`, String(runStart))
@@ -221,8 +275,13 @@ async function fullBuild(src: Source, concurrency: number): Promise<void> {
 }
 
 async function syncSource(src: Source, concurrency: number): Promise<void> {
-  if (catalog.getMeta(`full_done:${src}`) === '1') return deltaSync(src)
-  return fullBuild(src, concurrency)
+  if (catalog.getMeta(`full_done:${src}`) === '1') return deltaSync(src, concurrency)
+  longRun[src] = true
+  try {
+    return await fullBuild(src, concurrency)
+  } finally {
+    longRun[src] = false
+  }
 }
 
 /**
@@ -271,6 +330,10 @@ export async function syncCatalog(): Promise<void> {
   srcProgress.rv = 1
   srcProgress.en = 1
   emit()
+  if (refreshPending) {
+    refreshPending = false
+    refreshWholeCatalog()
+  }
 }
 
 /**

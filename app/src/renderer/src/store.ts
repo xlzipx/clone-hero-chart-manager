@@ -13,6 +13,8 @@ import type {
   SortDir,
   SortKey
 } from '../../shared/types'
+import { dateFilterRange } from '../../shared/types'
+import type { DateFilter } from '../../shared/types'
 import { SORT_DEFAULT_DIR } from '../../shared/types'
 import { mergeBoth, normText, songKey } from '../../shared/songid'
 import { asError, errMsg, OFFLINE_MSG, userMsg } from '../../shared/errors'
@@ -120,6 +122,9 @@ interface AppState {
   // Zpřesňující filtry přes načtené výsledky (contains, case-insensitive)
   charterFilter: string
   albumFilter: string
+  /** „Added/modified" — kdy chart v databázi přibyl nebo byl upraven. */
+  dateFilter: DateFilter
+  setDateFilter: (f: DateFilter) => void
   // Filtr redukcí: 'any' = bez omezení, 'expert' = jen Expert-only, 'full' = jen E/M/H/X
   reductions: 'any' | 'expert' | 'full'
   // Jen přímo stažitelné (skryje official DLC a MEGA/Mediafire) — týká se hlavně RhythmVerse
@@ -192,7 +197,8 @@ interface AppState {
   /** Stav lokálního katalogu metadat (null dokud nedorazí první status). */
   catalogStatus: CatalogStatus | null
   /** Napojí odběr stavu katalogu (volat jednou při mountu App). */
-  watchCatalog: () => void
+  /** Odběr stavu katalogu; Promise se splní, jakmile je znám úvodní stav. */
+  watchCatalog: () => Promise<void>
 
   // ── Zvuková ukázka (poslech před stažením) ───────────────────────────────
   /** Klíč písně, jejíž ukázka je právě aktivní (načítá se / hraje). */
@@ -762,6 +768,8 @@ export const useStore = create<AppState>((set, get) => {
   const needsDeepScan = (): boolean => {
     const s = get()
     const tierNarrowed = s.diffMin > 0 || s.diffMax < 6
+    // Datum server neumí → katalog, případně deep scan s lokálním filtrem.
+    if (dateFilterRange(s.dateFilter)) return true
     const encoreMultiInstrument = s.database !== 'rhythmverse' && s.instrumentFilters.length > 1
     return tierNarrowed || encoreMultiInstrument
   }
@@ -1110,6 +1118,8 @@ export const useStore = create<AppState>((set, get) => {
         reductions: s.reductions === 'any' ? undefined : s.reductions,
         directOnly: s.directOnly || undefined,
         excludeOwned: s.hideOwned || undefined,
+        updatedFrom: dateFilterRange(s.dateFilter)?.from,
+        updatedTo: dateFilterRange(s.dateFilter)?.to,
         instruments: s.instrumentFilters,
         diffMin: s.diffMin,
         diffMax: s.diffMax,
@@ -1448,6 +1458,7 @@ export const useStore = create<AppState>((set, get) => {
   diffMax: 6,
   charterFilter: '',
   albumFilter: '',
+  dateFilter: { preset: 'any', from: '', to: '' },
   reductions: 'any',
   directOnly: false,
   ownedKeys: new Set<string>(),
@@ -1865,7 +1876,7 @@ export const useStore = create<AppState>((set, get) => {
     syncDeepMode()
   },
   watchCatalog: () => {
-    void window.api
+    const initial = window.api
       .catalogStatus()
       .then((s) => set({ catalogStatus: s }))
       .catch(() => {
@@ -1897,6 +1908,7 @@ export const useStore = create<AppState>((set, get) => {
         void st.doSearch(st.page)
       }
     })
+    return initial
   },
   // S katalogem je charter/album skutečný filtr přes celou DB → přehledat
   // (debounce, ať se nehledá na každý stisk). Bez katalogu zůstává původní
@@ -1908,6 +1920,10 @@ export const useStore = create<AppState>((set, get) => {
   setAlbumFilter: (v) => {
     set({ albumFilter: v, selectedIndex: -1 })
     if (catalogUsableForDb()) runRefineSearch(get, v)
+  },
+  setDateFilter: (f) => {
+    set({ dateFilter: f, selectedIndex: -1, page: 1 })
+    void get().doSearch(1)
   },
   setReductions: (v) => {
     set({ reductions: v, selectedIndex: -1 })
@@ -2054,6 +2070,7 @@ export const useStore = create<AppState>((set, get) => {
       diffMax: 6,
       charterFilter: '',
       albumFilter: '',
+      dateFilter: { preset: 'any', from: '', to: '' },
       reductions: 'any',
       directOnly: false,
       hideOwned: false,
@@ -2089,7 +2106,8 @@ export const useStore = create<AppState>((set, get) => {
   // Zároveň obnoví „owned" index — uživatel mohl ve správci smazat/přesunout
   // písničky, jinak by řádky ve výsledcích držely zastaralý „In library".
   setShowLibrary: (v) => {
-    set(v ? { showLibrary: true } : { showLibrary: false, libraryReveal: null })
+    // Přepnutí Knihovna / Hledání vždy zavře i Nastavení (leží nad oběma).
+    set(v ? { showLibrary: true, showSettings: false } : { showLibrary: false, libraryReveal: null, showSettings: false })
     if (!v) void get().loadOwnedKeys()
   },
   openLibraryAt: (rels) => set({ libraryReveal: rels, showLibrary: true }),
@@ -2133,7 +2151,12 @@ export const useStore = create<AppState>((set, get) => {
     // Jeden nástroj i víc nástrojů na RhythmVerse zvládne server (AND) → jde
     // normální serverové stránkování s plným pokrytím a bez záplavy requestů.
     // (Fallback pro dobu, než je katalog poprvé synchronizovaný.)
-    if (needsDeepScan()) {
+    // Textové hledání v Encore s filtrem nástroje: Encore filtr při hledání
+    // rozbíjí (viz enchor.ts), takže se stáhnou stránky bez něj a nástroj se
+    // filtruje lokálně, včetně správného počtu shod.
+    const encoreTextInstrument =
+      !!query.trim() && database !== 'rhythmverse' && get().instrumentFilters.length > 0
+    if (needsDeepScan() || encoreTextInstrument) {
       return deepScan()
     }
     const myReq = ++searchSeq
@@ -2447,12 +2470,13 @@ export const useStore = create<AppState>((set, get) => {
     // Chybové joby zůstávají, dokud uživatel nestiskne „Clear history" — chce
     // si přečíst, co se pokazilo.
     if (job.stage === 'done') {
+      const autoClear = get().config?.autoClearFinished !== false
       // Po instalaci osvěž „In library" index (debounced kvůli dávkám).
       if (ownedReloadTimer) clearTimeout(ownedReloadTimer)
       ownedReloadTimer = setTimeout(() => {
         void useStore.getState().loadOwnedKeys()
       }, 1500)
-      setTimeout(() => {
+      if (autoClear) setTimeout(() => {
         const cur = useStore.getState().jobs[job.id]
         if (!cur || cur.stage !== 'done') return // už ho mezitím něco změnilo
         useStore.setState((s) => {

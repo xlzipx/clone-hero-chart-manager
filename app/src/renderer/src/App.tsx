@@ -1,3 +1,5 @@
+import { dateFilterRange } from '../../shared/types'
+import { BatchDownloadOptions } from './components/DownloadOptions'
 import { FixBanner } from './components/FixBanner'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { DownloadQueue } from './components/DownloadQueue'
@@ -17,7 +19,6 @@ import { SongRow } from './components/SongRow'
 import { SortSelect } from './components/SortSelect'
 import { TargetFolderModal } from './components/TargetFolderModal'
 import { TitleBar } from './components/TitleBar'
-import { Discover } from './components/Discover'
 import { WhatsNew } from './components/WhatsNew'
 import { useStore } from './store'
 import {
@@ -63,10 +64,12 @@ export function App(): JSX.Element {
   const ownedKeys = useStore((s) => s.ownedKeys)
   const hideOwned = useStore((s) => s.hideOwned)
   const showLibrary = useStore((s) => s.showLibrary)
+  const showSettings = useStore((s) => s.showSettings)
   const setHideOwned = useStore((s) => s.setHideOwned)
   const sort = useStore((s) => s.sort)
   const surprise = useStore((s) => s.surprise)
   const fixing = useStore((s) => s.fixTarget !== null || Object.keys(s.fixJobs).length > 0)
+  const dateFilter = useStore((s) => s.dateFilter)
 
   // Deep režim: filtr nástroje/obtížnosti → zdrojem je celý stažený dotaz
   // (všechny stránky) a stránkuje se lokálně nad shodami.
@@ -84,6 +87,7 @@ export function App(): JSX.Element {
     // vyřešil server, tier/charter/album klientsky neaplikuj, ať nezmizí).
     if (surprise) return source
     const cf = charterFilter.trim().toLowerCase()
+    const dr = dateFilterRange(dateFilter)
     const af = albumFilter.trim().toLowerCase()
     const diffNarrowed = diffMin > 0 || diffMax < 6
     const filtered = source.filter((song) => {
@@ -107,6 +111,10 @@ export function App(): JSX.Element {
       // stripTags: filtr musí matchovat čistý text, ne <color=…> značky.
       if (cf && !stripTags(song.charter ?? '').toLowerCase().includes(cf)) return false
       if (af && !(song.album ?? '').toLowerCase().includes(af)) return false
+      if (dr) {
+        const t = song.updatedMs
+        if (!t || (dr.from !== undefined && t < dr.from) || (dr.to !== undefined && t > dr.to)) return false
+      }
       // Redukce: expert = jen Expert-only, full = jen E/M/H/X. Neznámé (null,
       // typicky nesynchronizovaný chart) při aktivním filtru vypadne.
       if (reductions === 'expert' && song.expertOnly !== true) return false
@@ -133,6 +141,7 @@ export function App(): JSX.Element {
     return arr
   }, [
     fixing,
+    dateFilter,
     source,
     surprise,
     database,
@@ -274,6 +283,8 @@ export function App(): JSX.Element {
 
   // Načtení configu + odběr událostí (úlohy, hotkeys).
   useEffect(() => {
+    // Stav lokálního katalogu (sync progress + kdy je použitelný pro filtry).
+    const catalogReady = useStore.getState().watchCatalog()
     void (async () => {
       // try/catch: selhání loadConfig nesmí přerušit zbytek inicializace
       // (detekce Songs složky, „What's new").
@@ -286,6 +297,11 @@ export function App(): JSX.Element {
       // panel filtrů otevřený). Je to jen jedna stránka (25 řádků) = jeden dotaz,
       // takže na start/výkon to nemá dopad. Číselník naplní dropdowny filtrů.
       void useStore.getState().loadFilterOptions()
+      // Nejdřív znát stav lokálního katalogu: s hotovým katalogem jde úvodní
+      // procházení rovnou přes něj (Both bez duplicit, ~209k). Jinak by první
+      // dotaz šel na živé API, které v Both jen sečte obě databáze (~239k), a
+      // po první aktualizaci katalogu by číslo „záhadně" spadlo o ~30k.
+      await catalogReady
       void useStore.getState().doSearch(1)
       // Index „už mám v knihovně" (nápověda ve výsledcích).
       void useStore.getState().loadOwnedKeys()
@@ -309,8 +325,7 @@ export function App(): JSX.Element {
       }
     })()
     const offJob = window.api.onJobUpdate(applyJobUpdate)
-    // Stav lokálního katalogu (sync progress + kdy je použitelný pro filtry).
-    useStore.getState().watchCatalog()
+    // (Odběr stavu katalogu startuje výš, před úvodním hledáním.)
     // Seed rozdělané fronty: po reloadu rendereru je store.jobs prázdný a úloha
     // se sparse updaty (např. converting) by byla neviditelná do dalšího ticku.
     void window.api
@@ -354,6 +369,10 @@ export function App(): JSX.Element {
       if (
         t?.closest('.tablewrap') ||
         t?.closest('.batchbar') ||
+        // ⋮ menu a volby stahování jsou v portálu mimo tabulku, i jejich
+        // průhledné pozadí (klik na něj jen zavře menu, výběr zůstává).
+        t?.closest('.rowmenu__menu') ||
+        t?.closest('.rowmenu__backdrop') ||
         t?.closest('.chk--selectall') ||
         t?.closest('.dd--sort') ||
         t?.closest('.modal-overlay') ||
@@ -389,13 +408,10 @@ export function App(): JSX.Element {
         if (st.showAbout) st.setShowAbout(false)
         else if (st.showPlaylistImport) st.setShowPlaylistImport(false)
         else if (st.showWhatsNew) st.setShowWhatsNew(false)
+        // Nastavení leží nad knihovnou i hledáním → zavírá se první.
+        else if (st.showSettings) st.setShowSettings(false)
         else if (st.showLibrary) st.setShowLibrary(false)
-        else if (st.showSettings) {
-          // Escape = Cancel: zahoď živý náhled UI scale (jinak by neuložená
-          // škála zůstala aplikovaná až do restartu).
-          void window.api.setUiScale(st.config?.uiScale ?? 1)
-          st.setShowSettings(false)
-        } else window.api.hideOverlay()
+        else window.api.hideOverlay()
         return
       }
       // Otevřené Nastavení/Správce/What's new/Import/About: nech projít jen Escape (výše), nenaviguj.
@@ -462,9 +478,8 @@ export function App(): JSX.Element {
     document.querySelector('.results')?.scrollTo({ top: 0 })
   }, [page])
 
-  // Je aktivní JAKÝKOLI zužující filtr? Řídí prázdný stav: s filtrem se místo
-  // nabídky interpretů (Discover) ukáže výzva k uvolnění filtrů — klik na
-  // interpreta by s nesmyslným charter/album filtrem stejně nic nenašel.
+  // Je aktivní JAKÝKOLI zužující filtr? Řídí prázdný stav: s filtrem se ukáže
+  // výzva k uvolnění filtrů.
   const filtersNarrow =
     !!charterFilter.trim() ||
     !!albumFilter.trim() ||
@@ -474,6 +489,7 @@ export function App(): JSX.Element {
     instrumentFilters.length > 0 ||
     diffMin > 0 ||
     diffMax < 6 ||
+    dateFilter.preset !== 'any' ||
     !!(
       advFilters.genre?.length ||
       advFilters.year?.length ||
@@ -488,7 +504,9 @@ export function App(): JSX.Element {
         <Sidebar />
         <main className="content">
       <TitleBar />
-      {showLibrary ? (
+      {showSettings ? (
+        <Settings />
+      ) : showLibrary ? (
         <LibraryView />
       ) : (
       <>
@@ -607,6 +625,7 @@ export function App(): JSX.Element {
                     ? `Download ${downloadableCount}`
                     : 'Download selected'}
                 </button>
+                <BatchDownloadOptions />
                 <button className="batchbar__clear" onClick={clearSelection} title="Clear selection">
                   <Icon name="close" size={13} />
                 </button>
@@ -679,9 +698,7 @@ export function App(): JSX.Element {
         ) : error ? (
           <div className="state state--error">⚠ {error}</div>
         ) : source.length === 0 ? (
-          // S aktivním zužujícím filtrem NEnabízet interprety (Discover) —
-          // klik na ně by kvůli filtru stejně nic nenašel. Místo toho poslat
-          // uživatele k filtrům.
+          // S aktivním zužujícím filtrem poslat uživatele k filtrům.
           filtersNarrow ? (
             <div className="state">
               No songs match the current filters. Try clearing a filter in Filters.
@@ -689,11 +706,8 @@ export function App(): JSX.Element {
           ) : (
             <div className="state state--empty">
               <div className="state__msg">
-                {query
-                  ? 'Nothing found. Try a different search, or an artist below.'
-                  : 'Search for a song or artist.'}
+                {query ? 'Nothing found. Try a different search.' : 'Search for a song or artist.'}
               </div>
-              <Discover />
             </div>
           )
         ) : visible.length === 0 ? (
@@ -745,7 +759,6 @@ export function App(): JSX.Element {
       </div>
 
       <DownloadQueue />
-      <Settings />
       <TargetFolderModal />
       <MarketplaceModal />
       <LocalDropModal />

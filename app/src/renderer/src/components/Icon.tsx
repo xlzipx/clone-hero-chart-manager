@@ -65,6 +65,7 @@ export type IconName =
   | 'list'
   | 'arrowRight'
   | 'alert'
+  | 'calendar'
 
 // Obsah jednotlivých ikon (viewBox 0 0 24 24). Stroke dědí currentColor.
 const PATHS: Record<IconName, JSX.Element> = {
@@ -266,6 +267,12 @@ const PATHS: Record<IconName, JSX.Element> = {
       <path d="M9 18V6l9-2v10" />
       <circle cx="6.5" cy="18" r="2.4" fill="currentColor" stroke="none" />
       <circle cx="15.5" cy="14" r="2.4" fill="currentColor" stroke="none" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
     </>
   ),
   play: <polygon points="7 4 20 12 7 20 7 4" fill="currentColor" stroke="none" />,

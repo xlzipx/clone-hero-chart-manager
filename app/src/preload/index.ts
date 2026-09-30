@@ -99,6 +99,7 @@ const api = {
   libRename: (relItem: string, newName: string) =>
     ipcRenderer.invoke('lib:rename', relItem, newName) as Promise<void>,
   libTrash: (relItem: string) => ipcRenderer.invoke('lib:trash', relItem) as Promise<void>,
+  libUnpackSng: (relItem: string) => ipcRenderer.invoke('lib:unpackSng', relItem) as Promise<string>,
   libReplaceBroken: (brokenRel: string, installAbs: string) =>
     ipcRenderer.invoke('lib:replaceBroken', brokenRel, installAbs) as Promise<string>,
   libMoveOut: (relItems: string[], destAbsDir: string) =>
@@ -259,6 +260,13 @@ const api = {
   },
 
   appVersion: () => ipcRenderer.invoke('app:version') as Promise<string>,
+  catalogSyncNow: () => ipcRenderer.invoke('catalog:syncNow') as Promise<void>,
+  catalogRefreshAll: () => ipcRenderer.invoke('catalog:refreshAll') as Promise<void>,
+  settingsExport: () => ipcRenderer.invoke('settings:export') as Promise<boolean>,
+  settingsImport: () => ipcRenderer.invoke('settings:import') as Promise<AppConfig | null>,
+  openDataFolder: () => ipcRenderer.invoke('app:openDataFolder') as Promise<void>,
+  cacheSize: () => ipcRenderer.invoke('cache:size') as Promise<number>,
+  cacheClear: () => ipcRenderer.invoke('cache:clear') as Promise<number>,
   checkForUpdates: () => ipcRenderer.invoke('update:check') as Promise<UpdateCheckResult>,
   setUiScale: (scale: number) => ipcRenderer.invoke('ui:scale', scale) as Promise<void>,
   getReleaseNotes: (version?: string) =>

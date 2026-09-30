@@ -216,7 +216,11 @@ function defaults(): AppConfig {
     autoCheckUpdates: true,
     libraryView: 'cards',
     librarySort: { key: 'name', dir: 1 },
-    windowState: null
+    windowState: null,
+    encoreFormat: 'folder',
+    downloadVideos: true,
+    maxConcurrentDownloads: 2,
+    autoClearFinished: true
   }
 }
 

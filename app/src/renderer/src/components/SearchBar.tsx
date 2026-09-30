@@ -53,6 +53,7 @@ export function SearchBar(): JSX.Element {
   const instrumentFilters = useStore((s) => s.instrumentFilters)
   const diffMin = useStore((s) => s.diffMin)
   const diffMax = useStore((s) => s.diffMax)
+  const dateActive = useStore((s) => s.dateFilter.preset !== 'any')
   const clearFilters = useStore((s) => s.clearFilters)
   const inputRef = useRef<HTMLInputElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -176,7 +177,8 @@ export function SearchBar(): JSX.Element {
     directOnly ||
     instrumentFilters.length > 0 ||
     diffMin > 0 ||
-    diffMax < 6
+    diffMax < 6 ||
+    dateActive
 
   return (
     <div className="searchbar">

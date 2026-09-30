@@ -418,6 +418,7 @@ interface ChartRow {
   drive_folder_url: string | null
   size_bytes: number | null
   downloads: number | null
+  modified: number
 }
 
 function rowToSong(r: ChartRow): SongResult {
@@ -463,7 +464,8 @@ function rowToSong(r: ChartRow): SongResult {
     externalUrl: r.external_url,
     sizeBytes: r.size_bytes,
     downloads: r.downloads,
-    driveFolderUrl: r.drive_folder_url
+    driveFolderUrl: r.drive_folder_url,
+    updatedMs: r.modified || null
   }
 }
 
@@ -584,6 +586,16 @@ export function queryCatalog(q: CatalogQuery): SearchResponse {
   // klíč artist|title je v owned_keys (naplní renderer přes setOwnedKeys).
   if (q.excludeOwned) {
     where.push(`NOT EXISTS (SELECT 1 FROM owned_keys o WHERE o.k = norm_key)`)
+  }
+
+  // „Added/modified" — datum přidání/úpravy v databázi (sloupec modified).
+  if (typeof q.updatedFrom === 'number') {
+    where.push(`modified >= ?`)
+    args.push(q.updatedFrom)
+  }
+  if (typeof q.updatedTo === 'number') {
+    where.push(`modified <= ?`)
+    args.push(q.updatedTo)
   }
 
   // „Direct downloads only": jen to, co jde stáhnout jedním klikem. Kopíruje

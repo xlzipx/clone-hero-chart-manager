@@ -19,6 +19,7 @@ import {
 } from './playlists'
 import { invalidateOwnedIndex } from './library'
 import { findDuplicates } from './duplicates'
+import { extractSng, isSngFile } from './sngextract'
 import type {
   DupGroup,
   LibSongInfo,
@@ -283,6 +284,25 @@ export async function libReplaceBroken(brokenRel: string, installAbs: string): P
   invalidateLibraryIndex()
   invalidateOwnedIndex()
   return relative(rootDir(), inst).split(sep).join('/')
+}
+
+/**
+ * Rozbalí .sng z knihovny do normální složky písně vedle něj (stejně jako při
+ * stahování) a .sng pošle do koše. Vrací relativní cestu nové složky.
+ */
+export async function libUnpackSng(relItem: string): Promise<string> {
+  const src = safeAbs(relItem)
+  if (!/\.sng$/i.test(src) || !statSync(src).isFile() || !(await isSngFile(src))) {
+    throw new Error('Not a .sng file')
+  }
+  const parent = dirname(src)
+  // Volný název vedle .sng (např. když už složka stejného jména existuje).
+  const name = basename(uniqueDest(parent, basename(src).replace(/\.sng$/i, '')))
+  const out = await extractSng(src, parent, name)
+  await shell.trashItem(src)
+  invalidateLibraryIndex()
+  invalidateOwnedIndex()
+  return relative(rootDir(), out).split(sep).join('/')
 }
 
 export function libMove(srcRelItem: string, destRelDir: string): void {

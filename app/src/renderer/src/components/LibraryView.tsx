@@ -291,6 +291,17 @@ export function LibraryView(): JSX.Element {
     loadTree()
   }
 
+  // Rozbalení .sng souborů (z výběru nebo zaostřené položky) do složek písní.
+  const unpackSng = (): void => {
+    const sngs = targetNames().filter((n) => /\.sng$/i.test(n))
+    if (!sngs.length) return
+    void run(async () => {
+      for (const n of sngs) await window.api.libUnpackSng(relOf(n))
+      setChecked(new Set())
+      setFocus(null)
+    }, `Unpacked ${sngs.length} .sng file${sngs.length === 1 ? '' : 's'} into song folders`)
+  }
+
   const toastTimer = useRef<ReturnType<typeof setTimeout>>()
   const showToast = (msg: string): void => {
     setToast(msg)
@@ -694,6 +705,7 @@ export function LibraryView(): JSX.Element {
   }
 
   // ── Render ────────────────────────────────────────────────────────
+  const checkedSngCount = checked.size > 1 ? visible.filter((i) => checked.has(i.name) && i.isSng).length : 0
   // Do přehrávače jdou vybrané písně i složky (hrají se celé), v pořadí seznamu.
   const playableChecked = checked.size > 1 ? visible.filter((i) => checked.has(i.name) && (i.kind === 'song' || i.kind === 'folder') && !i.isSng) : []
   const targets = targetNames()
@@ -710,12 +722,27 @@ export function LibraryView(): JSX.Element {
         {/* Nástroje nahoře, ať nejsou pod dlouhým seznamem složek. */}
         <div className="lv__treesec">
           <div className="lv__treelabel">Tools</div>
-          <button type="button" className="lv__titem" onClick={() => setPlmOpen(true)}>
-            <Icon name="note" size={15} />
+          {/* Nástroje s barevnou ikonou jako kategorie v Nastavení. */}
+          <button
+            type="button"
+            className="lv__titem lv__titem--tool"
+            style={{ '--ic': '#d23bd2' } as React.CSSProperties}
+            onClick={() => setPlmOpen(true)}
+          >
+            <span className="lv__ticon">
+              <Icon name="note" size={14} />
+            </span>
             <span className="lv__tname">Setlists</span>
           </button>
-          <button type="button" className="lv__titem" onClick={() => setDupOpen(true)}>
-            <Icon name="copy" size={15} />
+          <button
+            type="button"
+            className="lv__titem lv__titem--tool"
+            style={{ '--ic': '#4a90e2' } as React.CSSProperties}
+            onClick={() => setDupOpen(true)}
+          >
+            <span className="lv__ticon">
+              <Icon name="copy" size={14} />
+            </span>
             <span className="lv__tname">Duplicates</span>
           </button>
         </div>
@@ -735,7 +762,7 @@ export function LibraryView(): JSX.Element {
               title={d.name}
             >
               <Icon name="folder" size={15} />
-              <span className="lv__tname">{d.name}</span>
+              <ScrollName text={d.name} />
               <span className="lv__tcount">{rootCounts[d.name] ?? ''}</span>
             </button>
           ))}
@@ -743,100 +770,108 @@ export function LibraryView(): JSX.Element {
       </aside>
 
       <section className="lv__main" aria-label="Library">
+        {/* Dva řádky: cesta + akce se složkou nahoře, hledání / řazení / pohled
+            dole. Spodní řádek se na úzkém okně zalomí, nic se neschová pod panel. */}
         <div className="lv__bar">
-          <button
-            className="lib__btn lib__btn--icon"
-            onClick={() => void load(segments.slice(0, -1).join('/'))}
-            disabled={!cwd}
-            title="Up one folder"
-          >
-            <Icon name="chevronLeft" size={15} />
-          </button>
-          <div className="lib__crumbs lv__crumbs" ref={crumbsRef}>
-            <button className="crumb" onClick={() => void load('')}>
-              <Icon name="folder" size={14} /> Songs
-            </button>
-            {segments.map((seg, i) => (
-              <span key={i} className="crumb__wrap">
-                <span className="crumb__sep">/</span>
-                <button className="crumb" onClick={() => void load(segments.slice(0, i + 1).join('/'))}>
-                  {seg}
-                </button>
-              </span>
-            ))}
-          </div>
-          <label className="lv__search" htmlFor="lv-q">
-            <Icon name="search" size={14} />
-            <input
-              id="lv-q"
-              type="search"
-              placeholder="Filter…"
-              title="Filter this folder by name, title, artist or album"
-              value={q}
-              autoComplete="off"
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape' && q) {
-                  e.stopPropagation()
-                  setQ('')
-                }
-              }}
-            />
-          </label>
-          <div className="lib__sort" title="Sort">
-            <select
-              className="lib__sortsel"
-              aria-label="Sort by"
-              value={sortKey}
-              onChange={(e) => {
-                const k = e.target.value as SortKey
-                setSortKey(k)
-                setSortDir(DESC_FIRST.has(k) ? -1 : 1)
-              }}
-            >
-              {(['File', 'Song', 'Difficulty'] as const).map((g) => (
-                <optgroup key={g} label={g}>
-                  {SORTS.filter((s) => s.group === g).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+          <div className="lv__barrow lv__barrow--path">
             <button
-              className="lib__sortdir"
-              title={sortDir === 1 ? 'Ascending — click for descending' : 'Descending — click for ascending'}
-              onClick={() => setSortDir((d) => (d === 1 ? -1 : 1))}
+              className="lib__btn lib__btn--icon"
+              onClick={() => void load(segments.slice(0, -1).join('/'))}
+              disabled={!cwd}
+              title="Up one folder"
             >
-              <Icon name="caret" size={12} style={{ transform: sortDir === 1 ? 'rotate(180deg)' : 'none' }} />
+              <Icon name="chevronLeft" size={15} />
             </button>
+            <div className="lib__crumbs lv__crumbs" ref={crumbsRef}>
+              <button className="crumb" onClick={() => void load('')}>
+                <Icon name="folder" size={14} /> Songs
+              </button>
+              {segments.map((seg, i) => (
+                <span key={i} className="crumb__wrap">
+                  <span className="crumb__sep">/</span>
+                  <button className="crumb" onClick={() => void load(segments.slice(0, i + 1).join('/'))}>
+                    {seg}
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="lv__bartools">
+              <button className="lib__btn lib__btn--icon" onClick={() => { setDialog({ type: 'new' }); setDialogValue('') }} title="New folder">
+                <Icon name="folderPlus" size={15} />
+              </button>
+              <button className="lib__btn lib__btn--icon" onClick={() => window.api.libOpen(cwd)} title={IS_MAC ? 'Open in Finder' : 'Open in Explorer'}>
+                <Icon name="external" size={15} />
+              </button>
+              <button className="lib__btn lib__btn--icon" onClick={() => { void load(cwd, true); loadTree() }} title="Refresh">
+                <Icon name="refresh" size={15} />
+              </button>
+            </div>
           </div>
-          <button
-            className={`lib__btn ${filtersOpen ? 'lib__btn--on' : ''}`}
-            onClick={() => setFiltersOpen((v) => !v)}
-            aria-expanded={filtersOpen}
-          >
-            <Icon name="filter" size={14} /> Filters
-            {activeFilterCount ? <span className="lv__fcount">{activeFilterCount}</span> : null}
-          </button>
-          <div className="lv__seg" role="group" aria-label="View">
-            <button type="button" className={view === 'cards' ? 'on' : ''} onClick={() => changeView('cards')} title="Cards: album art, difficulties, preview">
-              <Icon name="cards" size={15} />
+          <div className="lv__barrow">
+            <label className="lv__search" htmlFor="lv-q">
+              <Icon name="search" size={14} />
+              <input
+                id="lv-q"
+                type="search"
+                placeholder="Filter…"
+                title="Filter this folder by name, title, artist or album"
+                value={q}
+                autoComplete="off"
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && q) {
+                    e.stopPropagation()
+                    setQ('')
+                  }
+                }}
+              />
+            </label>
+            <div className="lib__sort" title="Sort">
+              <select
+                className="lib__sortsel"
+                aria-label="Sort by"
+                value={sortKey}
+                onChange={(e) => {
+                  const k = e.target.value as SortKey
+                  setSortKey(k)
+                  setSortDir(DESC_FIRST.has(k) ? -1 : 1)
+                }}
+              >
+                {(['File', 'Song', 'Difficulty'] as const).map((g) => (
+                  <optgroup key={g} label={g}>
+                    {SORTS.filter((s) => s.group === g).map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <button
+                className="lib__sortdir"
+                title={sortDir === 1 ? 'Ascending — click for descending' : 'Descending — click for ascending'}
+                onClick={() => setSortDir((d) => (d === 1 ? -1 : 1))}
+              >
+                <Icon name="caret" size={12} style={{ transform: sortDir === 1 ? 'rotate(180deg)' : 'none' }} />
+              </button>
+            </div>
+            <button
+              className={`lib__btn ${filtersOpen ? 'lib__btn--on' : ''}`}
+              onClick={() => setFiltersOpen((v) => !v)}
+              aria-expanded={filtersOpen}
+            >
+              <Icon name="filter" size={14} /> Filters
+              {activeFilterCount ? <span className="lv__fcount">{activeFilterCount}</span> : null}
             </button>
-            <button type="button" className={view === 'list' ? 'on' : ''} onClick={() => changeView('list')} title="List: compact">
-              <Icon name="list" size={15} />
-            </button>
+            <div className="lv__seg" role="group" aria-label="View">
+              <button type="button" className={view === 'cards' ? 'on' : ''} onClick={() => changeView('cards')} title="Cards: album art, difficulties, preview">
+                <Icon name="cards" size={15} />
+              </button>
+              <button type="button" className={view === 'list' ? 'on' : ''} onClick={() => changeView('list')} title="List: compact">
+                <Icon name="list" size={15} />
+              </button>
+            </div>
           </div>
-          <button className="lib__btn lib__btn--icon" onClick={() => { setDialog({ type: 'new' }); setDialogValue('') }} title="New folder">
-            <Icon name="folderPlus" size={15} />
-          </button>
-          <button className="lib__btn lib__btn--icon" onClick={() => window.api.libOpen(cwd)} title={IS_MAC ? 'Open in Finder' : 'Open in Explorer'}>
-            <Icon name="external" size={15} />
-          </button>
-          <button className="lib__btn lib__btn--icon" onClick={() => { void load(cwd, true); loadTree() }} title="Refresh">
-            <Icon name="refresh" size={15} />
-          </button>
         </div>
 
         {filtersOpen ? (
@@ -1137,6 +1172,8 @@ export function LibraryView(): JSX.Element {
                   : undefined
               }
               onPlaylist={targetSongs ? openPlaylist : undefined}
+              onUnpack={checkedSngCount ? unpackSng : undefined}
+              unpackLabel={`Unpack ${checkedSngCount} .sng file${checkedSngCount === 1 ? '' : 's'}`}
               onRename={openRename}
               onMove={() => openPick('move')}
               onCopy={() => openPick('copy')}
@@ -1155,6 +1192,7 @@ export function LibraryView(): JSX.Element {
             onReveal={() => window.api.libReveal(focusItem.rel)}
             onDelete={() => setDialog({ type: 'delete', names: [focusItem.name] })}
             onFix={() => fixItem(focusItem)}
+            onUnpack={focusItem.isSng ? unpackSng : undefined}
             onPlaylist={focusItem.kind === 'song' && !focusItem.isSng ? openPlaylist : undefined}
             onRename={openRename}
             onMove={() => openPick('move')}
@@ -1571,6 +1609,7 @@ function DetailPanel({
   onReveal,
   onDelete,
   onFix,
+  onUnpack,
   onPlaylist,
   onRename,
   onMove,
@@ -1586,12 +1625,13 @@ function DetailPanel({
   onReveal: () => void
   onDelete: () => void
   onFix: () => void
+  onUnpack?: () => void
   onPlaylist?: () => void
   onRename: () => void
   onMove: () => void
   onCopy: () => void
 }): JSX.Element {
-  const manage = { onPlaylist, onRename, onMove, onCopy, onDelete }
+  const manage = { onPlaylist, onUnpack, onRename, onMove, onCopy, onDelete }
   if (it.kind === 'broken') {
     return (
       <div className="lv__dsong">
@@ -1856,6 +1896,8 @@ function PanelActions({
   onPlay,
   playLabel = 'Play in music player',
   onPlaylist,
+  onUnpack,
+  unpackLabel = 'Unpack .sng into a folder',
   onMeta,
   onReveal,
   onRename,
@@ -1867,6 +1909,8 @@ function PanelActions({
   onPlay?: () => void
   playLabel?: string
   onPlaylist?: () => void
+  onUnpack?: () => void
+  unpackLabel?: string
   onMeta?: () => void
   onReveal?: () => void
   onRename: () => void
@@ -1891,6 +1935,15 @@ function PanelActions({
           <Icon name="note" size={13} /> Add to setlist
         </button>
       ) : null}
+      {onUnpack ? (
+        <button
+          className="btn-secondary"
+          onClick={onUnpack}
+          title="Unpack into a normal song folder, the same as a Song folder download. The .sng goes to the trash."
+        >
+          <Icon name="folder" size={13} /> {unpackLabel}
+        </button>
+      ) : null}
       <div className="lv__dactions--grid">
         {onMeta ? <button className="btn-secondary" onClick={onMeta}>Edit metadata</button> : null}
         {onReveal ? (
@@ -1906,5 +1959,40 @@ function PanelActions({
         </button>
       </div>
     </div>
+  )
+}
+
+/**
+ * Název složky ve stromu: když se nevejde, po najetí myší na položku se
+ * pomalu posune, aby byl vidět celý (a zase zpět). Krátké názvy stojí.
+ */
+function ScrollName({ text }: { text: string }): JSX.Element {
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const box = ref.current
+    const item = box?.closest('.lv__titem')
+    const inner = box?.firstElementChild as HTMLElement | null
+    if (!box || !item || !inner) return
+    const enter = (): void => {
+      // Vnitřní span je inline (kvůli „…"), scrollWidth má 0 — šířka z rectu.
+      const over = inner.getBoundingClientRect().width - box.getBoundingClientRect().width
+      if (over <= 2) return
+      box.style.setProperty('--lv-shift', `-${over + 4}px`)
+      // ~35 px za sekundu, ať se dá číst; aspoň 1,5 s na jednu stranu.
+      box.style.setProperty('--lv-dur', `${Math.max(1.5, over / 35).toFixed(2)}s`)
+      box.classList.add('lv__tname--run')
+    }
+    const leave = (): void => box.classList.remove('lv__tname--run')
+    item.addEventListener('mouseenter', enter)
+    item.addEventListener('mouseleave', leave)
+    return () => {
+      item.removeEventListener('mouseenter', enter)
+      item.removeEventListener('mouseleave', leave)
+    }
+  }, [text])
+  return (
+    <span ref={ref} className="lv__tname">
+      <span className="lv__tname-in">{text}</span>
+    </span>
   )
 }

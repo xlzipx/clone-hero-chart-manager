@@ -1,7 +1,7 @@
 // IPC handlery mezi main a renderer procesem.
 
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { existsSync } from 'fs'
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
 import type {
   Database,
   FilterOptions,
@@ -20,7 +20,7 @@ import {
   setLoudness,
   setOwnedKeys as setCatalogOwned
 } from './core/catalog'
-import { getCatalogStatus } from './core/catalogsync'
+import { getCatalogStatus, refreshWholeCatalog, syncCatalog } from './core/catalogsync'
 import type { CatalogQuery } from '../shared/types'
 import { search as searchEnchor } from './core/enchor'
 import { peekFileMeta } from './core/filemeta'
@@ -59,6 +59,7 @@ import {
   libReveal,
   libTrash,
   libReplaceBroken,
+  libUnpackSng,
   libWriteMeta
 } from './core/librarymgr'
 import { mergeBoth } from '../shared/songid'
@@ -229,6 +230,7 @@ export function registerIpc(): void {
     libRename(relItem, newName)
   )
   ipcMain.handle('lib:trash', (_e, relItem: string) => libTrash(relItem))
+  ipcMain.handle('lib:unpackSng', (_e, relItem: string) => libUnpackSng(relItem))
   ipcMain.handle('lib:replaceBroken', (_e, brokenRel: string, installAbs: string) =>
     libReplaceBroken(brokenRel, installAbs)
   )
@@ -383,6 +385,59 @@ export function registerIpc(): void {
   // Přeposílání průběhu úloh do renderer procesu.
   jobManager.on('update', (job) => {
     getOverlay()?.webContents.send('jobs:update', job)
+  })
+
+
+  // ── Údržba (Nastavení) ──
+  ipcMain.handle('catalog:syncNow', () => syncCatalog())
+  ipcMain.handle('catalog:refreshAll', () => refreshWholeCatalog())
+  // Mezipaměť Chromia (obaly alb, ukázky písní…) — velikost a vyčištění.
+  ipcMain.handle('cache:size', () => session.defaultSession.getCacheSize())
+  ipcMain.handle('cache:clear', async () => {
+    await session.defaultSession.clearCache()
+    return session.defaultSession.getCacheSize()
+  })
+  ipcMain.handle('app:openDataFolder', () => shell.openPath(app.getPath('userData')).then(() => undefined))
+  ipcMain.handle('settings:export', async () => {
+    const win = getOverlay() ?? undefined
+    const res = await dialog.showSaveDialog(win as BrowserWindow, {
+      title: 'Back up settings',
+      defaultPath: 'chart-manager-settings.json',
+      filters: [{ name: 'Settings', extensions: ['json'] }]
+    })
+    if (res.canceled || !res.filePath) return false
+    // Poloha okna je vázaná na tenhle počítač, do zálohy nepatří.
+    const { windowState: _w, ...rest } = getConfig()
+    writeFileSync(res.filePath, JSON.stringify(rest, null, 2), 'utf-8')
+    return true
+  })
+  ipcMain.handle('settings:import', async () => {
+    const win = getOverlay() ?? undefined
+    const res = await dialog.showOpenDialog(win as BrowserWindow, {
+      title: 'Restore settings',
+      properties: ['openFile'],
+      filters: [{ name: 'Settings', extensions: ['json'] }]
+    })
+    if (res.canceled || !res.filePaths[0]) return null
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(readFileSync(res.filePaths[0], 'utf-8'))
+    } catch {
+      throw new Error('That file is not a Chart Manager settings backup.')
+    }
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.songsDir !== 'string') {
+      throw new Error('That file is not a Chart Manager settings backup.')
+    }
+    // Jen známé klíče a se stejným typem jako současná hodnota.
+    const cur = getConfig() as unknown as Record<string, unknown>
+    const patch: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(parsed)) {
+      if (k === 'windowState' || !(k in cur)) continue
+      if (typeof v === typeof cur[k] || cur[k] === null) patch[k] = v
+    }
+    const next = setConfig(patch)
+    applyUiScale(next.uiScale || 1)
+    return next
   })
 
   // Polling stavu her — vysílá změny rendereru + řídí reminder pill.

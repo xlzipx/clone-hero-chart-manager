@@ -83,6 +83,16 @@ function FilterSelect({
   )
 }
 
+/** Předvolby filtru „Added / modified" (jako časový filtr v Googlu). */
+const DATE_PRESETS: FilterOption[] = [
+  { id: '1d', label: 'Past 24 hours' },
+  { id: '7d', label: 'Past week' },
+  { id: '30d', label: 'Past month' },
+  { id: '90d', label: 'Past 3 months' },
+  { id: '365d', label: 'Past year' },
+  { id: 'custom', label: 'Custom range…' }
+]
+
 /** Textové zúžení (charter / album). S hotovým lokálním katalogem prohledává
  *  CELÉ katalogy obou DB (store → catalogQuery); do té doby jen zužuje načtené
  *  výsledky (klientský contains v App.tsx). */
@@ -132,6 +142,10 @@ export function FilterPanel(): JSX.Element {
   const setAlbum = useStore((s) => s.setAlbumFilter)
   const setReductions = useStore((s) => s.setReductions)
   const catalog = useStore((s) => s.catalogStatus)
+  const dateFilter = useStore((s) => s.dateFilter)
+  const setDateFilter = useStore((s) => s.setDateFilter)
+  // Budoucí data nemají smysl — kalendář je nenabídne.
+  const today = new Date().toISOString().slice(0, 10)
 
   // S hotovým lokálním katalogem umí žánr/rok/dekádu/délku i Chorus Encore
   // (filtruje se lokálně přes celý katalog) → banner „jen RhythmVerse" pryč.
@@ -236,6 +250,41 @@ export function FilterPanel(): JSX.Element {
             />
           </>
         )}
+        <FilterSelect
+          label="Added / modified"
+          placeholder="Any time"
+          value={dateFilter.preset === 'any' ? '' : dateFilter.preset}
+          options={DATE_PRESETS}
+          onChange={(v) =>
+            setDateFilter({
+              ...dateFilter,
+              preset: (v || 'any') as typeof dateFilter.preset
+            })
+          }
+        />
+        {dateFilter.preset === 'custom' ? (
+          <div className="filterfield filterfield--wide">
+            <span className="filterfield__label">From – to</span>
+            <div className="daterange">
+              <input
+                type="date"
+                className="filterfield__input"
+                value={dateFilter.from}
+                max={dateFilter.to || today}
+                onChange={(e) => setDateFilter({ ...dateFilter, from: e.target.value })}
+              />
+              <span className="daterange__sep">–</span>
+              <input
+                type="date"
+                className="filterfield__input"
+                value={dateFilter.to}
+                min={dateFilter.from || undefined}
+                max={today}
+                onChange={(e) => setDateFilter({ ...dateFilter, to: e.target.value })}
+              />
+            </div>
+          </div>
+        ) : null}
         <FilterText label="Charter" value={charter} placeholder="e.g. Chezy" onChange={setCharter} />
         <FilterText label="Album" value={album} placeholder="e.g. Meteora" onChange={setAlbum} />
         {/* Redukce (Expert-only vs E/M/H/X) VEDLE Charter/Album ve stejné

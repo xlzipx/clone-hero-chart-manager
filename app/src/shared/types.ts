@@ -58,6 +58,9 @@ export interface SongResult {
   downloads: number | null
   /** Odkaz na Google Drive složku, kde chart leží (charterova sbírka). Jen Encore. */
   driveFolderUrl?: string | null
+  /** Kdy chart v databázi přibyl nebo byl naposledy změněn (ms epoch). RV
+   *  `update_date`, Encore `modifiedTime`; ani jedna nerozlišuje přidání a úpravu. */
+  updatedMs?: number | null
 }
 
 export interface SearchResponse {
@@ -187,6 +190,8 @@ export interface CatalogStatus {
   counts: { rv: number; en: number }
   /** Čas posledního DOKONČENÉHO syncu (ms epoch), null = nikdy. */
   lastSync: number | null
+  /** Právě běží dlouhá operace (první build / obnova celého katalogu). */
+  longRun?: boolean
 }
 
 /**
@@ -194,6 +199,28 @@ export interface CatalogStatus {
  * filtry, které server neumí (charter/album/tier) — katalog je umí všechny,
  * protože má celé katalogy obou DB lokálně.
  */
+/** Filtr „Added/modified": předvolba nebo vlastní rozsah (YYYY-MM-DD). */
+export interface DateFilter {
+  preset: 'any' | '1d' | '7d' | '30d' | '90d' | '365d' | 'custom'
+  from: string
+  to: string
+}
+
+/** Rozsah v ms pro DateFilter; null = bez omezení. */
+export function dateFilterRange(f: DateFilter, now = Date.now()): { from?: number; to?: number } | null {
+  const DAY = 86_400_000
+  const days: Record<string, number> = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, '365d': 365 }
+  if (f.preset === 'any') return null
+  if (f.preset !== 'custom') return { from: now - days[f.preset] * DAY }
+  const from = f.from ? Date.parse(`${f.from}T00:00:00`) : NaN
+  const to = f.to ? Date.parse(`${f.to}T23:59:59.999`) : NaN
+  if (!Number.isFinite(from) && !Number.isFinite(to)) return null
+  return {
+    ...(Number.isFinite(from) ? { from } : {}),
+    ...(Number.isFinite(to) ? { to } : {})
+  }
+}
+
 export interface CatalogQuery {
   /** Fulltext přes title+artist+album (každé slovo musí sedět někde). */
   text?: string
@@ -219,6 +246,9 @@ export interface CatalogQuery {
   directOnly?: boolean
   /** Skrýt písně, které už uživatel má v knihovně (dle setOwnedKeys). */
   excludeOwned?: boolean
+  /** Přidáno / upraveno v databázi od–do (ms epoch, včetně). */
+  updatedFrom?: number
+  updatedTo?: number
   sort?: SortKey
   sortDir?: SortDir
   page: number
@@ -308,6 +338,17 @@ export interface AppConfig {
   librarySort: { key: string; dir: 1 | -1 }
   /** Poslední poloha a velikost hlavního okna (DIP); null = výchozí uprostřed. */
   windowState: { x: number; y: number; width: number; height: number; maximized: boolean } | null
+  /** Chart z Chorus Encore: 'folder' = rozbalit do složky písně (výchozí,
+   *  jako .zip z webu Encore), 'sng' = nechat jeden .sng soubor (Clone Hero
+   *  v1+ ho čte přímo). */
+  encoreFormat: 'folder' | 'sng'
+  /** Stahovat videa na pozadí (video.mp4 …). false = po stažení se smažou;
+   *  platí pro RhythmVerse i Encore, ne pro soubory přetažené z disku. */
+  downloadVideos: boolean
+  /** Kolik stažení běží naráz (1–4). */
+  maxConcurrentDownloads: number
+  /** Hotová stažení zmizí z fronty samy po pár sekundách (jinak zůstanou do Clear). */
+  autoClearFinished: boolean
 }
 
 export type RhythmVerseSystem = 'ch' | 'ps' | 'rb3' | 'all'
@@ -492,6 +533,8 @@ export interface RendererApi {
   libCreateFolder(rel: string, name: string): Promise<void>
   libRename(relItem: string, newName: string): Promise<void>
   libTrash(relItem: string): Promise<void>
+  /** Rozbalí .sng do složky písně vedle něj; .sng jde do koše. Vrací rel nové složky. */
+  libUnpackSng(relItem: string): Promise<string>
   /** „Fix it": rozbitou složku do koše, nově staženou na její místo. */
   libReplaceBroken(brokenRel: string, installAbs: string): Promise<string>
   /** Přesune položky knihovny do složky MIMO knihovnu (karanténa duplicit — funguje i tam, kde koš ne, např. Wine). */
@@ -585,6 +628,16 @@ export interface RendererApi {
   onUpdateDownloaded(cb: (info: { version: string }) => void): () => void
   /** Aktuální verze aplikace. */
   appVersion(): Promise<string>
+  /** Údržba v Nastavení. */
+  catalogSyncNow(): Promise<void>
+  catalogRefreshAll(): Promise<void>
+  settingsExport(): Promise<boolean>
+  settingsImport(): Promise<AppConfig | null>
+  openDataFolder(): Promise<void>
+  /** Velikost mezipaměti Chromia v bajtech (obaly alb, ukázky). */
+  cacheSize(): Promise<number>
+  /** Vyčistí mezipaměť; vrací novou velikost. */
+  cacheClear(): Promise<number>
   /** Ruční kontrola aktualizací (bez restartu). U instalační verze vyvolá i update banner. */
   checkForUpdates(): Promise<UpdateCheckResult>
   /** Živě přepne škálu UI (náhled z Nastavení; trvale se uloží přes config). */

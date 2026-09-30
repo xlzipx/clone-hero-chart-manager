@@ -167,7 +167,8 @@ function normalize(c: EnchorChart): SongResult {
     // dělá `drive.google.com/open?id=…`; `parentFolderId` je složka nad chartem.
     driveFolderUrl: c.parentFolderId
       ? `https://drive.google.com/open?id=${c.parentFolderId}`
-      : null
+      : null,
+    updatedMs: c.modifiedTime && Number.isFinite(Date.parse(c.modifiedTime)) ? Date.parse(c.modifiedTime) : null
   }
 }
 
@@ -248,8 +249,14 @@ export async function search(
     page,
     per_page: records
   }
-  if (filters?.instrument?.length) body.instrument = filters.instrument[0]
-  if (filters?.difficulty?.length) body.difficulty = filters.difficulty[0]
+  // S textem Encore nástroj / obtížnost NEdostane: s nimi jeho hledání vrací
+  // úplně jiné výsledky (ověřeno živě: „forever and always" bez filtru = 6
+  // přesných shod, s instrument=drums = 4 písně jen se slovem „forever").
+  // Nástroj pak odfiltruje renderer nad stránkami z deep scanu.
+  if (!text.trim()) {
+    if (filters?.instrument?.length) body.instrument = filters.instrument[0]
+    if (filters?.difficulty?.length) body.difficulty = filters.difficulty[0]
+  }
   const type = sort ? ENC_SORT_TYPE[sort] : undefined
   if (type && sort) body.sort = { type, direction: sortDir ?? SORT_DEFAULT_DIR[sort] }
 

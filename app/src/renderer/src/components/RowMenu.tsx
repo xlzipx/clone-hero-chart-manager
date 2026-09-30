@@ -2,9 +2,10 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { SongResult } from '../../../shared/types'
 import { useStore } from '../store'
+import { DownloadOptions } from './DownloadOptions'
 import { Icon } from './Icon'
 
-const MENU_WIDTH = 236
+const MENU_WIDTH = 264
 const MENU_GAP = 6
 
 /** Kontextové ⋮ menu u řádku skladby.
@@ -17,6 +18,7 @@ const MENU_GAP = 6
 export function RowMenu({ song }: { song: SongResult }): JSX.Element {
   const openKey = useStore((s) => s.openRowMenu)
   const setOpenKey = useStore((s) => s.setOpenRowMenu)
+  const isEncore = song.key.startsWith('enchor:')
   const open = openKey === song.key
 
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -32,7 +34,7 @@ export function RowMenu({ song }: { song: SongResult }): JSX.Element {
     const update = (): void => {
       const r = btnRef.current?.getBoundingClientRect()
       if (!r) return
-      const top = Math.min(window.innerHeight - 200, r.bottom + MENU_GAP)
+      const top = Math.min(window.innerHeight - (isEncore ? 380 : 290), r.bottom + MENU_GAP)
       const left = Math.max(8, r.right - MENU_WIDTH)
       setPos({ top, left })
     }
@@ -46,11 +48,13 @@ export function RowMenu({ song }: { song: SongResult }): JSX.Element {
       window.removeEventListener('resize', close)
       window.removeEventListener('scroll', close, true)
     }
-  }, [open, setOpenKey])
+  }, [open, setOpenKey, isEncore])
 
   const pageUrl = song.downloadPageUrl || song.downloadUrl
   const link = song.downloadUrl || song.downloadPageUrl
 
+  // Menu je v portálu, ale React mu události pořád probublává do řádku:
+  // dvojklik na volbu by jinak spustil stažení (onDoubleClick řádku).
   const stop = (e: React.MouseEvent): void => {
     e.stopPropagation()
   }
@@ -73,6 +77,7 @@ export function RowMenu({ song }: { song: SongResult }): JSX.Element {
                 close()
               }}
               onClick={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
             />
             <div
               className="rowmenu__menu rowmenu__menu--portal"
@@ -80,7 +85,10 @@ export function RowMenu({ song }: { song: SongResult }): JSX.Element {
               role="menu"
               onMouseDown={stop}
               onClick={stop}
+              onDoubleClick={stop}
             >
+              <DownloadOptions encore={isEncore ? 'choice' : 'note'} />
+              <div className="rowmenu__sep" />
               {pageUrl ? (
                 <button
                   className="rowmenu__item"
@@ -135,7 +143,7 @@ export function RowMenu({ song }: { song: SongResult }): JSX.Element {
       : null
 
   return (
-    <div className="rowmenu" onMouseDown={stop} onClick={stop}>
+    <div className="rowmenu" onMouseDown={stop} onClick={stop} onDoubleClick={stop}>
       <button
         ref={btnRef}
         type="button"

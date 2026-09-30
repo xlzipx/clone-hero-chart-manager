@@ -2,7 +2,7 @@
 
 import { EventEmitter } from 'events'
 import { mkdtempSync, existsSync, mkdirSync, statSync } from 'fs'
-import { copyFile, rm, stat } from 'fs/promises'
+import { copyFile, readdir, rm, stat } from 'fs/promises'
 import { tmpdir } from 'os'
 import { basename, join } from 'path'
 import { randomUUID } from 'crypto'
@@ -19,6 +19,7 @@ import {
 } from './filetype'
 import { convertCon, convertDtx } from './converter'
 import { install } from './library'
+import { getConfig } from './config'
 import { extractSng, isSngFile } from './sngextract'
 
 // Přípony, které z názvu odřízneme. NE obecné `.\w+$` — to by zmršilo názvy
@@ -67,6 +68,24 @@ function deriveLocalSong(path: string): SongResult {
 }
 
 /** Vnitřní signál, že úlohu zrušil uživatel — odliší zrušení od reálné chyby. */
+/** Videa na pozadí, která Clone Hero umí přehrát (video.mp4, background.webm …). */
+const VIDEO_EXT = /\.(mp4|webm|avi|mkv|mov|m4v|ogv|vp8)$/i
+
+/** Smaže videa na pozadí ve stažené písni (rekurzivně, kvůli packům). */
+async function removeVideos(dir: string): Promise<void> {
+  let entries
+  try {
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch {
+    return
+  }
+  for (const e of entries) {
+    const p = join(dir, e.name)
+    if (e.isDirectory()) await removeVideos(p)
+    else if (VIDEO_EXT.test(e.name)) await rm(p, { force: true })
+  }
+}
+
 class CanceledError extends Error {
   constructor() {
     super('canceled')
@@ -208,17 +227,22 @@ class JobManager extends EventEmitter {
     this.update(id, { stage, message, progress })
   }
 
-  private async pump(): Promise<void> {
-    if (this.running) return
-    this.running = true
-    try {
-      while (this.queue.length) {
-        const id = this.queue.shift()!
-        await this.runJob(id)
-      }
-    } finally {
-      this.running = false
+  /** Počet právě běžících úloh (souběh řídí `maxConcurrentDownloads`). */
+  private active = 0
+
+  private pump(): Promise<void> {
+    const limit = Math.min(4, Math.max(1, Math.round(getConfig().maxConcurrentDownloads || 1)))
+    while (this.queue.length && this.active < limit) {
+      const id = this.queue.shift()!
+      this.active++
+      this.running = true
+      void this.runJob(id).finally(() => {
+        this.active--
+        if (this.active === 0 && this.queue.length === 0) this.running = false
+        else void this.pump()
+      })
     }
+    return Promise.resolve()
   }
 
   private async runJob(id: string): Promise<void> {
@@ -318,8 +342,12 @@ class JobManager extends EventEmitter {
           mkdirSync(exDir, { recursive: true })
           skippedFiles = await extract(downloadPath, exDir)
           workDir = exDir
+        } else if ((await isSngFile(downloadPath)) && getConfig().encoreFormat === 'sng') {
+          // Uživatel chce .sng tak, jak je (Clone Hero v1+ ho čte přímo):
+          // install() ho jako volný .sng zkopíruje do knihovny.
+          workDir = tmpRoot
         } else if (await isSngFile(downloadPath)) {
-          // .sng (Encore container) → vždy rozbalit. Starší Clone Hero ho
+          // .sng (Encore container) → rozbalit (výchozí). Starší Clone Hero ho
           // jako single-file nečte, ale složku s notes.chart + song.ini ano.
           this.setStage(id, 'extracting', 'Unpacking .sng…')
           const exDir = join(tmpRoot, '_extracted')
@@ -395,6 +423,11 @@ class JobManager extends EventEmitter {
       // je krátká a atomická (`uniqueDir` + kopie), takže do Songs se buď zapíše
       // celá píseň, nebo (při zrušení výše) vůbec nic.
       this.setStage(id, 'installing', 'Installing into library…')
+      // Videa na pozadí jen u stažených chartů; přetažené soubory z disku
+      // jsou uživatelovy a necháváme je celé.
+      if (!getConfig().downloadVideos && !url.startsWith('local-file://')) {
+        await removeVideos(installSource)
+      }
       const { installedPaths } = await install(installSource, song, job.targetSubfolder)
 
       const songWord = installedPaths.length === 1 ? 'song' : 'songs'

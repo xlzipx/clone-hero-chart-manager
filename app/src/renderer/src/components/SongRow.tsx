@@ -273,12 +273,15 @@ function SongRowBase({
           {song.official ? (
             <span className="badge badge--dlc">Official DLC</span>
           ) : (
-            // Formát „RV" by jen opakoval pilulku databáze vedle.
-            formatLabel(song.gameFormat) === 'RV' ? null : (
-              <span className={`badge ${song.needsConversion ? 'badge--convert' : 'badge--native'}`}>
-                {formatLabel(song.gameFormat)}
-                {song.needsConversion ? ' → CH' : ''}
+            // Formát jen když něco říká: převod (RB3 → CH) nebo jiná hra než
+            // Clone Hero. SNG / RV / Clone Hero jsou pro uživatele totéž (vše
+            // skončí jako normální složka písně), takže by jen mátly.
+            song.needsConversion ? (
+              <span className="badge badge--convert" title="Converted to a Clone Hero chart on download">
+                {formatLabel(song.gameFormat)} → CH
               </span>
+            ) : NATIVE_FORMATS.has(formatLabel(song.gameFormat)) ? null : (
+              <span className="badge badge--native">{formatLabel(song.gameFormat)}</span>
             )
           )}
           {song.expertOnly === true ? (
@@ -297,6 +300,9 @@ function SongRowBase({
               }}
             >
               <Icon name="check" size={11} /> In library
+              <span className="owned__go" aria-hidden="true">
+                <Icon name="arrowRight" size={11} />
+              </span>
             </button>
           ) : null}
           {song.charter ? (
@@ -305,8 +311,16 @@ function SongRowBase({
             </span>
           ) : null}
           {song.downloads != null && song.downloads > 0 ? (
-            <span className="song__dls">
+            <span className="song__dls" title="Downloads">
               <Icon name="download" size={12} /> {formatDownloads(song.downloads)}
+            </span>
+          ) : null}
+          {song.updatedMs ? (
+            <span
+              className="song__date"
+              title={`Added or last modified on ${song.key.startsWith('enchor:') ? 'Chorus Encore' : 'RhythmVerse'}`}
+            >
+              <Icon name="calendar" size={12} /> Added/modified {formatDate(song.updatedMs)}
             </span>
           ) : null}
         </div>
@@ -380,6 +394,14 @@ function SongRowBase({
  * job (stage / progress), selected nebo identita songu. To dramaticky snižuje
  * zbytečné rerendery při běžícím downloadu (jobs:update přijde každé 1 %).
  */
+/** Formáty, které Clone Hero čte přímo (pilulka formátu by nic neřekla). */
+const NATIVE_FORMATS = new Set(['Clone Hero', 'SNG', 'RV', '?'])
+
+/** Datum přidání / úpravy chartu, např. „12 Sep 2026". */
+function formatDate(ms: number): string {
+  return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 export const SongRow = memo(SongRowBase, (prev, next) => {
   if (prev.song.key !== next.song.key) return false
   if (prev.selected !== next.selected) return false

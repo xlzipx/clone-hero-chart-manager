@@ -167,7 +167,8 @@ function normalizeSong(song: { data: Record<string, unknown>; file: Record<strin
       (f.download_page_url_full as string) || absolutize(f.download_page_url as string),
     externalUrl: (f.external_url as string) || null,
     sizeBytes: num(f.size),
-    downloads: num(f.downloads)
+    downloads: num(f.downloads),
+    updatedMs: parseRvDate(f.update_date) || null
   }
 }
 

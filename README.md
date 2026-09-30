@@ -65,7 +65,7 @@ clicks — a whole setlist from a playlist you already love. See
   bass, drums, keys, vocals) and a difficulty range picker (`MIN`–`MAX` or
   exact dots) to narrow results.
 - **Advanced filters** — an expandable Filters panel: **genre**, **release
-  year**, **decade**, **song length**, **charter** and **album**, plus a "hide
+  year**, **decade**, **song length**, **charter**, **album** and **date added or modified**, plus a "hide
   songs I already have" toggle. Backed by the local catalog, every filter works
   across the **whole catalog of both databases** at once — including charter and
   album, which the sites' own APIs can't search — and results come back
@@ -155,7 +155,7 @@ clicks — a whole setlist from a playlist you already love. See
   in‑app; open any song to see its album art and per‑instrument difficulties.
 
 <p align="center">
-  <img alt="Library manager: a full file browser for your Songs folder" width="820" src="docs/img/library-manager.png" />
+  <img alt="Library manager: browsing, sorting and managing the Songs folder" width="820" src="https://chartmanager.pages.dev/assets/readme-library-manager.gif" />
 </p>
 <table>
   <tr>
@@ -429,16 +429,19 @@ anywhere" bundle for sharing.
 - **Right** — **My Library** (the `Songs` file manager), **Settings**, **Hide
   to tray** and **Quit**.
 
-**Settings** covers: Songs folder, an optional chart folder‑name template, and
-the Clone Hero / YARG path overrides (`.exe` on Windows, `.app` on macOS),
-results per page, UI scale, the hotkey‑reminder pill (toggle + position) and the
-quick‑toggle hotkey.
+**Settings** is a full screen with sections: Songs folder and the Clone Hero /
+YARG path overrides (`.exe` on Windows, `.app` on macOS), an optional chart
+folder‑name template, the Chorus Encore download format (song folder or `.sng`),
+background videos on or off, how many charts download at once, results per page,
+UI scale, the hotkey‑reminder pill and the quick‑toggle hotkey. **Maintenance**
+shows the local catalog and lets you update it, clear cached files and back up
+or restore your settings.
 
 The **Launch / Switch to Clone Hero** and **Launch YARG** buttons live in the
 left sidebar, not the title bar.
 
 <p align="center">
-  <img alt="Settings window: Library &amp; paths, Interface and Game overlay in a two-column layout" width="820" src="docs/img/settings.png" />
+  <img alt="Settings: every section, from library paths to maintenance" width="820" src="https://chartmanager.pages.dev/assets/readme-settings.gif" />
 </p>
 
 > **Scanning into the game:** Clone Hero has no external rescan command —

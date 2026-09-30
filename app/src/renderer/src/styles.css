@@ -3027,7 +3027,7 @@ body {
   gap: 13px;
   padding: 13px 14px 15px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.022);
+  background: rgba(255, 255, 255, 0.035);
   min-width: 0;
 }
 .settings-group__title {
@@ -9645,4 +9645,1105 @@ button.plrow__na:hover {
   color: #c9a7ff;
   border-color: rgba(201, 167, 255, 0.45);
   background: rgba(201, 167, 255, 0.1);
+}
+
+/* ── Pilulky u výsledků: jednotný tvar a barvy ─────────────────────────
+ * Všechny stejně vysoké a zaoblené; barva říká typ informace:
+ * délka = neutrální, databáze = modrá/fialová, převod = oranžová,
+ * obtížnosti = jantar/tyrkys, „In library" = zelená. */
+.song__meta {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.song__meta .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  box-sizing: border-box;
+}
+.song__meta .badge.badge--len {
+  color: var(--text-dim);
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.03);
+}
+.song__meta .badge.badge--native {
+  color: #cdd6ea;
+  border-color: rgba(205, 214, 234, 0.3);
+  background: rgba(205, 214, 234, 0.06);
+}
+.song__meta .badge.badge--convert {
+  color: #ffb454;
+  border-color: rgba(255, 180, 84, 0.4);
+  background: rgba(255, 180, 84, 0.1);
+}
+.song__meta .badge.badge--owned {
+  color: #7fe0a8;
+  border-color: rgba(80, 220, 140, 0.4);
+  background: rgba(80, 220, 140, 0.1);
+}
+.song__meta .song__charter,
+.song__meta .song__dls,
+.song__meta .song__date {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+.song__meta .song__date {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Řádky výsledků: střídání pozadí + zaškrtnuté světle zeleně ── */
+.results--table .song:nth-child(even) {
+  background: rgba(255, 255, 255, 0.035);
+}
+.results--table .song:hover,
+.results--table .song:nth-child(even):hover {
+  background: var(--row-hover);
+}
+.results--table .song.song--checked,
+.results--table .song.song--checked:hover {
+  background: rgba(80, 220, 140, 0.07);
+  box-shadow: inset 3px 0 0 rgba(80, 220, 140, 0.75);
+  border-color: var(--tline, var(--border));
+}
+.results--table .song.song--selected {
+  background: var(--box-hi);
+}
+.results--table .song.song--checked.song--selected {
+  background: rgba(80, 220, 140, 0.11);
+}
+.song--checked .song__check .chk__box {
+  background: #50dc8c;
+  border-color: #50dc8c;
+  color: #0b1a12;
+}
+
+/* Stejně v kartách knihovny */
+.lv__list .song.lvcard:nth-child(even) {
+  background: rgba(255, 255, 255, 0.035);
+}
+.lv__list .song.lvcard:hover {
+  background: var(--panel-hover);
+}
+.lv__list .song.lvcard.song--checked,
+.lv__list .song.lvcard.song--checked:hover {
+  background: rgba(80, 220, 140, 0.07);
+  box-shadow: inset 3px 0 0 rgba(80, 220, 140, 0.75);
+}
+.lv__list .song.lvcard.song--selected {
+  background: var(--box-hi);
+}
+.lv__list .song.lvcard.song--checked.song--selected {
+  background: rgba(80, 220, 140, 0.11);
+}
+.lv__list .song--checked .chk__box {
+  background: #50dc8c;
+  border-color: #50dc8c;
+  color: #0b1a12;
+}
+
+/* Volby stahování v ⋮ menu (jako „Download format" na webu Encore) */
+.rowmenu__label {
+  padding: 8px 12px 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.rowmenu__note {
+  padding: 6px 12px 8px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.rowmenu__sep {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--border);
+}
+.rowmenu__opt:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.rowmenu__radio,
+.rowmenu__checkbox {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  display: inline-grid;
+  place-items: center;
+  border: 1.5px solid var(--border-strong, var(--text-faint));
+  color: transparent;
+}
+.rowmenu__radio {
+  border-radius: 50%;
+}
+.rowmenu__checkbox {
+  border-radius: 4px;
+}
+.rowmenu__opt.on .rowmenu__radio {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 3px var(--panel, #1b1d22), inset 0 0 0 8px var(--accent);
+}
+.rowmenu__opt.on .rowmenu__checkbox {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #0b1210;
+}
+.radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+/* Šipka voleb stahování vedle „Download selected" */
+.batchbar__opts {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.batchbar__opts:hover,
+.batchbar__opts.on {
+  color: var(--text);
+  border-color: var(--border-strong, var(--text-faint));
+}
+/* Posuvný název dlouhé složky ve stromu knihovny (po najetí myší) */
+.lv__tname--run {
+  text-overflow: clip;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6px, #000 calc(100% - 6px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 6px, #000 calc(100% - 6px), transparent 100%);
+}
+.lv__tname--run .lv__tname-in {
+  display: inline-block;
+  animation: lvmarquee var(--lv-dur, 3s) ease-in-out 0.35s infinite alternate;
+}
+@keyframes lvmarquee {
+  0%,
+  12% {
+    transform: translateX(0);
+  }
+  88%,
+  100% {
+    transform: translateX(var(--lv-shift, 0));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lv__tname--run .lv__tname-in {
+    animation: none;
+  }
+}
+/* Štítek „recommended" u výchozí volby formátu */
+.field__rec,
+.rowmenu__rec {
+  margin-left: 6px;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7fe0a8;
+}
+.rowmenu__rec {
+  margin-left: auto;
+}
+/* Vlastní rozsah data ve filtrech */
+.daterange {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.daterange .filterfield__input {
+  flex: 1;
+  min-width: 0;
+  color-scheme: dark;
+}
+.daterange__sep {
+  color: var(--text-faint);
+}
+/* ── Nastavení na celou obrazovku (stejně jako Library) ───────────────
+ * Každá kategorie má barvu jednoho nástroje (--sc = aktuální, --ic = položka
+ * v menu). Plochy stejné jako zbytek grafitu: pilulky, vyryté čáry. */
+.stv {
+  --sc: #cfd0d6;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  margin: 6px 20px 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--content-bg, #161719);
+}
+.stv__nav {
+  background: var(--bg-side);
+  border-right: 1px solid var(--tline, var(--border));
+  padding: 16px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.stv__navhead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 0 10px 12px;
+}
+.stv__navitem {
+  --ic: #cfd0d6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 11px;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: inherit;
+  position: relative;
+  transition: background 0.15s, color 0.15s;
+}
+.stv__navitem:hover {
+  background: var(--panel-hover);
+  color: var(--text);
+}
+.stv__navitem--on {
+  background: var(--pill-hi, var(--box-hi));
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 6px 16px -10px rgba(0, 0, 0, 0.8);
+}
+.stv__navitem--on::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--ic);
+  box-shadow: 0 0 10px var(--ic);
+}
+.stv__navicon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--ic);
+  background: color-mix(in srgb, var(--ic) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ic) 22%, transparent);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.stv__navitem--on .stv__navicon {
+  background: color-mix(in srgb, var(--ic) 20%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ic) 45%, transparent), 0 0 14px -4px var(--ic);
+}
+.stv__navtext {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.stv__navtext small {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stv__dot {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f5a524;
+  box-shadow: 0 0 8px #f5a524;
+  flex: none;
+}
+.stv__navfoot {
+  margin-top: auto;
+  padding: 16px 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.stv__saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  padding-left: 6px;
+}
+.stv__saved svg {
+  color: #7fe0a8;
+}
+
+.stv__main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.stv__head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 32px 20px;
+  border-bottom: 1px solid var(--tline, var(--border));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--sc) 9%, transparent) 0%, transparent 55%);
+  animation: stvIn 0.25s ease;
+}
+.stv__headicon {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--sc);
+  background: color-mix(in srgb, var(--sc) 14%, #151618);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc) 35%, transparent), 0 10px 26px -12px var(--sc);
+}
+.stv__headtext h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.stv__headtext p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.stv__notice {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: #7fe0a8;
+  background: rgba(80, 220, 140, 0.1);
+  border: 1px solid rgba(80, 220, 140, 0.3);
+  animation: stvIn 0.2s ease;
+}
+.stv__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: stvIn 0.25s ease;
+}
+.stv__body > * {
+  max-width: 900px;
+  width: 100%;
+}
+@keyframes stvIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* Karta se skupinou řádků */
+.stcard {
+  border-radius: 14px;
+  background: var(--pill, rgba(255, 255, 255, 0.03));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.045), 0 12px 30px -20px rgba(0, 0, 0, 0.9);
+  padding: 6px 20px;
+}
+.stcard__title {
+  margin: 12px 0 2px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.stcard__rows > * + * {
+  border-top: 1px solid var(--tline, var(--border));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+/* Řádek: text vlevo, ovládání vpravo */
+.strow {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 0;
+}
+.strow--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.strow__text {
+  flex: 1;
+  min-width: 0;
+}
+.strow__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.strow__desc {
+  margin-top: 3px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.strow__desc code,
+.stv code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text);
+}
+.strow__ctl {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+.strow--stack .strow__ctl {
+  display: block;
+}
+
+/* Přepínač */
+.stsw {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex: none;
+  border-radius: 999px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09), inset 0 2px 4px rgba(0, 0, 0, 0.5);
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.stsw__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #8d8d94 0%, #6c6c73 100%);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.55);
+  transition: transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1), background 0.2s;
+}
+.stsw--on {
+  background: color-mix(in srgb, var(--sc) 55%, #1a1b1e);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc) 70%, transparent), 0 0 14px -4px var(--sc);
+}
+.stsw--on .stsw__knob {
+  transform: translateX(20px);
+  background: linear-gradient(180deg, #ffffff 0%, #dcdce0 100%);
+}
+.stsw:focus-visible {
+  outline: 2px solid var(--sc);
+  outline-offset: 2px;
+}
+
+/* Segmentový přepínač */
+.seg {
+  display: inline-flex;
+  width: max-content;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+.seg button {
+  min-width: 44px;
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.seg button:hover {
+  color: var(--text);
+}
+.seg button.on {
+  background: var(--pill-primary, #e9e9ec);
+  color: var(--on-pill, #131315);
+  box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.8);
+}
+
+/* Pole s cestou */
+.stpath {
+  display: flex;
+  gap: 8px;
+}
+.stpath__box {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 8px 0 13px;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 2px 4px rgba(0, 0, 0, 0.35);
+  color: var(--text-faint);
+  transition: box-shadow 0.15s;
+}
+.stpath__box:focus-within {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc) 60%, transparent), 0 0 0 3px color-mix(in srgb, var(--sc) 14%, transparent);
+}
+.stpath__box input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+.stpath__box input::placeholder {
+  color: var(--text-faint);
+}
+.stpath__status {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.stpath__status.is-ok {
+  color: #7fe0a8;
+  background: rgba(80, 220, 140, 0.1);
+  border: 1px solid rgba(80, 220, 140, 0.3);
+}
+.stpath__status.is-bad {
+  color: #ffb454;
+  background: rgba(255, 180, 84, 0.1);
+  border: 1px solid rgba(255, 180, 84, 0.35);
+}
+.stpath__browse {
+  flex: none;
+}
+
+/* Šablona složky */
+.sttpl {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sttpl__line {
+  display: flex;
+  gap: 8px;
+}
+.sttpl__input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 2px 4px rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  outline: none;
+}
+.sttpl__input:focus {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc) 60%, transparent), 0 0 0 3px color-mix(in srgb, var(--sc) 14%, transparent);
+}
+.sttpl__preview {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  align-items: baseline;
+  padding: 11px 14px;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+}
+.sttpl__preview > span {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.sttpl__preview code {
+  background: none;
+  padding: 0;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.sttpl__preview code.is-dim {
+  color: var(--text-dim);
+}
+
+.sthk {
+  max-width: 360px;
+}
+.stbtns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.stsize {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 6px;
+  color: var(--text);
+}
+
+/* Verze v Updates */
+.stver {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 0;
+}
+.stver__logo {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 34px;
+  padding: 0 4px;
+}
+.stver__logo i {
+  display: block;
+  width: 6px;
+  border-radius: 3px;
+}
+.stver__logo i:nth-child(1) {
+  height: 55%;
+}
+.stver__logo i:nth-child(2) {
+  height: 80%;
+}
+.stver__logo i:nth-child(3) {
+  height: 100%;
+}
+.stver__logo i:nth-child(4) {
+  height: 70%;
+}
+.stver__logo i:nth-child(5) {
+  height: 90%;
+}
+.stver__name {
+  font-size: 17px;
+  font-weight: 800;
+}
+.stver__num {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.stver__btns {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.stver__msg {
+  margin: -4px 0 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Dlaždice s čísly v Maintenance */
+.ststats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 10px 0 16px;
+}
+.ststat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+.ststat span {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.ststat strong {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.ststat strong.ststat__small {
+  font-size: 16px;
+  padding: 4px 0 2px;
+}
+.ststat small {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.stv__banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  background: rgba(245, 165, 36, 0.1);
+  border: 1px solid rgba(245, 165, 36, 0.45);
+}
+.stv__banner svg {
+  color: #f5a524;
+  flex: none;
+}
+.titlebar__btn--on {
+  background: var(--pill-hi, var(--box-hi));
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+@media (max-width: 1100px) {
+  .stv {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+  .stv__navtext,
+  .stv__navhead,
+  .stv__saved {
+    display: none;
+  }
+  .stv__navitem {
+    justify-content: center;
+  }
+  .ststats {
+    grid-template-columns: 1fr;
+  }
+}
+.stv__navfoot .btn-primary {
+  justify-content: center;
+}
+.strow__desc .field__rec {
+  margin-left: 0;
+}
+/* Nastavení: stejné písmo a řezy jako texty v hledání (filtry, popisky,
+ * tlačítka) — Segoe UI 400–600, žádné těžké 800. */
+.stv {
+  font-family: var(--font-body);
+}
+.stv__headtext h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.stv__navtext {
+  font-weight: 600;
+}
+.strow__title {
+  font-weight: 600;
+}
+.stcard__title,
+.stv__navhead,
+.ststat span,
+.sttpl__preview > span {
+  font-weight: 700;
+}
+.ststat strong {
+  font-weight: 600;
+}
+.stver__name {
+  font-weight: 600;
+}
+.seg button {
+  font-weight: 600;
+}
+
+/* ── Library: stejný vzhled a písmo jako Nastavení ───────────────────── */
+.lv {
+  font-family: var(--font-body);
+}
+.lv__tree {
+  padding: 16px 12px;
+}
+.lv__treelabel {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--text-faint);
+  padding: 0 10px 8px;
+}
+.lv__titem {
+  position: relative;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+.lv__titem--on {
+  background: var(--pill-hi, var(--box-hi));
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 6px 16px -10px rgba(0, 0, 0, 0.8);
+}
+.lv__titem--on::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--text);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+.lv__titem--tool {
+  --ic: #cfd0d6;
+  font-weight: 600;
+}
+.lv__ticon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--ic);
+  background: color-mix(in srgb, var(--ic) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ic) 24%, transparent);
+}
+.lv__titem--tool:hover .lv__ticon {
+  background: color-mix(in srgb, var(--ic) 20%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ic) 45%, transparent), 0 0 12px -4px var(--ic);
+}
+.lv__ticon svg {
+  opacity: 1;
+}
+/* Záhlaví sloupců, popisky a štítky — řezy jako v Nastavení / hledání. */
+.lv__head {
+  font-weight: 600;
+}
+.lv__dtitle {
+  font-weight: 700;
+}
+.lv__brokenlink--on {
+  font-weight: 700;
+}
+.lv__dlabel {
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+}
+.lv__dactions--grid > button {
+  font-weight: 600;
+}
+.lv__bulkcount {
+  font-weight: 600;
+}
+/* Pravý panel jako karta v Nastavení */
+.lv__detail {
+  padding: 18px 18px 22px;
+}
+.lv__dsong,
+.lv__dmulti {
+  gap: 14px;
+}
+/* Lišta knihovny ve dvou řádcích */
+.lv__bar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.lv__barrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.lv__barrow > * {
+  flex-shrink: 0;
+}
+.lv__barrow--path {
+  flex-wrap: nowrap;
+}
+.lv__barrow--path > .lv__crumbs {
+  flex: 1 1 auto;
+  min-width: 0;
+  scrollbar-width: none;
+}
+.lv__bartools {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.lv__barrow > .lv__search {
+  flex: 1 1 220px;
+  max-width: 420px;
+}
+/* Kompaktní seznam: zaškrtnuté řádky zeleně jako karty a výsledky hledání */
+.lv__list .lvli.song--checked,
+.lv__list .lvli.song--checked:hover {
+  background: rgba(80, 220, 140, 0.07);
+  box-shadow: inset 3px 0 0 rgba(80, 220, 140, 0.75);
+}
+.lv__list .lvli.song--checked.lvrow--focus {
+  background: rgba(80, 220, 140, 0.11);
+}
+.lv__list .lvli.song--checked .chk__box {
+  background: #50dc8c;
+  border-color: #50dc8c;
+  color: #0b1a12;
+}
+/* Stav lokálního katalogu v postranním panelu (jen při dlouhé práci):
+ * pilulka, která se plní zelenou zleva doprava — stejná zelená jako
+ * stažený update v téže části panelu. */
+.side-catalog {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 34px;
+  margin-bottom: 8px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.side-catalog__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.1) 0 8px,
+      rgba(255, 255, 255, 0) 8px 16px
+    ),
+    linear-gradient(180deg, #27bd92 0%, #1f9c78 100%);
+  background-size: 22.6px 22.6px, 100% 100%;
+  box-shadow: 0 0 14px -2px rgba(39, 189, 146, 0.55);
+  transition: width 0.6s ease;
+  animation: sidecatStripes 1.1s linear infinite;
+}
+@keyframes sidecatStripes {
+  to {
+    background-position: 22.6px 0, 0 0;
+  }
+}
+.side-catalog__text {
+  position: relative;
+  display: flex;
+  gap: 6px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+.side-catalog__text b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.side-catalog:hover {
+  box-shadow: inset 0 0 0 1px rgba(39, 189, 146, 0.5), inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+@media (prefers-reduced-motion: reduce) {
+  .side-catalog__fill {
+    animation: none;
+  }
+}
+
+/* „In library" ve výsledcích: na hover jasně ukázat, že vede do knihovny —
+   sytější zelená, jemná záře a vysunutá šipka. */
+.song__meta button.badge.badge--owned {
+  transition: color 0.14s, border-color 0.14s, background 0.14s, box-shadow 0.14s;
+}
+.song__meta button.badge.badge--owned:hover {
+  color: #b4f5cf;
+  border-color: rgba(80, 220, 140, 0.85);
+  background: rgba(80, 220, 140, 0.22);
+  box-shadow: 0 0 0 3px rgba(80, 220, 140, 0.12);
+}
+.song__meta button.badge.badge--owned:active {
+  background: rgba(80, 220, 140, 0.3);
+}
+.badge--owned .owned__go {
+  display: inline-flex;
+  max-width: 0;
+  margin-left: -4px;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateX(-4px);
+  transition: max-width 0.16s, margin-left 0.16s, opacity 0.16s, transform 0.16s;
+}
+.badge--owned:hover .owned__go,
+.badge--owned:focus-visible .owned__go {
+  max-width: 14px;
+  margin-left: 0;
+  opacity: 1;
+  transform: none;
 }

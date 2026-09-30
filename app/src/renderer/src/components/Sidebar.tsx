@@ -54,6 +54,7 @@ export function Sidebar(): JSX.Element {
   // exe nenalezené → launcher označíme jako „nelze spustit" a klik pošle do Nastavení.
   const config = useStore((s) => s.config)
   const setShowSettings = useStore((s) => s.setShowSettings)
+  const catalog = useStore((s) => s.catalogStatus)
   const [chOk, setChOk] = useState(true)
   const [yargOk, setYargOk] = useState(true)
   useEffect(() => {
@@ -360,6 +361,27 @@ export function Sidebar(): JSX.Element {
         ) : (
           // Klidový stav → verze + ruční kontrola.
           <>
+            {/* Dlouhá práce na lokálním katalogu (první build / obnova celého
+                katalogu) — ať uživatel ví, proč jsou filtry chvíli pomalejší. */}
+            {catalog?.state === 'syncing' && catalog.longRun ? (
+              <button
+                type="button"
+                className="side-catalog"
+                title="Chart Manager is downloading its local copy of both databases. Search keeps working meanwhile; filters get fast once it's done. Details in Settings → Maintenance."
+                onClick={() => setShowSettings(true)}
+              >
+                {/* Pilulka se plní zelenou zleva doprava (jako stahování updatu). */}
+                <span
+                  className="side-catalog__fill"
+                  style={{ width: `${Math.max(4, Math.round((catalog.progress ?? 0) * 100))}%` }}
+                  aria-hidden="true"
+                />
+                <span className="side-catalog__text">
+                  {catalog.usable ? 'Updating catalog' : 'Building catalog'}
+                  <b>{Math.round((catalog.progress ?? 0) * 100)}%</b>
+                </span>
+              </button>
+            ) : null}
             {/* Verze je klikací → otevře „What's new" (bez `since` = poslední
                 vydání). Jediná cesta, jak se k poznámkám dostat i bez updatu. */}
             <button

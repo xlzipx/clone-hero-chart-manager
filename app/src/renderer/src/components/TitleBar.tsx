@@ -10,6 +10,7 @@ import { TipsTicker } from './TipsTicker'
  */
 export function TitleBar(): JSX.Element {
   const setShowSettings = useStore((s) => s.setShowSettings)
+  const showSettings = useStore((s) => s.showSettings)
   const setShowLibrary = useStore((s) => s.setShowLibrary)
   const showLibrary = useStore((s) => s.showLibrary)
   const setShowAbout = useStore((s) => s.setShowAbout)
@@ -66,7 +67,11 @@ export function TitleBar(): JSX.Element {
           <Icon name={showLibrary ? 'search' : 'folder'} size={15} />
           <span>{showLibrary ? 'Back to search' : 'My Library'}</span>
         </button>
-        <button className="titlebar__btn" title="Settings" onClick={() => setShowSettings(true)}>
+        <button
+          className={`titlebar__btn ${showSettings ? 'titlebar__btn--on' : ''}`}
+          title={showSettings ? 'Close settings' : 'Settings'}
+          onClick={() => setShowSettings(!showSettings)}
+        >
           <Icon name="settings" size={16} />
         </button>
         <button

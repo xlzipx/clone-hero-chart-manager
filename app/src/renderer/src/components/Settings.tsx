@@ -9,7 +9,7 @@ import type { AppConfig, ReminderPosition } from '../../../shared/types'
 import { useStore } from '../store'
 import { IS_LINUX, IS_MAC } from '../platform'
 import { HotkeyInput } from './HotkeyInput'
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
 
 // Ukázková píseň pro náhled šablony. Má VYPLNĚNÉ všechny tagy, ať je hned vidět,
 // co která značka udělá.
@@ -108,474 +108,821 @@ function PositionPicker({
   )
 }
 
+type SectionId = 'library' | 'downloads' | 'interface' | 'overlay' | 'updates' | 'maintenance'
+
+/** Kategorie Nastavení. Barva = barva nástroje, stejná „řeč" jako zbytek appky. */
+const SECTIONS: { id: SectionId; label: string; icon: IconName; hint: string; desc: string; color: string }[] = [
+  {
+    id: 'library',
+    label: 'Library & paths',
+    icon: 'folder',
+    hint: 'Songs folder, game paths',
+    desc: 'Where your charts live and where Clone Hero and YARG are installed.',
+    color: '#ff5b5b'
+  },
+  {
+    id: 'downloads',
+    label: 'Downloads',
+    icon: 'download',
+    hint: 'Folder names, format, queue',
+    desc: 'How downloaded charts are named, saved and queued.',
+    color: '#4a90e2'
+  },
+  {
+    id: 'interface',
+    label: 'Search & interface',
+    icon: 'search',
+    hint: 'Results, scale, tips',
+    desc: 'Search results and the size of the whole interface.',
+    color: '#f5c518'
+  },
+  {
+    id: 'overlay',
+    label: 'Game overlay',
+    icon: 'gamepad',
+    hint: 'Reminder, hotkey',
+    desc: 'Getting back to Chart Manager while a game is running.',
+    color: '#d23bd2'
+  },
+  {
+    id: 'updates',
+    label: 'Updates',
+    icon: 'refresh',
+    hint: 'New versions',
+    desc: 'Keep Chart Manager up to date.',
+    color: '#2dd4bf'
+  },
+  {
+    id: 'maintenance',
+    label: 'Maintenance',
+    icon: 'settings',
+    hint: 'Catalog, cache, backup',
+    desc: 'Local catalog, cached files and a backup of your settings.',
+    color: '#cfd0d6'
+  }
+]
+
+// Poslední otevřená kategorie (mezi otevřeními Nastavení během běhu appky).
+let lastSection: SectionId = 'library'
+
+/**
+ * Textové pole, které se uloží až po opuštění (blur) nebo Enteru. Cesty a
+ * šablona se tak neukládají po každém písmenu (rozepsaná cesta by na chvíli
+ * přepnula knihovnu na neexistující složku).
+ */
+function CommitInput({
+  value,
+  onCommit,
+  ...rest
+}: {
+  value: string
+  onCommit: (v: string) => void
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>): JSX.Element {
+  const [v, setV] = useState(value)
+  useEffect(() => setV(value), [value])
+  const commit = (): void => {
+    if (v !== value) onCommit(v)
+  }
+  return (
+    <input
+      {...rest}
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+        if (e.key === 'Escape') {
+          e.stopPropagation()
+          setV(value)
+        }
+      }}
+    />
+  )
+}
+
+/** Přepínač (místo checkboxu) — zapnutý svítí barvou kategorie. */
+function Switch({
+  checked,
+  onChange,
+  label
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: string
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={`stsw ${checked ? 'stsw--on' : ''}`}
+      onClick={() => onChange(!checked)}
+    >
+      <span className="stsw__knob" />
+    </button>
+  )
+}
+
+/** Jeden řádek nastavení: vlevo název + popis, vpravo ovládání. */
+function Row({
+  title,
+  desc,
+  children,
+  stack
+}: {
+  title: React.ReactNode
+  desc?: React.ReactNode
+  children?: React.ReactNode
+  /** Ovládání pod textem přes celou šířku (cesty, šablona). */
+  stack?: boolean
+}): JSX.Element {
+  return (
+    <div className={`strow ${stack ? 'strow--stack' : ''}`}>
+      <div className="strow__text">
+        <div className="strow__title">{title}</div>
+        {desc ? <div className="strow__desc">{desc}</div> : null}
+      </div>
+      {children ? <div className="strow__ctl">{children}</div> : null}
+    </div>
+  )
+}
+
+function Card({ title, children }: { title?: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <section className="stcard">
+      {title ? <h3 className="stcard__title">{title}</h3> : null}
+      <div className="stcard__rows">{children}</div>
+    </section>
+  )
+}
+
+function Seg<T extends string | number>({
+  value,
+  options,
+  onChange
+}: {
+  value: T
+  options: { v: T; l: string }[]
+  onChange: (v: T) => void
+}): JSX.Element {
+  return (
+    <div className="seg">
+      {options.map((o) => (
+        <button key={String(o.v)} type="button" className={value === o.v ? 'on' : ''} onClick={() => onChange(o.v)}>
+          {o.l}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`
+  if (n < 1024 * 1024 * 1024) return `${Math.round(n / (1024 * 1024))} MB`
+  return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`
+}
+
+/** Pole s cestou: ikona složky, stav (nalezeno / chybí) a tlačítko Browse. */
+function PathField({
+  value,
+  placeholder,
+  status,
+  onCommit,
+  onBrowse
+}: {
+  value: string
+  placeholder?: string
+  status?: { ok: boolean; text: string } | null
+  onCommit: (v: string) => void
+  onBrowse: () => void
+}): JSX.Element {
+  return (
+    <div className="stpath">
+      <div className="stpath__box">
+        <Icon name="folder" size={15} />
+        <CommitInput value={value} placeholder={placeholder} spellCheck={false} onCommit={onCommit} />
+        {status ? (
+          <span className={`stpath__status ${status.ok ? 'is-ok' : 'is-bad'}`}>
+            {status.ok ? <Icon name="check" size={11} /> : null} {status.text}
+          </span>
+        ) : null}
+      </div>
+      <button type="button" className="btn-secondary stpath__browse" onClick={onBrowse}>
+        Browse…
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Nastavení na celou obrazovku (jako Library): vlevo kategorie, vpravo jejich
+ * volby. Všechno se ukládá hned — žádné Save / Cancel.
+ */
 export function Settings(): JSX.Element | null {
-  const show = useStore((s) => s.showSettings)
   const config = useStore((s) => s.config)
   const setShowSettings = useStore((s) => s.setShowSettings)
   const saveConfig = useStore((s) => s.saveConfig)
-  const [draft, setDraft] = useState<AppConfig | null>(config)
-  // Šablona složky je při otevření Nastavení rozbalená, aby byla vidět hned;
-  // sbalit ji jde šipkou v záhlaví sekce.
-  const [tplOpen, setTplOpen] = useState(true)
-  const [exeStatus, setExeStatus] = useState<{ path: string | null; autoDetected: boolean } | null>(
-    null
-  )
-  const [yargStatus, setYargStatus] = useState<{
-    path: string | null
-    autoDetected: boolean
-  } | null>(null)
-  // Reset rozdělaných změn na uložený config při KAŽDÉM otevření okna (i po
-  // změně configu). Komponenta se nemountuje znovu (jen vrací null), takže bez
-  // tohohle by neuložené úpravy po Cancel/kliku mimo přežily do dalšího otevření.
-  useEffect(() => {
-    if (show) setDraft(config)
-  }, [show, config])
+  const loadConfig = useStore((s) => s.loadConfig)
+  const catalog = useStore((s) => s.catalogStatus)
+  const [section, setSection] = useState<SectionId>(lastSection)
+  const [exeStatus, setExeStatus] = useState<{ path: string | null; autoDetected: boolean } | null>(null)
+  const [yargStatus, setYargStatus] = useState<{ path: string | null; autoDetected: boolean } | null>(null)
+  const [songsOk, setSongsOk] = useState<boolean | null>(null)
+  const [version, setVersion] = useState('')
+  const [updateMsg, setUpdateMsg] = useState<{ text: string; url?: string } | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [cacheBytes, setCacheBytes] = useState<number | null>(null)
+  const [clearing, setClearing] = useState(false)
 
-  // Při otevření zjistíme, jestli CH.exe + YARG.exe auto-detekce našly cesty.
   useEffect(() => {
-    if (!show) return
+    lastSection = section
+    if (section === 'maintenance') void window.api.cacheSize().then(setCacheBytes)
+  }, [section])
+
+  useEffect(() => {
+    void window.api.appVersion().then(setVersion)
+  }, [])
+
+  useEffect(() => {
+    if (!config) return
     void window.api.chExeStatus().then(setExeStatus)
     void window.api.yargExeStatus().then(setYargStatus)
-  }, [show, draft?.songsDir, draft?.chExePath, draft?.yargExePath])
+    void window.api.songsDirExists().then(setSongsOk)
+  }, [config?.songsDir, config?.chExePath, config?.yargExePath])
 
-  // UI scale: clamp 0.7–1.6, živý náhled přes IPC (uloží se až na Save).
+  // Poprvé bez složky Songs → rovnou na Library & paths.
+  useEffect(() => {
+    if (songsOk === false) setSection('library')
+  }, [songsOk])
+
+  const flash = (msg: string): void => {
+    setNotice(msg)
+    setTimeout(() => setNotice((n) => (n === msg ? null : n)), 3500)
+  }
+
+  if (!config) return null
+  const set = (patch: Partial<AppConfig>): void => void saveConfig(patch)
+
   const setScale = (next: number): void => {
     const clamped = Math.min(1.6, Math.max(0.7, Math.round(next * 10) / 10))
-    setDraft((d) => (d ? { ...d, uiScale: clamped } : d))
     void window.api.setUiScale(clamped)
+    set({ uiScale: clamped })
   }
 
-  // Zavření bez uložení → zahoď živý náhled a vrať uloženou škálu.
-  const cancelSettings = (): void => {
-    void window.api.setUiScale(config?.uiScale ?? 1)
-    setShowSettings(false)
+  const checkUpdates = async (): Promise<void> => {
+    setChecking(true)
+    setUpdateMsg(null)
+    try {
+      const res = await window.api.checkForUpdates()
+      if (res.status === 'available' && res.version) {
+        setUpdateMsg({
+          text: `Version ${res.version} is available. Use the update notice in the bottom-left corner to install it.`,
+          url: res.url
+        })
+      } else if (res.status === 'uptodate') setUpdateMsg({ text: 'You have the latest version.' })
+      else setUpdateMsg({ text: 'Could not check for updates right now. Try again later.' })
+    } catch {
+      setUpdateMsg({ text: 'Could not check for updates right now. Try again later.' })
+    }
+    setChecking(false)
   }
 
-  if (!show || !draft) return null
-
-  const pickDir = async (key: 'songsDir') => {
-    const dir = await window.api.chooseDirectory()
-    if (dir) setDraft({ ...draft, [key]: dir })
-  }
-
-  const pickChExe = async (): Promise<void> => {
-    const file = await window.api.chooseExeFile()
-    if (file) setDraft({ ...draft, chExePath: file })
-  }
-  const pickYargExe = async (): Promise<void> => {
-    const file = await window.api.chooseExeFile()
-    if (file) setDraft({ ...draft, yargExePath: file })
-  }
-
-  // Pole je teď viditelné vždy — uživatel může chtít přepsat auto-detekci
-  // (např. pokud má víc instalací CH).
+  const current = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]
+  const lastSync = catalog?.lastSync
+    ? new Date(catalog.lastSync).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+    : 'Never'
+  const exePlaceholder = (auto: typeof exeStatus, mac: string, linux: string, win: string): string =>
+    auto?.autoDetected && auto.path ? `Using: ${auto.path}` : IS_MAC ? mac : IS_LINUX ? linux : win
 
   return (
-    <div
-      className="modal-overlay"
-      onMouseDown={(e) => {
-        // Zavři jen když stisk začal přímo na pozadí (ne tažením z inputu ven).
-        if (e.target === e.currentTarget) cancelSettings()
-      }}
-    >
-      <div className="modal modal--settings" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="modal__head">
-          <h2>Settings</h2>
-          <button className="modal__close" onClick={cancelSettings}>
-            ✕
+    <div className="stv" style={{ '--sc': current.color } as React.CSSProperties}>
+      <aside className="stv__nav" aria-label="Settings sections">
+        <div className="stv__navhead">
+          <Icon name="settings" size={14} /> Settings
+        </div>
+        {SECTIONS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className={`stv__navitem ${section === s.id ? 'stv__navitem--on' : ''}`}
+            style={{ '--ic': s.color } as React.CSSProperties}
+            onClick={() => setSection(s.id)}
+          >
+            <span className="stv__navicon">
+              <Icon name={s.icon} size={15} />
+            </span>
+            <span className="stv__navtext">
+              <span>{s.label}</span>
+              <small>{s.hint}</small>
+            </span>
+            {s.id === 'library' && songsOk === false ? <span className="stv__dot" title="Needs attention" /> : null}
+          </button>
+        ))}
+        <div className="stv__navfoot">
+          <span className="stv__saved">
+            <Icon name="check" size={11} /> Changes save automatically
+          </span>
+          <button type="button" className="btn-primary" onClick={() => setShowSettings(false)}>
+            Done
           </button>
         </div>
+      </aside>
 
-        <div className="modal__body settings-body">
-          <div className="settings-cols">
-            <div className="settings-col">
-              <section className="settings-group">
-                <h3 className="settings-group__title">Library &amp; paths</h3>
-          <label className="field">
-            <span>Songs folder (Clone Hero library)</span>
-            <div className="field__row">
-              <input
-                value={draft.songsDir}
-                onChange={(e) => setDraft({ ...draft, songsDir: e.target.value })}
-              />
-              <button onClick={() => pickDir('songsDir')}>…</button>
-            </div>
-          </label>
+      <section className="stv__main" aria-label={current.label}>
+        <header className="stv__head" key={section}>
+          <span className="stv__headicon">
+            <Icon name={current.icon} size={22} />
+          </span>
+          <div className="stv__headtext">
+            <h2>{current.label}</h2>
+            <p>{current.desc}</p>
+          </div>
+          {notice ? (
+            <span className="stv__notice">
+              <Icon name="check" size={12} /> {notice}
+            </span>
+          ) : null}
+        </header>
 
-          {/* Zabalené: běžný uživatel tohle nepotřebuje (výchozí šablona = chování
-              odjakživa) a v nastavení by ho to jen mátlo. Kdo to zná z Bridge nebo
-              si chce knihovnu třídit sám, si to rozklikne. Zavřený stav ukazuje
-              aktuální šablonu, ať je vidět i bez otevírání. */}
-          <fieldset className="field field--disc">
-            {IS_MAC ? (
-              // macOS: sekci necháváme napevno otevřenou (bez rozklikávání).
-              <div className="disc__head disc__head--static">
-                <span className="disc__titles">
-                  <span className="disc__title">
-                    Chart folder name
-                    <span className="disc__badge">Optional</span>
+        <div className="stv__body" key={`b-${section}`}>
+          {section === 'library' ? (
+            <>
+              {songsOk === false ? (
+                <div className="stv__banner">
+                  <Icon name="info" size={16} />
+                  <span>
+                    Pick your Clone Hero <strong>Songs</strong> folder to get started. Downloaded charts go
+                    there and My Library shows what's inside.
                   </span>
-                  <span className="disc__sub">
-                    Naming and sorting of downloaded charts: <code>{draft.folderTemplate}</code>
-                  </span>
-                </span>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="disc__head"
-                aria-expanded={tplOpen}
-                onClick={() => setTplOpen((o) => !o)}
-              >
-                <span className="disc__titles">
-                  <span className="disc__title">
-                    Chart folder name
-                    <span className="disc__badge">Optional</span>
-                  </span>
-                  <span className="disc__sub">
-                    Naming and sorting of downloaded charts: <code>{draft.folderTemplate}</code>
-                  </span>
-                </span>
-                <Icon name="caret" size={12} className="disc__caret" />
-              </button>
-            )}
-
-            <div className={`disc ${IS_MAC || tplOpen ? 'disc--open' : ''}`}>
-              <div className="disc__inner">
-                <div className="field__row">
-                  <input
-                    className="tpl__input"
-                    value={draft.folderTemplate}
-                    spellCheck={false}
-                    placeholder={DEFAULT_FOLDER_TEMPLATE}
-                    onChange={(e) => setDraft({ ...draft, folderTemplate: e.target.value })}
+                </div>
+              ) : null}
+              <Card title="Songs library">
+                <Row
+                  stack
+                  title="Songs folder"
+                  desc="Your Clone Hero Songs folder. Downloads are installed here and My Library shows its contents."
+                >
+                  <PathField
+                    value={config.songsDir}
+                    status={songsOk === null ? null : songsOk ? { ok: true, text: 'Found' } : { ok: false, text: 'Not found' }}
+                    onCommit={(v) => set({ songsDir: v })}
+                    onBrowse={async () => {
+                      const dir = await window.api.chooseDirectory()
+                      if (dir) set({ songsDir: dir })
+                    }}
                   />
+                </Row>
+              </Card>
+              <Card title="Games">
+                <Row
+                  stack
+                  title={IS_MAC ? 'Clone Hero app' : 'Clone Hero'}
+                  desc={
+                    <>
+                      Used by the <strong>Launch Clone Hero</strong> button. Leave empty to detect it
+                      automatically.
+                    </>
+                  }
+                >
+                  <PathField
+                    value={config.chExePath}
+                    placeholder={exePlaceholder(
+                      exeStatus,
+                      'e.g. /Applications/Clone Hero.app',
+                      'e.g. ~/.clonehero/CloneHero.x86_64',
+                      'e.g. C:\\Games\\Clone Hero\\Clone Hero.exe'
+                    )}
+                    status={
+                      config.chExePath
+                        ? null
+                        : exeStatus?.path
+                          ? { ok: true, text: 'Auto-detected' }
+                          : exeStatus
+                            ? { ok: false, text: 'Not detected' }
+                            : null
+                    }
+                    onCommit={(v) => set({ chExePath: v })}
+                    onBrowse={async () => {
+                      const f = await window.api.chooseExeFile()
+                      if (f) set({ chExePath: f })
+                    }}
+                  />
+                </Row>
+                <Row
+                  stack
+                  title={IS_MAC ? 'YARG app' : 'YARG'}
+                  desc="Lets the overlay and hotkey find YARG. YARG reads the same Songs folder, no separate library needed."
+                >
+                  <PathField
+                    value={config.yargExePath}
+                    placeholder={exePlaceholder(
+                      yargStatus,
+                      'e.g. /Applications/YARG.app',
+                      'e.g. ~/YARG/YARG.x86_64',
+                      'e.g. C:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe'
+                    )}
+                    status={
+                      config.yargExePath
+                        ? null
+                        : yargStatus?.path
+                          ? { ok: true, text: 'Auto-detected' }
+                          : yargStatus
+                            ? { ok: false, text: 'Not detected' }
+                            : null
+                    }
+                    onCommit={(v) => set({ yargExePath: v })}
+                    onBrowse={async () => {
+                      const f = await window.api.chooseExeFile()
+                      if (f) set({ yargExePath: f })
+                    }}
+                  />
+                </Row>
+              </Card>
+            </>
+          ) : null}
+
+          {section === 'downloads' ? (
+            <>
+              <Card title="Chart folder name">
+                <Row
+                  stack
+                  title="Folder name template"
+                  desc={
+                    <>
+                      Use <code>/</code> for subfolders, e.g. <code>{'{genre}/{artist}/{artist} - {title}'}</code>.
+                      Empty tags are skipped instead of becoming "Unknown". Song packs keep their own names.
+                    </>
+                  }
+                >
+                  <div className="sttpl">
+                    <div className="sttpl__line">
+                      <CommitInput
+                        className="sttpl__input"
+                        value={config.folderTemplate}
+                        spellCheck={false}
+                        placeholder={DEFAULT_FOLDER_TEMPLATE}
+                        onCommit={(v) => set({ folderTemplate: v })}
+                      />
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => set({ folderTemplate: DEFAULT_FOLDER_TEMPLATE })}
+                        disabled={config.folderTemplate === DEFAULT_FOLDER_TEMPLATE}
+                        title="Reset to the default template"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    <div className="tpl__tags">
+                      {FOLDER_TAGS.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          className="tpl__tag"
+                          title={`Insert {${t}}`}
+                          onClick={() => set({ folderTemplate: `${config.folderTemplate}{${t}}` })}
+                        >
+                          {`{${t}}`}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="sttpl__preview">
+                      <span>Preview</span>
+                      <code>{previewFullPath(SAMPLE_SONG, config.folderTemplate, config.songsDir)}</code>
+                      {DROPPABLE_TAG_RE.test(config.folderTemplate) ? (
+                        <>
+                          <span title="Not every chart has a genre, year, album or charter filled in.">Tags empty</span>
+                          <code className="is-dim">
+                            {previewFullPath(SPARSE_SONG, config.folderTemplate, config.songsDir)}
+                          </code>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                </Row>
+                <Row
+                  title="Skip the folder picker"
+                  desc="Install straight into the folder from the template instead of asking where to save each time."
+                >
+                  <Switch
+                    label="Skip the folder picker"
+                    checked={config.autoTargetFolder}
+                    onChange={(v) => set({ autoTargetFolder: v })}
+                  />
+                </Row>
+              </Card>
+
+              <Card title="Download format">
+                <Row
+                  title="Chorus Encore charts"
+                  desc={
+                    <>
+                      <em className="field__rec">Song folder recommended</em> — works everywhere, like the .zip on
+                      Chorus Encore. A single .sng file is read by Clone Hero v1+ and YARG. RhythmVerse charts are
+                      always saved as song folders.
+                    </>
+                  }
+                >
+                  <Seg
+                    value={config.encoreFormat === 'sng' ? 'sng' : 'folder'}
+                    options={[
+                      { v: 'folder', l: 'Song folder' },
+                      { v: 'sng', l: '.sng file' }
+                    ]}
+                    onChange={(v) => set({ encoreFormat: v })}
+                  />
+                </Row>
+                <Row
+                  title="Download background videos"
+                  desc="Videos can take a lot of space. When off they are left out of song folders (a .sng file keeps its video)."
+                >
+                  <Switch
+                    label="Download background videos"
+                    checked={config.downloadVideos !== false}
+                    onChange={(v) => set({ downloadVideos: v })}
+                  />
+                </Row>
+              </Card>
+
+              <Card title="Download queue">
+                <Row
+                  title="Downloads at the same time"
+                  desc="More at once finishes a big batch faster. Rock Band conversions are heavy, keep it low on older PCs."
+                >
+                  <Seg
+                    value={config.maxConcurrentDownloads || 1}
+                    options={[1, 2, 3, 4].map((n) => ({ v: n, l: String(n) }))}
+                    onChange={(v) => set({ maxConcurrentDownloads: v })}
+                  />
+                </Row>
+                <Row title="Clear finished downloads" desc="Finished downloads disappear from the queue after a few seconds.">
+                  <Switch
+                    label="Clear finished downloads"
+                    checked={config.autoClearFinished !== false}
+                    onChange={(v) => set({ autoClearFinished: v })}
+                  />
+                </Row>
+              </Card>
+            </>
+          ) : null}
+
+          {section === 'interface' ? (
+            <Card title="Search & display">
+              <Row title="Results per page" desc="How many charts one page of search results shows.">
+                <Seg
+                  value={config.recordsPerPage}
+                  options={[25, 50, 75, 100].map((n) => ({ v: n, l: String(n) }))}
+                  onChange={(v) => set({ recordsPerPage: v })}
+                />
+              </Row>
+              <Row title="UI scale" desc="Makes the whole interface bigger or smaller, on top of your system display scaling.">
+                <div className="scaler">
                   <button
-                    onClick={() => setDraft({ ...draft, folderTemplate: DEFAULT_FOLDER_TEMPLATE })}
-                    title="Reset to the default template"
-                    disabled={draft.folderTemplate === DEFAULT_FOLDER_TEMPLATE}
+                    type="button"
+                    className="scaler__btn"
+                    onClick={() => setScale((config.uiScale ?? 1) - 0.1)}
+                    disabled={(config.uiScale ?? 1) <= 0.7}
+                    aria-label="Smaller"
+                  >
+                    −
+                  </button>
+                  <span className="scaler__val">{Math.round((config.uiScale ?? 1) * 100)}%</span>
+                  <button
+                    type="button"
+                    className="scaler__btn"
+                    onClick={() => setScale((config.uiScale ?? 1) + 0.1)}
+                    disabled={(config.uiScale ?? 1) >= 1.6}
+                    aria-label="Bigger"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    className="linkbtn scaler__reset"
+                    onClick={() => setScale(1)}
+                    disabled={(config.uiScale ?? 1) === 1}
                   >
                     Reset
                   </button>
                 </div>
+              </Row>
+              <Row title="Tips in the title bar" desc="Short rotating hints next to the title, like how to preview a song.">
+                <Switch label="Tips in the title bar" checked={config.showTips !== false} onChange={(v) => set({ showTips: v })} />
+              </Row>
+            </Card>
+          ) : null}
 
-                <div className="tpl__tags">
-                  {FOLDER_TAGS.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      className="tpl__tag"
-                      title={`Insert {${t}}`}
-                      onClick={() =>
-                        setDraft({ ...draft, folderTemplate: `${draft.folderTemplate}{${t}}` })
-                      }
-                    >
-                      {`{${t}}`}
-                    </button>
-                  ))}
+          {section === 'overlay' ? (
+            <Card title="While you play">
+              <Row
+                title="Hotkey reminder over the game"
+                desc="A tiny pill in a corner of the screen for a few seconds when a game starts. Works over windowed and borderless games."
+              >
+                <Switch
+                  label="Hotkey reminder over the game"
+                  checked={config.showReminder}
+                  onChange={(v) => set({ showReminder: v })}
+                />
+              </Row>
+              {config.showReminder ? (
+                <Row title="Reminder position">
+                  <PositionPicker value={config.reminderPosition} onChange={(v) => set({ reminderPosition: v })} />
+                </Row>
+              ) : null}
+              <Row
+                stack
+                title="Show / hide hotkey"
+                desc={
+                  <>
+                    Optional global shortcut that brings the app forward even while a game has focus. Click the
+                    field and press a key or combo, e.g. <code>F10</code> or{' '}
+                    <code>{IS_MAC ? '⌘⇧H' : 'Control+Shift+H'}</code>. Backspace clears it.
+                  </>
+                }
+              >
+                <div className="sthk">
+                  <HotkeyInput
+                    value={config.hotkeys.toggleOverlay}
+                    onChange={(v) => set({ hotkeys: { ...config.hotkeys, toggleOverlay: v } })}
+                  />
                 </div>
+              </Row>
+            </Card>
+          ) : null}
 
-                {/* Náhled běží přes TUTÉŽ funkci jako skutečná instalace (shared/
-                    foldertemplate.ts), takže nemůže ukazovat něco jiného, než co se stane. */}
-                <div className="tpl__preview">
-                  <div className="tpl__prow">
-                    <span className="tpl__plabel">Preview</span>
-                    <code className="tpl__ppath">
-                      {previewFullPath(SAMPLE_SONG, draft.folderTemplate, draft.songsDir)}
-                    </code>
-                  </div>
-                  {/* Jen když má co ukázat. U výchozí `{artist} - {title}` by to byl
-                      druhý namátkový příklad bez poučení (a přesně tak to mátlo). */}
-                  {DROPPABLE_TAG_RE.test(draft.folderTemplate) ? (
-                    <div className="tpl__prow">
-                      <span className="tpl__plabel" title="Not every chart has a genre, year, album or charter filled in. A subfolder whose tags are all empty is skipped.">
-                        Tags empty
-                      </span>
-                      <code className="tpl__ppath tpl__ppath--dim">
-                        {previewFullPath(SPARSE_SONG, draft.folderTemplate, draft.songsDir)}
-                      </code>
-                    </div>
+          {section === 'updates' ? (
+            <Card>
+              <div className="stver">
+                <div className="stver__logo" aria-hidden="true">
+                  <i style={{ background: '#ff5b5b' }} />
+                  <i style={{ background: '#4a90e2' }} />
+                  <i style={{ background: '#f5c518' }} />
+                  <i style={{ background: '#d23bd2' }} />
+                  <i style={{ background: '#2dd4bf' }} />
+                </div>
+                <div>
+                  <div className="stver__name">Chart Manager</div>
+                  <div className="stver__num">Version {version}</div>
+                </div>
+                <div className="stver__btns">
+                  <button className="btn-secondary" onClick={() => useStore.getState().openWhatsNew()}>
+                    What's new
+                  </button>
+                  <button className="btn-primary" disabled={checking} onClick={() => void checkUpdates()}>
+                    {checking ? 'Checking…' : 'Check now'}
+                  </button>
+                </div>
+              </div>
+              {updateMsg ? (
+                <div className="stver__msg">
+                  {updateMsg.text}{' '}
+                  {updateMsg.url ? (
+                    <button className="linkbtn" onClick={() => window.api.openExternal(updateMsg.url as string)}>
+                      Open release page
+                    </button>
                   ) : null}
                 </div>
-
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={draft.autoTargetFolder}
-                    onChange={(e) => setDraft({ ...draft, autoTargetFolder: e.target.checked })}
-                  />
-                  <span>Skip the folder picker and use this template</span>
-                </label>
-
-                <p className="field__hint">
-                  Use <code>/</code> for subfolders, so <code>{'{genre}/{artist}/{artist} - {title}'}</code>{' '}
-                  sorts your library automatically. A subfolder whose tags are all empty is skipped
-                  rather than named "Unknown", and <code>{'{name}'}</code> works as an alias for{' '}
-                  <code>{'{title}'}</code>. Leave the checkbox off to keep picking a folder each time,
-                  with the template still naming the chart folder. Song packs keep their original
-                  folder names.
-                </p>
-              </div>
-            </div>
-          </fieldset>
-
-          <label className="field">
-            <span>
-              {IS_MAC ? 'Clone Hero.app path' : IS_LINUX ? 'Clone Hero path' : 'Clone Hero.exe path'}
-              {exeStatus?.path === null && !draft.chExePath ? (
-                <em className="field__warn"> — couldn't auto-detect, set manually</em>
-              ) : exeStatus?.autoDetected && !draft.chExePath ? (
-                <em className="field__hint" style={{ marginLeft: 6 }}>
-                  — auto-detected, override below if needed
-                </em>
               ) : null}
-            </span>
-            <div className="field__row">
-              <input
-                placeholder={
-                  exeStatus?.autoDetected && exeStatus.path
-                    ? `Using: ${exeStatus.path}`
-                    : IS_MAC
-                      ? 'e.g. /Applications/Clone Hero.app'
-                      : IS_LINUX
-                        ? 'e.g. ~/.clonehero/CloneHero.x86_64'
-                        : 'e.g. C:\\Games\\Clone Hero\\Clone Hero.exe'
-                }
-                value={draft.chExePath}
-                onChange={(e) => setDraft({ ...draft, chExePath: e.target.value })}
-              />
-              <button onClick={pickChExe} title="Browse for Clone Hero">
-                …
-              </button>
-            </div>
-            <p className="field__hint">
-              Used by the <strong>Launch Clone Hero</strong> button. Leave blank to use
-              auto-detection{' '}
-              {IS_MAC
-                ? '(standard /Applications location).'
-                : '(parent of the Songs folder, then known install paths).'}
-            </p>
-          </label>
+              <Row title="Check for updates on startup" desc="A notice appears in the bottom-left corner when a new version is out.">
+                <Switch
+                  label="Check for updates on startup"
+                  checked={config.autoCheckUpdates}
+                  onChange={(v) => set({ autoCheckUpdates: v })}
+                />
+              </Row>
+            </Card>
+          ) : null}
 
-          <label className="field">
-            <span>
-              {IS_MAC ? 'YARG.app path' : IS_LINUX ? 'YARG path' : 'YARG.exe path'}
-              {yargStatus?.path === null && !draft.yargExePath ? (
-                <em className="field__hint" style={{ marginLeft: 6 }}>
-                  — not detected (set manually if installed)
-                </em>
-              ) : yargStatus?.autoDetected && !draft.yargExePath ? (
-                <em className="field__hint" style={{ marginLeft: 6 }}>
-                  — auto-detected, override below if needed
-                </em>
-              ) : null}
-            </span>
-            <div className="field__row">
-              <input
-                placeholder={
-                  yargStatus?.autoDetected && yargStatus.path
-                    ? `Using: ${yargStatus.path}`
-                    : IS_MAC
-                      ? 'e.g. /Applications/YARG.app'
-                      : IS_LINUX
-                        ? 'e.g. ~/YARG/YARG.x86_64'
-                        : 'e.g. C:\\YARG\\Content\\YARG Installs\\<GUID>\\installation\\YARG.exe'
-                }
-                value={draft.yargExePath}
-                onChange={(e) => setDraft({ ...draft, yargExePath: e.target.value })}
-              />
-              <button onClick={pickYargExe} title="Browse for YARG">
-                …
-              </button>
-            </div>
-            <p className="field__hint">
-              Used by the overlay + hotkey to detect YARG. CHM also brings YARG back to the
-              foreground when you hide this window. YARG reads charts from Clone Hero's Songs
-              folder, so no separate library is needed.
-            </p>
-          </label>
-              </section>
-            </div>
-
-            <div className="settings-col">
-              <section className="settings-group">
-                <h3 className="settings-group__title">Interface</h3>
-          <div className="field field--inline">
-            <label className="field">
-              <span>Results per page</span>
-              <input
-                type="number"
-                min={5}
-                max={100}
-                value={draft.recordsPerPage}
-                onChange={(e) =>
-                  setDraft({ ...draft, recordsPerPage: Number(e.target.value) || 25 })
-                }
-              />
-            </label>
-          </div>
-
-          <fieldset className="field">
-            <span>
-              UI scale
-              <span
-                className="info"
-                title="Make the whole interface bigger or smaller. This stacks on top of your system display scaling, so it's handy on very high-resolution (4K) screens where things can look small."
-              >
-                <Icon name="info" size={13} />
-              </span>
-            </span>
-            <div className="scaler">
-              <button
-                type="button"
-                className="scaler__btn"
-                onClick={() => setScale((draft.uiScale ?? 1) - 0.1)}
-                disabled={(draft.uiScale ?? 1) <= 0.7}
-                aria-label="Smaller"
-              >
-                −
-              </button>
-              <span className="scaler__val">{Math.round((draft.uiScale ?? 1) * 100)}%</span>
-              <button
-                type="button"
-                className="scaler__btn"
-                onClick={() => setScale((draft.uiScale ?? 1) + 0.1)}
-                disabled={(draft.uiScale ?? 1) >= 1.6}
-                aria-label="Bigger"
-              >
-                +
-              </button>
-              <button
-                type="button"
-                className="linkbtn scaler__reset"
-                onClick={() => setScale(1)}
-                disabled={(draft.uiScale ?? 1) === 1}
-              >
-                Reset
-              </button>
-            </div>
-            <p className="field__hint">
-              Stacks on top of your system display scaling. Preview updates live; click Save to keep it.
-            </p>
-          </fieldset>
-              </section>
-
-              <section className="settings-group">
-                <h3 className="settings-group__title">Updates</h3>
-                <fieldset className="field">
-                  <span>
-                    Automatic update check
-                    <span
-                      className="info"
-                      title="When on, the app checks GitHub for a newer release a few seconds after launch and shows a notification in the bottom-left. Turn off if you'd rather only check for updates manually."
+          {section === 'maintenance' ? (
+            <>
+              <Card title="Local catalog">
+                <div className="ststats">
+                  <div className="ststat">
+                    <span>RhythmVerse</span>
+                    <strong>{(catalog?.counts.rv ?? 0).toLocaleString('en-US')}</strong>
+                    <small>charts</small>
+                  </div>
+                  <div className="ststat">
+                    <span>Chorus Encore</span>
+                    <strong>{(catalog?.counts.en ?? 0).toLocaleString('en-US')}</strong>
+                    <small>charts</small>
+                  </div>
+                  <div className="ststat">
+                    <span>Status</span>
+                    <strong className="ststat__small">
+                      {catalog?.state === 'syncing'
+                        ? catalog.longRun
+                          ? `Updating ${Math.round((catalog.progress ?? 0) * 100)}%`
+                          : 'Checking for new charts…'
+                        : catalog?.usable
+                          ? 'Ready'
+                          : 'Not built yet'}
+                    </strong>
+                    <small>Last update: {lastSync}</small>
+                  </div>
+                </div>
+                <Row
+                  title="Update the catalog"
+                  desc="A local copy of both databases makes filters and browsing fast. It updates itself in the background."
+                >
+                  <div className="stbtns">
+                    <button
+                      className="btn-secondary"
+                      disabled={catalog?.state === 'syncing'}
+                      onClick={() => {
+                        void window.api.catalogSyncNow()
+                        flash('Checking the databases for new charts…')
+                      }}
                     >
-                      <Icon name="info" size={13} />
-                    </span>
-                  </span>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={draft.autoCheckUpdates}
-                      onChange={(e) => setDraft({ ...draft, autoCheckUpdates: e.target.checked })}
-                    />
-                    <span>Check for updates on startup</span>
-                  </label>
-                  <p className="field__hint">
-                    When off, the app won't notify you about new versions on its own — use{' '}
-                    <em>Check for updates</em> in the sidebar whenever you want to look.
-                  </p>
-                </fieldset>
-              </section>
+                      Update now
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      disabled={catalog?.state === 'syncing'}
+                      title="Downloads the whole catalog again. Search keeps working meanwhile."
+                      onClick={() => {
+                        void window.api.catalogRefreshAll()
+                        flash('Refreshing the whole catalog in the background…')
+                      }}
+                    >
+                      Refresh everything
+                    </button>
+                  </div>
+                </Row>
+              </Card>
 
-              <section className="settings-group">
-                <h3 className="settings-group__title">Game overlay</h3>
-          <fieldset className="field">
-            <span>
-              Hotkey reminder over the game
-              <span
-                className="info"
-                title="Small floating pill in a corner of the screen showing the show/hide hotkey. Appears for ~7 seconds when Clone Hero starts (or when you hide this window with the hotkey)."
-              >
-                <Icon name="info" size={13} />
-              </span>
-            </span>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={draft.showReminder}
-                onChange={(e) => setDraft({ ...draft, showReminder: e.target.checked })}
-              />
-              <span>Show a tiny floating reminder over the game</span>
-            </label>
-            {draft.showReminder ? (
-              <div className="check__sub">
-                <span className="check__sub-label">Position</span>
-                <PositionPicker
-                  value={draft.reminderPosition}
-                  onChange={(v) => setDraft({ ...draft, reminderPosition: v })}
-                />
-              </div>
-            ) : null}
-            <p className="field__hint">
-              Works over windowed / borderless games. Won't appear over exclusive fullscreen
-              (Windows limitation). Auto‑hides after a few seconds.
-            </p>
-          </fieldset>
+              <Card title="Storage">
+                <Row
+                  title="Cached files"
+                  desc="Album art and song previews from search, kept so they load faster next time. Safe to clear, they download again when needed."
+                >
+                  <div className="stbtns">
+                    <span className="stsize">{cacheBytes === null ? '…' : formatBytes(cacheBytes)}</span>
+                    <button
+                      className="btn-secondary"
+                      disabled={clearing || !cacheBytes}
+                      onClick={async () => {
+                        setClearing(true)
+                        const before = cacheBytes ?? 0
+                        const after = await window.api.cacheClear()
+                        setCacheBytes(after)
+                        setClearing(false)
+                        flash(`Cleared ${formatBytes(Math.max(0, before - after))} of cached files.`)
+                      }}
+                    >
+                      {clearing ? 'Clearing…' : 'Clear cache'}
+                    </button>
+                  </div>
+                </Row>
+                <Row title="App data folder" desc="Settings, the local catalog and caches live here.">
+                  <button className="btn-secondary" onClick={() => void window.api.openDataFolder()}>
+                    Open folder
+                  </button>
+                </Row>
+              </Card>
 
-          <fieldset className="field">
-            <span>Quick toggle hotkey (optional)</span>
-            <div className="field__row">
-              <label className="hk">
-                <span className="hk__label">
-                  Show / hide window
-                  <span
-                    className="info"
-                    title={`Global hotkey – works even when the game window has focus. Most users don't need it (just ${IS_MAC ? 'Cmd+Tab' : 'Alt+Tab'} to bring the app forward).`}
-                  >
-                    <Icon name="info" size={13} />
-                  </span>
-                </span>
-                <HotkeyInput
-                  value={draft.hotkeys.toggleOverlay}
-                  onChange={(v) =>
-                    setDraft({ ...draft, hotkeys: { ...draft.hotkeys, toggleOverlay: v } })
-                  }
-                />
-              </label>
-            </div>
-            <p className="field__hint">
-              Optional global shortcut to bring the app forward from anywhere. Most users just use{' '}
-              {IS_MAC ? 'Cmd+Tab' : 'Alt+Tab'} — leave it blank to disable. Click the field and press
-              a key or combo (e.g. <code>F10</code> or{' '}
-              <code>{IS_MAC ? '⌘⇧H' : 'Control+Shift+H'}</code>); Backspace clears it.
-            </p>
-          </fieldset>
-              </section>
-            </div>
-          </div>
+              <Card title="Settings backup">
+                <Row
+                  title="Back up or restore"
+                  desc="Save your settings to a file and load them later or on another PC. Window size and position are not included."
+                >
+                  <div className="stbtns">
+                    <button
+                      className="btn-secondary"
+                      onClick={async () => {
+                        if (await window.api.settingsExport()) flash('Settings saved.')
+                      }}
+                    >
+                      Back up…
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      onClick={async () => {
+                        try {
+                          if (await window.api.settingsImport()) {
+                            await loadConfig()
+                            flash('Settings restored.')
+                          }
+                        } catch (e) {
+                          flash(
+                            e instanceof Error
+                              ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+                              : 'Restore failed.'
+                          )
+                        }
+                      }}
+                    >
+                      Restore…
+                    </button>
+                  </div>
+                </Row>
+              </Card>
+            </>
+          ) : null}
         </div>
-
-        <div className="modal__foot">
-          <button className="btn-secondary" onClick={cancelSettings}>
-            Cancel
-          </button>
-          <button
-            className="btn-primary"
-            onClick={async () => {
-              // Pojistka: „Results per page" srovnej do 5–100 (min/max u inputu jsou
-              // jen nápověda, ruční zápis je obejde).
-              const clean: AppConfig = {
-                ...draft,
-                recordsPerPage: Math.min(100, Math.max(5, Number(draft.recordsPerPage) || 25))
-              }
-              await saveConfig(clean)
-              setShowSettings(false)
-            }}
-          >
-            Save
-          </button>
-        </div>
-      </div>
+      </section>
     </div>
   )
 }

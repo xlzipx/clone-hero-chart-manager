@@ -1,15 +1,6 @@
 import type { InstrumentDifficulties, SongResult } from '../../shared/types'
 import type { IconName } from './components/Icon'
 
-// Discovery chipy pro prázdný stav — kurátorské populární kapely, které na RV
-// spolehlivě vrací hodně chartů. (Žánr ani rok RV API nefiltruje, jen text
-// v názvu/umělci, takže žánrové/dekádové chipy by byly zavádějící.)
-export const QUICK_PICKS: string[] = [
-  'Metallica', 'Foo Fighters', 'Nirvana', 'Green Day', 'Queen', 'AC/DC',
-  'Linkin Park', 'Red Hot Chili Peppers', 'Iron Maiden', 'System of a Down',
-  'Pearl Jam', 'Rush'
-]
-
 // RhythmVerse `list`/`search` stránkuje jen do 249. stránky — dál vrací pořád
 // tutéž „přetečenou" stránku (ověřeno živě: records 25/100/250 přetečou od strany
 // 250 shodně). Pager proto v režimech s RhythmVerse (rhythmverse i both) stropujeme

@@ -93,7 +93,9 @@ export function Pager({
         ? Math.min(rvReach, rawPages)
         : rawPages
   const diffActive = !(diffMin === 0 && diffMax === 6)
-  const filtersActive = instrumentFilters.length > 0 || diffActive
+  const dateFilter = useStore((s) => s.dateFilter)
+  const dateActive = dateFilter.preset !== 'any'
+  const filtersActive = instrumentFilters.length > 0 || diffActive || dateActive
 
   const chipParts: string[] = []
   if (instrumentFilters.length) {
@@ -105,6 +107,20 @@ export function Pager({
   }
   if (diffActive) {
     chipParts.push(diffMin === diffMax ? `Difficulty ${diffMin}` : `Difficulty ${diffMin}–${diffMax}`)
+  }
+  if (dateActive) {
+    const labels: Record<string, string> = {
+      '1d': 'Past 24 hours',
+      '7d': 'Past week',
+      '30d': 'Past month',
+      '90d': 'Past 3 months',
+      '365d': 'Past year'
+    }
+    chipParts.push(
+      dateFilter.preset === 'custom'
+        ? `Added ${dateFilter.from || '…'} – ${dateFilter.to || '…'}`
+        : `Added ${labels[dateFilter.preset].toLowerCase()}`
+    )
   }
 
   return (
