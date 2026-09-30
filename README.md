@@ -155,7 +155,7 @@ clicks — a whole setlist from a playlist you already love. See
   in‑app; open any song to see its album art and per‑instrument difficulties.
 
 <p align="center">
-  <img alt="Library manager: browsing, sorting and managing the Songs folder" width="820" src="https://chartmanager.pages.dev/assets/readme-library-manager.gif" />
+  <img alt="Library manager: browsing, sorting and managing the Songs folder" width="820" src="docs/img/library-manager.gif" />
 </p>
 <table>
   <tr>
