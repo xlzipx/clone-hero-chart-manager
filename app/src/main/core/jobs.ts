@@ -67,7 +67,6 @@ function deriveLocalSong(path: string): SongResult {
   }
 }
 
-/** Vnitřní signál, že úlohu zrušil uživatel — odliší zrušení od reálné chyby. */
 /** Videa na pozadí, která Clone Hero umí přehrát (video.mp4, background.webm …). */
 const VIDEO_EXT = /\.(mp4|webm|avi|mkv|mov|m4v|ogv|vp8)$/i
 
@@ -86,6 +85,7 @@ async function removeVideos(dir: string): Promise<void> {
   }
 }
 
+/** Vnitřní signál, že úlohu zrušil uživatel — odliší zrušení od reálné chyby. */
 class CanceledError extends Error {
   constructor() {
     super('canceled')

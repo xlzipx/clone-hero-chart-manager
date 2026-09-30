@@ -1,6 +1,6 @@
 // Instalace stažených/zkonvertovaných písní do knihovny Clone Hero (Songs).
 
-import { existsSync, promises as fsp, readdirSync, statSync } from 'fs'
+import { existsSync, mkdirSync, promises as fsp, readdirSync, statSync, writeFileSync } from 'fs'
 import { basename, join, relative, resolve, sep } from 'path'
 import { getConfig } from './config'
 import { invalidateLibraryIndex } from './playlists'
@@ -321,9 +321,17 @@ export async function install(
         ? tpl.name
         : sanitize(folder.split(/[\\/]/).pop() || `${song.artist} - ${song.title}`)
       const dest = uniqueDir(join(songsDir, folderName))
+      // Název rezervuj hned (synchronně) — při souběžném stahování by jinak dvě
+      // úlohy se stejným názvem viděly volné místo a zkopírovaly se do jedné složky.
+      mkdirSync(dest, { recursive: true })
       // Async kopie — písně mají velké .ogg stopy (desítky MB), cpSync by na tu
       // dobu zamrzl celé okno. `fsp.cp` yielduje.
-      await fsp.cp(folder, dest, { recursive: true })
+      try {
+        await fsp.cp(folder, dest, { recursive: true })
+      } catch (e) {
+        await fsp.rm(dest, { recursive: true, force: true }).catch(() => undefined)
+        throw e
+      }
       installed.push(dest)
     }
     invalidateLibraryIndex() // nové písně musí být vidět v setlist manageru hned
@@ -358,7 +366,13 @@ export async function install(
       ? tpl.name
       : sanitize((sng.split(/[\\/]/).pop() || 'song.sng').replace(/\.sng$/i, ''))
     const dest = uniqueFile(songsDir, baseName, '.sng')
-    await fsp.copyFile(sng, dest)
+    writeFileSync(dest, '') // rezervace názvu (viz výše), copyFile ho přepíše
+    try {
+      await fsp.copyFile(sng, dest)
+    } catch (e) {
+      await fsp.rm(dest, { force: true }).catch(() => undefined)
+      throw e
+    }
     installed.push(dest)
   }
   invalidateLibraryIndex()

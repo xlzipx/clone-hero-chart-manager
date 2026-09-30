@@ -85,6 +85,22 @@ let lastQ = ''
 let lastFilters: Filters = NO_FILTERS
 let lastFiltersOpen = false
 const thumbCache = new Map<string, string | null>()
+// Poslední stav otevřené složky (seznam, metadata, počty, strom, scroll). Po návratu
+// do Library se hned vykreslí a jen se na pozadí obnoví — bez probliknutí holých
+// názvů složek, než se znovu načtou song.ini.
+type Snap = {
+  path: string
+  entries: LibEntry[]
+  infos: Record<string, LibSongInfo>
+  folderCounts: Record<string, number>
+  scroll: number
+}
+let snap: Snap | null = null
+let snapRootDirs: LibEntry[] = []
+let snapRootCounts: Record<string, number> = {}
+const folderCountsCache = new Map<string, Record<string, number>>()
+/** Metadata písní podle složky — přepínání mezi složkami bez probliknutí. */
+const infosCache = new Map<string, Record<string, LibSongInfo>>()
 
 /** Metadata volného .sng odhadnutá z názvu souboru („Artist - Title.sng"). */
 function sngInfo(rel: string, name: string): LibSongInfo {
@@ -121,13 +137,14 @@ export function LibraryView(): JSX.Element {
   const playFolders = useStore((s) => s.playFolders)
 
   const [cwd, setCwd] = useState(lastCwd)
-  const [entries, setEntries] = useState<LibEntry[]>([])
-  const [folderCounts, setFolderCounts] = useState<Record<string, number>>({})
-  const [infos, setInfos] = useState<Record<string, LibSongInfo>>({})
+  const initSnap = snap && snap.path === lastCwd ? snap : null
+  const [entries, setEntries] = useState<LibEntry[]>(() => initSnap?.entries ?? [])
+  const [folderCounts, setFolderCounts] = useState<Record<string, number>>(() => initSnap?.folderCounts ?? {})
+  const [infos, setInfos] = useState<Record<string, LibSongInfo>>(() => initSnap?.infos ?? {})
   const [infoLoading, setInfoLoading] = useState(false)
   const [thumbs, setThumbs] = useState<Record<string, string | null>>(() => Object.fromEntries(thumbCache))
-  const [rootDirs, setRootDirs] = useState<LibEntry[]>([])
-  const [rootCounts, setRootCounts] = useState<Record<string, number>>({})
+  const [rootDirs, setRootDirs] = useState<LibEntry[]>(snapRootDirs)
+  const [rootCounts, setRootCounts] = useState<Record<string, number>>(snapRootCounts)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -167,36 +184,60 @@ export function LibraryView(): JSX.Element {
     el.scrollLeft = el.scrollWidth - el.clientWidth > 24 ? el.scrollWidth : 0
   }, [cwd])
   const loadSeq = useRef(0)
-  const countsCache = useRef<Map<string, Record<string, number>>>(new Map())
+  const countsCache = useRef(folderCountsCache)
+  // Pro kterou složku drží `infos` data — při obnovení téže složky se staré
+  // metadata nezahazují (jinak by karty na chvíli spadly na holé názvy).
+  const infosPath = useRef<string | null>(initSnap ? initSnap.path : null)
+
+  useEffect(() => {
+    snap = { path: cwd, entries, infos, folderCounts, scroll: snap?.path === cwd ? snap.scroll : 0 }
+    if (infosPath.current === cwd) infosCache.set(cwd, infos)
+  }, [cwd, entries, infos, folderCounts])
+  useEffect(() => {
+    snapRootDirs = rootDirs
+    snapRootCounts = rootCounts
+  }, [rootDirs, rootCounts])
+  // Obnov scroll po návratu (před prvním vykreslením, ať neposkočí).
+  useLayoutEffect(() => {
+    if (initSnap && listRef.current) listRef.current.scrollTop = initSnap.scroll
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const relOf = useCallback((name: string): string => (cwd ? `${cwd}/${name}` : name), [cwd])
   const segments = cwd.split(/[\\/]/).filter(Boolean)
   const anyDialog = dialog !== null || metaFor !== null || playlistFor !== null || dupOpen || plmOpen
 
   // ── Načtení složky ────────────────────────────────────────────────
-  const loadInfos = async (path: string, list: LibEntry[], my: number): Promise<void> => {
-    const rels = list
-      .filter((e) => e.type === 'dir' && e.isSong)
-      .map((e) => (path ? `${path}/${e.name}` : e.name))
-    const sngs = list.filter((e) => e.type === 'file' && /\.sng$/i.test(e.name))
+  // Metadata písní (song.ini) pro seznam složky; .sng mají jen odhad z názvu.
+  const songRels = (path: string, list: LibEntry[]): string[] =>
+    list.filter((e) => e.type === 'dir' && e.isSong).map((e) => (path ? `${path}/${e.name}` : e.name))
+  const sngBase = (path: string, list: LibEntry[]): Record<string, LibSongInfo> => {
     const base: Record<string, LibSongInfo> = {}
-    for (const s of sngs) {
+    for (const s of list) {
+      if (s.type !== 'file' || !/\.sng$/i.test(s.name)) continue
       const rel = path ? `${path}/${s.name}` : s.name
       base[rel] = sngInfo(rel, s.name)
     }
-    setInfos(base)
-    if (!rels.length) return
+    return base
+  }
+  const fetchInfos = async (rels: string[]): Promise<LibSongInfo[]> => {
+    try {
+      return await window.api.libSongInfo(rels)
+    } catch {
+      return [] /* chybějící metadata = karta jen s názvem složky */
+    }
+  }
+
+  // Zbytek metadat po dávkách (první dávku načte už `load`, ať karty neprobliknou
+  // holými názvy). Bez nich by nešlo řadit ani filtrovat podle obtížnosti.
+  const loadInfos = async (rels: string[], from: number, my: number): Promise<void> => {
+    if (from >= rels.length) {
+      setInfoLoading(false)
+      return
+    }
     setInfoLoading(true)
-    // Metadata jen ze song.ini (levné) pro CELOU složku, po dávkách — bez nich by
-    // nešlo řadit ani filtrovat podle obtížnosti. Obaly se čtou zvlášť a líně.
-    for (let i = 0; i < rels.length; i += 80) {
-      const chunk = rels.slice(i, i + 80)
-      let got: LibSongInfo[] = []
-      try {
-        got = await window.api.libSongInfo(chunk)
-      } catch {
-        /* chybějící metadata = karta jen s názvem složky */
-      }
+    for (let i = from; i < rels.length; i += 80) {
+      const got = await fetchInfos(rels.slice(i, i + 80))
       if (my !== loadSeq.current) return
       setInfos((prev) => {
         const next = { ...prev }
@@ -225,6 +266,34 @@ export function LibraryView(): JSX.Element {
     try {
       const res = await window.api.libList(rel)
       if (my !== loadSeq.current) return
+      // Novou složku ukaž až s metadaty: ze známé cache hned, jinak po první dávce
+      // (typicky celá viditelná část). Jinak by na okamžik blikly holé názvy složek.
+      const rels = songRels(res.path, res.entries)
+      const cached = infosCache.get(res.path)
+      let first: LibSongInfo[] = []
+      // Souběžně i obaly prvních karet (max ~0,5 s čekání), ať nenaskakují po jednom.
+      const thumbRels = view === 'cards' ? rels.filter((r) => !thumbCache.has(r)).slice(0, 16) : []
+      const thumbsP = thumbRels.length
+        ? Promise.race([
+            window.api
+              .libAlbumThumbs(thumbRels)
+              .then((t) => {
+                for (const [r, v] of Object.entries(t)) thumbCache.set(r, v)
+                // I po vypršení čekání — requestThumb je už kvůli cache znovu nevyžádá.
+                setThumbs((prev) => ({ ...prev, ...t }))
+                return t
+              })
+              .catch(() => ({})),
+            new Promise<Record<string, string | null>>((r) => setTimeout(() => r({}), 500))
+          ])
+        : Promise.resolve({} as Record<string, string | null>)
+      if (!cached && rels.length) first = await fetchInfos(rels.slice(0, 80))
+      await thumbsP
+      if (my !== loadSeq.current) return
+      const nextInfos: Record<string, LibSongInfo> = { ...(cached ?? {}), ...sngBase(res.path, res.entries) }
+      for (const g of first) nextInfos[g.rel] = g
+      infosPath.current = res.path
+      setInfos(nextInfos)
       lastCwd = res.path
       setCwd(res.path)
       setEntries(res.entries)
@@ -239,7 +308,7 @@ export function LibraryView(): JSX.Element {
         countsCache.current.set(res.path, c)
         if (my === loadSeq.current) setFolderCounts(c)
       })
-      void loadInfos(res.path, res.entries, my)
+      void loadInfos(rels, cached ? 0 : 80, my)
     } catch (e) {
       if (my !== loadSeq.current) return
       setError(errMsg(e))
@@ -268,7 +337,7 @@ export function LibraryView(): JSX.Element {
     loadTree()
     const targets = useStore.getState().libraryReveal
     if (targets && targets.length) void revealTarget(targets[0])
-    else void load(lastCwd)
+    else void load(lastCwd, initSnap !== null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -722,27 +791,12 @@ export function LibraryView(): JSX.Element {
         {/* Nástroje nahoře, ať nejsou pod dlouhým seznamem složek. */}
         <div className="lv__treesec">
           <div className="lv__treelabel">Tools</div>
-          {/* Nástroje s barevnou ikonou jako kategorie v Nastavení. */}
-          <button
-            type="button"
-            className="lv__titem lv__titem--tool"
-            style={{ '--ic': '#d23bd2' } as React.CSSProperties}
-            onClick={() => setPlmOpen(true)}
-          >
-            <span className="lv__ticon">
-              <Icon name="note" size={14} />
-            </span>
+          <button type="button" className="lv__titem" onClick={() => setPlmOpen(true)}>
+            <Icon name="note" size={15} />
             <span className="lv__tname">Setlists</span>
           </button>
-          <button
-            type="button"
-            className="lv__titem lv__titem--tool"
-            style={{ '--ic': '#4a90e2' } as React.CSSProperties}
-            onClick={() => setDupOpen(true)}
-          >
-            <span className="lv__ticon">
-              <Icon name="copy" size={14} />
-            </span>
+          <button type="button" className="lv__titem" onClick={() => setDupOpen(true)}>
+            <Icon name="copy" size={15} />
             <span className="lv__tname">Duplicates</span>
           </button>
         </div>
@@ -1078,6 +1132,9 @@ export function LibraryView(): JSX.Element {
         <div
           ref={listRef}
           className={`lv__list lv__list--${view}`}
+          onScroll={(e) => {
+            if (snap && snap.path === cwd) snap.scroll = e.currentTarget.scrollTop
+          }}
           onContextMenu={(e) => {
             if (e.target === e.currentTarget) {
               e.preventDefault()

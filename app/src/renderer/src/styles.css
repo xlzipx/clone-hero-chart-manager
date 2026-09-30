@@ -10354,33 +10354,6 @@ button.plrow__na:hover {
   gap: 16px;
   padding: 18px 0;
 }
-.stver__logo {
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 34px;
-  padding: 0 4px;
-}
-.stver__logo i {
-  display: block;
-  width: 6px;
-  border-radius: 3px;
-}
-.stver__logo i:nth-child(1) {
-  height: 55%;
-}
-.stver__logo i:nth-child(2) {
-  height: 80%;
-}
-.stver__logo i:nth-child(3) {
-  height: 100%;
-}
-.stver__logo i:nth-child(4) {
-  height: 70%;
-}
-.stver__logo i:nth-child(5) {
-  height: 90%;
-}
 .stver__name {
   font-size: 17px;
   font-weight: 800;
@@ -10553,28 +10526,6 @@ button.plrow__na:hover {
   border-radius: 0 3px 3px 0;
   background: var(--text);
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-}
-.lv__titem--tool {
-  --ic: #cfd0d6;
-  font-weight: 600;
-}
-.lv__ticon {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  color: var(--ic);
-  background: color-mix(in srgb, var(--ic) 12%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ic) 24%, transparent);
-}
-.lv__titem--tool:hover .lv__ticon {
-  background: color-mix(in srgb, var(--ic) 20%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ic) 45%, transparent), 0 0 12px -4px var(--ic);
-}
-.lv__ticon svg {
-  opacity: 1;
 }
 /* Záhlaví sloupců, popisky a štítky — řezy jako v Nastavení / hledání. */
 .lv__head {

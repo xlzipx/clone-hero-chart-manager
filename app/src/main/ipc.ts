@@ -433,10 +433,17 @@ export function registerIpc(): void {
     const patch: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(parsed)) {
       if (k === 'windowState' || !(k in cur)) continue
-      if (typeof v === typeof cur[k] || cur[k] === null) patch[k] = v
+      if (typeof v === typeof cur[k] || (cur[k] === null && (v === null || typeof v === 'string'))) patch[k] = v
     }
+    // Stejné vedlejší efekty jako běžné uložení (config:set).
+    const prevSongsDir = getConfig().songsDir
     const next = setConfig(patch)
+    registerHotkeys()
     applyUiScale(next.uiScale || 1)
+    if (next.songsDir !== prevSongsDir) {
+      invalidateLibraryIndex()
+      invalidateOwnedIndex()
+    }
     return next
   })
 

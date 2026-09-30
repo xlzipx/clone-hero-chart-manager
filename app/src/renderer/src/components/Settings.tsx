@@ -755,13 +755,6 @@ export function Settings(): JSX.Element | null {
           {section === 'updates' ? (
             <Card>
               <div className="stver">
-                <div className="stver__logo" aria-hidden="true">
-                  <i style={{ background: '#ff5b5b' }} />
-                  <i style={{ background: '#4a90e2' }} />
-                  <i style={{ background: '#f5c518' }} />
-                  <i style={{ background: '#d23bd2' }} />
-                  <i style={{ background: '#2dd4bf' }} />
-                </div>
                 <div>
                   <div className="stver__name">Chart Manager</div>
                   <div className="stver__num">Version {version}</div>
@@ -903,6 +896,7 @@ export function Settings(): JSX.Element | null {
                         try {
                           if (await window.api.settingsImport()) {
                             await loadConfig()
+                            void useStore.getState().loadOwnedKeys() // knihovna se mohla změnit
                             flash('Settings restored.')
                           }
                         } catch (e) {
