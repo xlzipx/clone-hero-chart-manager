@@ -117,3 +117,21 @@ export function mergeBoth(
   }
   return out
 }
+
+/**
+ * Filtr interpreta (klik na jméno ve výsledcích): jméno musí v poli interpreta
+ * stát jako celé slovo / fráze, takže projdou i spolupráce („Metallica & Ozzy
+ * Osbourne", „Ennio Morricone, Metallica", „Nirvana (WaveGroup)"), ale ne jiné
+ * kapely, které ho mají jen uvnitř slova („Memetallica"). Oddělovače se berou
+ * jako mezery — stejná pravidla používá SQL v katalogu (ARTIST_SEP_SQL).
+ */
+export const ARTIST_SEPARATORS = [',', '&', '/', '(', ')', '[', ']', '+', ';', ':', '.', '-', '"', '|']
+export function artistWords(s: string): string {
+  let out = s.toLowerCase()
+  for (const c of ARTIST_SEPARATORS) out = out.split(c).join(' ')
+  return ' ' + out.replace(/\s+/g, ' ').trim() + ' '
+}
+export function artistMatches(artist: string, filter: string): boolean {
+  const f = artistWords(filter)
+  return f.trim() !== '' && artistWords(artist).includes(f)
+}

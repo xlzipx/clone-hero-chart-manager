@@ -126,3 +126,14 @@ export function isAutoDownloadable(song: SongResult): boolean {
   if (!url) return false
   return detectManualHost(song.source, url) === null
 }
+
+/** Kam jdou smazané složky (Nastavení → Deleting) — pro texty tlačítek a hlášek. */
+export function deleteWords(mode: 'trash' | 'permanent' | undefined, isMac: boolean): {
+  permanent: boolean
+  bin: string
+  verb: string
+} {
+  const permanent = mode === 'permanent'
+  const bin = isMac ? 'Trash' : 'Recycle Bin'
+  return { permanent, bin, verb: permanent ? 'Delete permanently' : `Move to ${bin}` }
+}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { CatalogActivity } from './CatalogActivity'
 import {
   DEFAULT_FOLDER_TEMPLATE,
   FOLDER_TAGS,
@@ -421,6 +422,7 @@ export function Settings(): JSX.Element | null {
           </button>
         ))}
         <div className="stv__navfoot">
+          <CatalogActivity />
           <span className="stv__saved">
             <Icon name="check" size={11} /> Changes save automatically
           </span>
@@ -537,6 +539,25 @@ export function Settings(): JSX.Element | null {
                       const f = await window.api.chooseExeFile()
                       if (f) set({ yargExePath: f })
                     }}
+                  />
+                </Row>
+              </Card>
+              <Card title="Deleting">
+                <Row
+                  title="Deleted songs and folders"
+                  desc={
+                    config.deleteMode === 'permanent'
+                      ? 'Deleted right away and for good. They can’t be restored, so double-check before you delete.'
+                      : `Go to the ${IS_MAC ? 'Trash' : 'Recycle Bin'}, so you can restore them if you change your mind.`
+                  }
+                >
+                  <Seg
+                    value={config.deleteMode ?? 'trash'}
+                    options={[
+                      { v: 'trash', l: IS_MAC ? 'Move to Trash' : 'Move to Recycle Bin' },
+                      { v: 'permanent', l: 'Delete permanently' }
+                    ]}
+                    onChange={(v) => set({ deleteMode: v })}
                   />
                 </Row>
               </Card>

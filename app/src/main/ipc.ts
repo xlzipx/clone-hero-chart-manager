@@ -60,6 +60,7 @@ import {
   libTrash,
   libReplaceBroken,
   libUnpackSng,
+  libFindBroken,
   libWriteMeta
 } from './core/librarymgr'
 import { mergeBoth } from '../shared/songid'
@@ -231,6 +232,7 @@ export function registerIpc(): void {
   )
   ipcMain.handle('lib:trash', (_e, relItem: string) => libTrash(relItem))
   ipcMain.handle('lib:unpackSng', (_e, relItem: string) => libUnpackSng(relItem))
+  ipcMain.handle('lib:findBroken', (_e, rel: string) => libFindBroken(rel))
   ipcMain.handle('lib:replaceBroken', (_e, brokenRel: string, installAbs: string) =>
     libReplaceBroken(brokenRel, installAbs)
   )

@@ -45,6 +45,19 @@ export function applyUiScale(scale: number): void {
   // Clamp z obou stran — extrémní hodnota z IPC by udělala UI neovladatelné.
   const s = Number.isFinite(scale) && scale > 0 ? Math.min(scale, 3) : 1
   mainWindow?.webContents.setZoomFactor(BASE_ZOOM * s)
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // Minimální velikost okna je v „design" px (1100×700) → přepočítat na nový
+    // zoom. Jinak by se po zvětšení UI dalo okno zúžit pod šířku, se kterou
+    // layout počítá, a prvky by se překrývaly / utekly za pravý okraj.
+    const area = screen.getDisplayMatching(mainWindow.getBounds()).workArea
+    const minW = Math.min(Math.round(1100 * BASE_ZOOM * s), area.width)
+    const minH = Math.min(Math.round(700 * BASE_ZOOM * s), area.height)
+    mainWindow.setMinimumSize(minW, minH)
+    if (!mainWindow.isMaximized() && !mainWindow.isFullScreen()) {
+      const [w, h] = mainWindow.getSize()
+      if (w < minW || h < minH) mainWindow.setSize(Math.max(w, minW), Math.max(h, minH))
+    }
+  }
 }
 
 export function createOverlay(): BrowserWindow {

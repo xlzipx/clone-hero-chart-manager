@@ -1966,7 +1966,7 @@ body {
    * kvůli ⋮ menu — jenže to se mezitím přesunulo do portálu (`createPortal`
    * + `position: fixed`), takže ho řádek už neuřízne. */
   content-visibility: auto;
-  contain-intrinsic-size: auto 84px;
+  contain-intrinsic-size: auto 72px;
   animation: rowIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .song:nth-child(1) { animation-delay: 0ms; }
@@ -10697,4 +10697,1242 @@ button.plrow__na:hover {
   margin-left: 0;
   opacity: 1;
   transform: none;
+}
+
+/* Interpret ve výsledku = odkaz na všechny jeho charty. */
+.song__artistlink {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 3px;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: color 0.12s, text-decoration-color 0.12s;
+}
+.song__artistlink:hover,
+.song__artistlink:focus-visible {
+  color: var(--text);
+  text-decoration-color: currentColor;
+  outline: none;
+}
+
+/* Krátká aktivita katalogu vlevo dole (kontrola novinek / hotovo). */
+.side-catalog--static {
+  cursor: default;
+}
+.catact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  animation: catactIn 0.25s ease both;
+}
+.catact--done {
+  color: #6fe0b4;
+}
+.catact__spin {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #27bd92;
+  animation: catactSpin 0.8s linear infinite;
+}
+@keyframes catactSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes catactIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .catact,
+  .catact__spin {
+    animation: none;
+  }
+}
+
+/* Rozbitá píseň z podsložky (filtr „Broken songs" přes celou větev). */
+.lvli__dir,
+.lvbroken-dir {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+/* ── Větší UI scale / užší okno: nic se nepřekrývá ──────────────────────
+ * Záhlaví sloupců: TITLE/ARTIST/ALBUM/LENGTH se při úzkém sloupci zalomí
+ * na druhý řádek místo přetečení přes ikony nástrojů (a bez vodorovného
+ * posuvníku pod záhlavím). */
+.lv__hsorts {
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 4px;
+  min-width: 0;
+}
+.lv__head {
+  overflow-x: hidden;
+}
+/* Panel filtrů: skupiny se při nedostatku místa zalamují pod sebe a výběr
+ * obtížností (Tier od–do) se smí zúžit, místo aby vjel do pole Charter. */
+.lv__filters {
+  display: flex;
+  flex-wrap: wrap;
+}
+.lv__filters > .lv__fgroup {
+  flex: 1 1 180px;
+}
+.lv__filters > .lv__fgroup:first-child {
+  flex: 1.6 1 250px;
+}
+.lv__filters > .lv__fgroup:last-child {
+  flex: 0 1 auto;
+}
+.lv__range {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.lv__range .lib__sortsel {
+  flex: 1 1 84px;
+  min-width: 0;
+  max-width: 120px;
+}
+.lv__finput {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Hromadná oprava rozbitých písní */
+.lv__fixall {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 0;
+  background: #f5c518;
+  color: #1a1400;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lv__fixall:hover {
+  background: #ffd43b;
+}
+.lv__bulkrun {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.lv__bulkrun--done {
+  color: #6fe0b4;
+}
+.lv__bulkrun-x {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.lv__bulkrun-x:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.bulkfix__note {
+  margin: 0 0 8px;
+}
+.bulkfix__dir {
+  opacity: 0.75;
+}
+.bulkfix__dup {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.song__artistlink:disabled {
+  cursor: inherit;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* ══ Nástroje knihovny: Setlists + Duplicates & broken songs ══════════════
+ * Plnohodnotné obrazovky v knihovně (dřív modální okna), vzhled a písmo jako
+ * Nastavení a My Library: hlavička s barevnou dlaždicí, karty, pilulky. */
+.lv__main[hidden],
+.lv__detail[hidden] {
+  display: none !important;
+}
+.ltool {
+  --sc: #cfd0d6;
+  grid-column: 2 / -1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  font-family: var(--font-body);
+  position: relative;
+}
+.ltool__head {
+  flex: none;
+}
+.ltool__headactions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ltool__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: stvIn 0.25s ease;
+}
+.ltool__label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.ltool__labelcount {
+  margin-left: 6px;
+  color: var(--text-dim);
+  letter-spacing: 0;
+}
+.ltool__muted {
+  color: var(--text-faint);
+  font-size: 13px;
+  padding: 8px 2px;
+}
+.ltool__dim {
+  color: var(--text-faint);
+}
+.ltool__warn {
+  color: var(--lv-warn, #f5a524);
+}
+.ltool__empty {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13.5px;
+}
+.ltool__empty p {
+  margin: 0;
+  max-width: 340px;
+}
+.ltool__empty--small {
+  margin: 10px 0;
+  padding: 20px 10px;
+}
+.ltool__iconbtn {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.ltool__iconbtn:hover {
+  color: var(--text);
+  background: var(--pill-hi, rgba(255, 255, 255, 0.08));
+}
+.ltool__search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  color: var(--text-faint);
+}
+.ltool__search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.ltool__danger:hover {
+  color: #ff8a8a;
+}
+.ltool__dangerbtn {
+  background: #e5484d !important;
+  color: #fff !important;
+  border-color: #e5484d !important;
+}
+.ltool__dangerbtn:hover:not(:disabled) {
+  background: #f05a5f !important;
+}
+.ltool__confirm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 24px 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: rgba(229, 72, 77, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(229, 72, 77, 0.35);
+  animation: stvIn 0.2s ease;
+}
+.ltool__confirm > span {
+  flex: 1;
+}
+.ltool__confirm svg {
+  color: #ff8a8a;
+}
+/* Spodní lišta s hromadnou akcí nad vybranými položkami. */
+.ltool__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 24px;
+  font-size: 13px;
+  color: var(--text-dim);
+  border-top: 1px solid var(--tline, var(--border));
+  background: color-mix(in srgb, var(--sc) 6%, var(--content-bg, #161719));
+  animation: stvIn 0.2s ease;
+}
+.ltool__bar strong {
+  color: var(--text);
+}
+/* Obal + ukázka (stejné tlačítko přehrávání jako v My Library). */
+.ltool__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+  background: var(--panel, #1c1d20);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+.ltool__art--sm {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+}
+.ltool__art--lg {
+  width: 76px;
+  height: 76px;
+  border-radius: 12px;
+}
+
+/* ── Setlists ── */
+.ltool__split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+}
+.slv__lists {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-right: 1px solid var(--tline, var(--border));
+  background: rgba(0, 0, 0, 0.12);
+}
+.slv__lists > .ltool__label {
+  padding: 0 10px 8px;
+}
+.slv__list {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.slv__list:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+.slv__list--on {
+  background: var(--pill, rgba(255, 255, 255, 0.06));
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+.slv__list--on::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--sc);
+  box-shadow: 0 0 10px var(--sc);
+}
+.slv__listicon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--sc);
+  background: color-mix(in srgb, var(--sc) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc) 25%, transparent);
+}
+.slv__listtext {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.slv__listname {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.slv__listsub {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.slv__main {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.slv__top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 24px 18px;
+}
+.slv__cover {
+  flex: none;
+  width: 112px;
+  height: 112px;
+  border-radius: 14px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  place-items: center;
+  color: var(--sc);
+  background: color-mix(in srgb, var(--sc) 12%, #151618);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc) 30%, transparent), 0 14px 30px -16px var(--sc);
+}
+.slv__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.slv__cover img:only-child {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+}
+.slv__cover svg {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+}
+.slv__topmain {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.slv__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slv__renameinput {
+  font: inherit;
+  font-size: 22px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--sc);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  outline: none;
+}
+.slv__meta {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.slv__actions {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.slv__actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.slv__tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px 10px 30px;
+}
+.slv__songs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 14px 14px;
+}
+.slv__song {
+  display: grid;
+  grid-template-columns: 22px 26px 40px minmax(0, 1fr) auto 30px;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px 7px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.slv__song:nth-child(even) {
+  background: rgba(255, 255, 255, 0.018);
+}
+.slv__song:hover {
+  background: var(--panel-hover, rgba(255, 255, 255, 0.05));
+}
+.slv__song--on,
+.slv__song--on:nth-child(even) {
+  background: color-mix(in srgb, var(--sc) 11%, transparent);
+}
+.slv__song--missing {
+  opacity: 0.6;
+}
+.slv__num {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+.slv__songtext {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.slv__songtitle {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.slv__songsub {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.slv__len {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+/* ── Duplicates & broken songs ── */
+.dpv__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--tline, var(--border));
+}
+.dpv__tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.dpv__count {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.seg button.on .dpv__count {
+  background: rgba(0, 0, 0, 0.12);
+}
+.dpv__count--warn,
+.seg button.on .dpv__count--warn {
+  color: #1a1204;
+  background: var(--lv-warn, #f5a524);
+}
+.dpv__scopewrap {
+  position: relative;
+}
+.dpv__scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dpv__scope:hover {
+  color: var(--text);
+}
+.dpv__picker {
+  width: min(420px, 100%);
+  border-radius: 14px;
+  background: var(--bg-side, #141517);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 24px 50px -20px rgba(0, 0, 0, 0.9);
+  overflow: hidden;
+  animation: stvIn 0.18s ease;
+}
+.dpv__scopewrap .dpv__picker {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 360px;
+  z-index: 40;
+}
+.dpv__pickerhead,
+.dpv__pickerfoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.dpv__pickerfoot {
+  border-top: 1px solid var(--tline, var(--border));
+  font-weight: 400;
+}
+.dpv__pickerlist {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px 8px;
+  border-top: 1px solid var(--tline, var(--border));
+}
+.dpv__pickitem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.dpv__pickitem:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+.dpv__pickname {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dpv__start {
+  margin: 30px auto;
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.dpv__lead {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+.dpv__startopts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.dpv__startopt {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px;
+  border: 0;
+  border-radius: 14px;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: var(--pill, rgba(255, 255, 255, 0.03));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 12px 30px -20px rgba(0, 0, 0, 0.9);
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.dpv__startopt:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc) 45%, transparent), 0 16px 30px -18px var(--sc);
+}
+.dpv__startopt:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.dpv__starticon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--sc);
+  background: color-mix(in srgb, var(--sc) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc) 30%, transparent);
+}
+.dpv__startt {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+.dpv__starts {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.dpv__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 12px;
+}
+.dpv__stat {
+  min-width: 130px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  background: var(--pill, rgba(255, 255, 255, 0.03));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+}
+.dpv__stat strong {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dpv__stat span {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.dpv__quick {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+}
+.dpv__quickbtns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.dpv__kinds {
+  align-self: flex-start;
+}
+.dpv__group {
+  border-radius: 14px;
+  background: var(--pill, rgba(255, 255, 255, 0.03));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.045), 0 12px 30px -22px rgba(0, 0, 0, 0.9);
+  padding: 14px 16px 16px;
+}
+.dpv__ghead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 12.5px;
+}
+.dpv__gtitle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.dpv__gartist {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+.dpv__kind {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.dpv__kind--identical {
+  color: #8ab4ff;
+  background: rgba(74, 144, 226, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(74, 144, 226, 0.35);
+}
+.dpv__kind--same-song {
+  color: #e9a6ff;
+  background: rgba(210, 59, 210, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(210, 59, 210, 0.35);
+}
+.dpv__wipe {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  color: #ff8a8a;
+  font-weight: 600;
+}
+.dpv__copies {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+.dpv__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: box-shadow 0.14s, background 0.14s;
+}
+.dpv__copy:hover {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.dpv__copy--on {
+  background: rgba(229, 72, 77, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(229, 72, 77, 0.55);
+}
+.dpv__copy--on .ltool__art {
+  filter: grayscale(0.6) brightness(0.8);
+}
+.dpv__copytop {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+.dpv__copyinfo {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dpv__copyname {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.dpv__where {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dpv__copymeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.dpv__copymeta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dpv__copymid {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dpv__extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.dpv__extra {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6fe0b4;
+  background: rgba(45, 212, 191, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.3);
+}
+.dpv__copyfoot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--tline, var(--border));
+}
+.dpv__state {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+.dpv__state--best {
+  color: #6fe0b4;
+}
+.dpv__state--rm {
+  color: #ff8a8a;
+}
+.dpv__brokenhead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.dpv__brokenhead p {
+  flex: 1;
+  margin: 0;
+  font-size: 13px;
+}
+.dpv__fixall {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.dpv__bulkrun {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6fe0b4;
+}
+.dpv__broken {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dpv__brow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(var(--lv-warn-rgb, 245, 165, 36), 0.05);
+  box-shadow: inset 0 0 0 1px rgba(var(--lv-warn-rgb, 245, 165, 36), 0.16);
+  cursor: pointer;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+.dpv__brow:hover {
+  box-shadow: inset 0 0 0 1px rgba(var(--lv-warn-rgb, 245, 165, 36), 0.35);
+}
+.dpv__brow--on {
+  background: rgba(var(--lv-warn-rgb, 245, 165, 36), 0.12);
+  box-shadow: inset 0 0 0 1px rgba(var(--lv-warn-rgb, 245, 165, 36), 0.55);
+}
+.dpv__bicon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--lv-warn, #f5a524);
+  background: rgba(var(--lv-warn-rgb, 245, 165, 36), 0.12);
+}
+.dpv__btext {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dpv__bname {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dpv__bsub {
+  font-size: 12px;
+  color: var(--lv-warn, #f5a524);
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dpv__brow .lvfix {
+  margin-left: 0;
+}
+@media (max-width: 1180px) {
+  .ltool__split {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+  .dpv__startopts {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dpv__bar .btn-secondary,
+.dpv__quickbtns .btn-secondary,
+.ltool__bar button,
+.dpv__brokenhead .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Ukázka na obalu v nástrojích knihovny: jako ve výsledcích hledání — obal se
+ * při najetí ztmaví a ukáže přehrávání. */
+.ltool__art:hover .song__preview,
+.slv__song:hover .song__preview,
+.dpv__copy:hover .song__preview {
+  opacity: 1;
+}
+.ltool__art .song__preview {
+  border-radius: inherit;
+}
+.ltool__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+/* Rozbitá kopie mezi duplicitami. */
+.dpv__copy--broken {
+  box-shadow: inset 0 0 0 1px rgba(var(--lv-warn-rgb, 245, 165, 36), 0.5);
+}
+.dpv__copy--broken.dpv__copy--on {
+  box-shadow: inset 0 0 0 1px rgba(229, 72, 77, 0.55);
+}
+.dpv__brokentag {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--lv-warn, #f5a524);
+  background: rgba(var(--lv-warn-rgb, 245, 165, 36), 0.12);
+  box-shadow: inset 0 0 0 1px rgba(var(--lv-warn-rgb, 245, 165, 36), 0.4);
+}
+.dpv__gbroken {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lv-warn, #f5a524);
+}
+
+/* Duplicity: upřednostnění nástrojů u různých verzí */
+.dpv__prefer {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+}
+.dpv__preferchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dpv__pchip {
+  --ic: #cfd0d6;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+}
+.dpv__pchip svg {
+  opacity: 0.55;
+}
+.dpv__pchip:hover {
+  color: var(--text);
+}
+.dpv__pchip--on {
+  color: var(--text);
+  background: color-mix(in srgb, var(--ic) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ic) 55%, transparent);
+}
+.dpv__pchip--on svg {
+  opacity: 1;
+  color: var(--ic);
+}
+.dpv__preferhint {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* POZOR: na .dpv__group NEdávat content-visibility: auto — skupiny mají různou
+ * výšku (2 až N kopií), odhad by při tažení posuvníku měnil výšku stránky a
+ * jezdec by poskakoval na místě. */
+
+/* Setlisty: chybějící píseň s posledním známým názvem */
+.slv__missingtag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: 1px;
+  color: var(--lv-warn, #f5a524);
+  background: rgba(var(--lv-warn-rgb, 245, 165, 36), 0.12);
+  box-shadow: inset 0 0 0 1px rgba(var(--lv-warn-rgb, 245, 165, 36), 0.4);
+}
+.slv__songtitle .ltool__dim + .slv__missingtag {
+  margin-left: 8px;
+}
+.slv__songtitle > .slv__missingtag:first-child {
+  margin-left: 0;
+}
+/* Setlisty: kompaktní seznam bez obalů */
+.slv__songs--compact .slv__song {
+  grid-template-columns: 22px 26px minmax(0, 1fr) auto 30px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  border-radius: 8px;
+}
+.slv__songs--compact .slv__songtext {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+}
+.slv__songs--compact .slv__songtitle {
+  flex: 0 1 auto;
+  max-width: 55%;
+}
+.slv__songs--compact .slv__songsub {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.slv__songs--compact .ltool__iconbtn {
+  width: 26px;
+  height: 26px;
+}
+.slv__tools .lv__seg {
+  flex: none;
+}
+.slv__missingrow {
+  opacity: 0.6;
+}
+
+/* Karty v My Library: odhad výšky nevykreslených karet = skutečná výška
+ * (98 px = 71 obsah + 26 padding + 1 rámeček). S obecným 84px odhadem pro
+ * řádky hledání vycházely o 13 px vyšší a jezdec posuvníku při tažení cukal. */
+.lv__list .song.lvcard {
+  contain-intrinsic-size: auto 71px;
+}
+
+/* Virtualizace karet v My Library: pevná výška karty (= CARD_ROW v LibraryView)
+ * a mezerníky místo nevykreslených karet. Hlídání viditelnosti (content-visibility)
+ * tu není potřeba — v DOM je jen pár desítek karet. */
+.lv__list--cards > .song.lvcard {
+  height: 98px;
+  box-sizing: border-box;
+  content-visibility: visible;
+}
+.lv__vspace {
+  flex: none;
+  pointer-events: none;
 }

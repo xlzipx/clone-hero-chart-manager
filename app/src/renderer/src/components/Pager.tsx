@@ -95,9 +95,13 @@ export function Pager({
   const diffActive = !(diffMin === 0 && diffMax === 6)
   const dateFilter = useStore((s) => s.dateFilter)
   const dateActive = dateFilter.preset !== 'any'
-  const filtersActive = instrumentFilters.length > 0 || diffActive || dateActive
+  const artistFilter = useStore((s) => s.artistFilter)
+  const albumFilter = useStore((s) => s.albumFilter)
+  const filtersActive = instrumentFilters.length > 0 || diffActive || dateActive || !!artistFilter || !!albumFilter
 
   const chipParts: string[] = []
+  if (artistFilter) chipParts.push(`Artist: ${artistFilter.trim()}`)
+  if (albumFilter) chipParts.push(`Album: ${albumFilter.trim()}`)
   if (instrumentFilters.length) {
     chipParts.push(
       instrumentFilters

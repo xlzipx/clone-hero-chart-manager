@@ -4,13 +4,14 @@ import { errMsg } from '../../../shared/errors'
 import { IS_MAC } from '../platform'
 import { useStore } from '../store'
 import { formatLength, INSTRUMENTS, stripTags } from '../utils'
+import { songFromFolderName } from '../chartmatch'
 import { RichText } from './RichText'
 import { LocalPreview } from './LocalPreview'
-import { DuplicatesModal } from './DuplicatesModal'
+import { DuplicatesView } from './DuplicatesView'
 import { Icon, type IconName } from './Icon'
 import { InstrumentDifficulty } from './InstrumentDifficulty'
 import { PlaylistDialog } from './PlaylistDialog'
-import { PlaylistManagerModal } from './PlaylistManagerModal'
+import { SetlistsView } from './SetlistsView'
 import { SongMetaDialog } from './SongMetaDialog'
 import { BulkRenameDialog, FolderPickerDialog, type BulkItem } from './LibraryDialogs'
 
@@ -18,7 +19,12 @@ import { BulkRenameDialog, FolderPickerDialog, type BulkItem } from './LibraryDi
 type Kind = 'folder' | 'song' | 'broken' | 'file'
 interface Item {
   e: LibEntry
+  /** Klíč položky v aktuální složce; u rozbitých z podsložek cesta „Pack/Píseň“. */
   name: string
+  /** Zobrazovaný název (poslední část cesty). */
+  label: string
+  /** Podsložka, ve které položka leží (jen rozbité písně z hlubších úrovní). */
+  dir?: string
   rel: string
   kind: Kind
   /** Volné .sng (soubor s celým chartem). */
@@ -78,7 +84,16 @@ type Clip = { op: 'cut' | 'copy'; items: string[]; names: string[] } | null
 type Ctx = { x: number; y: number } | null
 
 // Mezi přepnutími Search ↔ Library si pamatujeme otevřenou složku a náhledy.
+/** Sdílený porovnávač názvů (přirozené řazení čísel, bez ohledu na velikost). */
+const NAME_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true })
 let lastCwd = ''
+/** Výška karty v pohledu Cards (pevná, viz .lv__list--cards > .lvcard v CSS). */
+const CARD_ROW = 98
+/** Od kolika položek se karty virtualizují, a kolik karet navíc nad/pod výřezem. */
+const VIRT_MIN = 120
+const VIRT_OVERSCAN = 8
+/** Otevřený nástroj knihovny (Setlists / Duplicates) — přežije přepnutí do hledání. */
+let lastTool: 'setlists' | 'duplicates' | null = null
 // Hledání a filtry drží jen po dobu běhu appky (po restartu začínají čisté,
 // aby uživatel nehledal, proč mu v knihovně chybí písně).
 let lastQ = ''
@@ -99,6 +114,8 @@ let snap: Snap | null = null
 let snapRootDirs: LibEntry[] = []
 let snapRootCounts: Record<string, number> = {}
 const folderCountsCache = new Map<string, Record<string, number>>()
+/** Rozbité písně pod složkou (rekurzivně) — filtr „Broken songs“. */
+const brokenCache = new Map<string, LibEntry[]>()
 /** Metadata písní podle složky — přepínání mezi složkami bez probliknutí. */
 const infosCache = new Map<string, Record<string, LibSongInfo>>()
 
@@ -135,10 +152,18 @@ export function LibraryView(): JSX.Element {
   const config = useStore((s) => s.config)
   const saveConfig = useStore((s) => s.saveConfig)
   const playFolders = useStore((s) => s.playFolders)
+  const openBulkFix = useStore((s) => s.openBulkFix)
+  const bulkRun = useStore((s) => s.bulkRun)
+  const dismissBulkRun = useStore((s) => s.dismissBulkRun)
 
   const [cwd, setCwd] = useState(lastCwd)
   const initSnap = snap && snap.path === lastCwd ? snap : null
   const [entries, setEntries] = useState<LibEntry[]>(() => initSnap?.entries ?? [])
+  // Rozbité písně v aktuální složce I všech podsložkách (načítá se na pozadí).
+  const [brokenDeep, setBrokenDeep] = useState<{ path: string; entries: LibEntry[] } | null>(() => {
+    const hit = brokenCache.get(lastCwd)
+    return hit ? { path: lastCwd, entries: hit } : null
+  })
   const [folderCounts, setFolderCounts] = useState<Record<string, number>>(() => initSnap?.folderCounts ?? {})
   const [infos, setInfos] = useState<Record<string, LibSongInfo>>(() => initSnap?.infos ?? {})
   const [infoLoading, setInfoLoading] = useState(false)
@@ -167,13 +192,33 @@ export function LibraryView(): JSX.Element {
   const [ctx, setCtx] = useState<Ctx>(null)
   const [metaFor, setMetaFor] = useState<{ rel: string; title: string } | null>(null)
   const [playlistFor, setPlaylistFor] = useState<string[] | null>(null)
-  const [dupOpen, setDupOpen] = useState(false)
-  const [plmOpen, setPlmOpen] = useState(false)
+  // Setlisty a duplicity jsou obrazovky knihovny (dřív modální okna).
+  const [tool, setToolState] = useState<'setlists' | 'duplicates' | null>(lastTool)
+  const setTool = (t: 'setlists' | 'duplicates' | null): void => {
+    lastTool = t
+    setToolState(t)
+  }
   const [detail, setDetail] = useState<SongDetail | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [revealActive, setRevealActive] = useState<string | null>(null)
 
   const listRef = useRef<HTMLDivElement>(null)
+  // Virtualizace karet: u velkých složek se vykreslí jen karty ve výřezu (+ rezerva).
+  // Tisíce karet s obaly by jinak brzdily každý snímek scrollu (layout, styly,
+  // hlídání viditelnosti). Karty mají pevnou výšku (CARD_ROW), takže rozsah jde
+  // spočítat přímo ze scrollTop.
+  const [vScroll, setVScroll] = useState(0)
+  const [vHeight, setVHeight] = useState(900)
+  const vRaf = useRef(0)
+  const visibleRef = useRef<Item[]>([])
+  useEffect(() => {
+    const el = listRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setVHeight(el.clientHeight))
+    ro.observe(el)
+    setVHeight(el.clientHeight)
+    return () => ro.disconnect()
+  }, [])
   const ctxRef = useRef<HTMLDivElement>(null)
   const crumbsRef = useRef<HTMLDivElement>(null)
   // Dlouhá cesta: drž na očích konec (aktuální složku), ne kořen.
@@ -203,9 +248,18 @@ export function LibraryView(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Hromadná oprava: po každé nahrazené složce obnov výpis (rozbitá zmizí).
+  const fixedCount = bulkRun ? bulkRun.ok + bulkRun.failed : 0
+  useEffect(() => {
+    if (!bulkRun || fixedCount === 0) return
+    brokenCache.clear()
+    void load(cwd, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixedCount])
+
   const relOf = useCallback((name: string): string => (cwd ? `${cwd}/${name}` : name), [cwd])
   const segments = cwd.split(/[\\/]/).filter(Boolean)
-  const anyDialog = dialog !== null || metaFor !== null || playlistFor !== null || dupOpen || plmOpen
+  const anyDialog = dialog !== null || metaFor !== null || playlistFor !== null || tool !== null
 
   // ── Načtení složky ────────────────────────────────────────────────
   // Metadata písní (song.ini) pro seznam složky; .sng mají jen odhad z názvu.
@@ -236,16 +290,43 @@ export function LibraryView(): JSX.Element {
       return
     }
     setInfoLoading(true)
-    for (let i = from; i < rels.length; i += 80) {
-      const got = await fetchInfos(rels.slice(i, i + 80))
-      if (my !== loadSeq.current) return
+    // Výsledky se do stavu propisují nejvýš ~3× za vteřinu, ne po každé dávce:
+    // každá změna `infos` znamená nové seřazení a překreslení celé složky, což
+    // u tisíců písní dělalo scrollování během načítání trhané.
+    let buf: LibSongInfo[] = []
+    let lastFlush = performance.now()
+    const flush = (): void => {
+      if (!buf.length) return
+      const got = buf
+      buf = []
+      lastFlush = performance.now()
       setInfos((prev) => {
         const next = { ...prev }
         for (const g of got) next[g.rel] = g
         return next
       })
     }
+    for (let i = from; i < rels.length; i += 120) {
+      const got = await fetchInfos(rels.slice(i, i + 120))
+      if (my !== loadSeq.current) return
+      buf.push(...got)
+      if (performance.now() - lastFlush > 350) flush()
+    }
+    flush()
     if (my === loadSeq.current) setInfoLoading(false)
+  }
+
+  // Rozbité písně pod složkou, včetně všech podsložek (filtr „Broken songs“).
+  const scanBroken = async (path: string, my: number): Promise<void> => {
+    const hit = brokenCache.get(path)
+    setBrokenDeep(hit ? { path, entries: hit } : null)
+    try {
+      const list = await window.api.libFindBroken(path)
+      brokenCache.set(path, list)
+      if (my === loadSeq.current) setBrokenDeep({ path, entries: list })
+    } catch {
+      /* bez výsledku zůstane jen kontrola aktuální složky */
+    }
   }
 
   const loadTree = (): void => {
@@ -309,6 +390,7 @@ export function LibraryView(): JSX.Element {
         if (my === loadSeq.current) setFolderCounts(c)
       })
       void loadInfos(rels, cached ? 0 : 80, my)
+      void scanBroken(res.path, my)
     } catch (e) {
       if (my !== loadSeq.current) return
       setError(errMsg(e))
@@ -328,7 +410,14 @@ export function LibraryView(): JSX.Element {
     if (name) {
       setFocus(name)
       setTimeout(() => {
-        listRef.current?.querySelector('.lvrow--focus')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        const el = listRef.current
+        const row = el?.querySelector('.lvrow--focus')
+        if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        else if (el) {
+          // Virtualizovaný seznam: karta ještě není v DOM → posun podle indexu.
+          const idx = visibleRef.current.findIndex((i) => i.name === name)
+          if (idx >= 0) el.scrollTo({ top: Math.max(0, idx * CARD_ROW - el.clientHeight / 2 + CARD_ROW / 2) })
+        }
       }, 80)
     }
   }
@@ -336,15 +425,21 @@ export function LibraryView(): JSX.Element {
   useEffect(() => {
     loadTree()
     const targets = useStore.getState().libraryReveal
-    if (targets && targets.length) void revealTarget(targets[0])
-    else void load(lastCwd, initSnap !== null)
+    // „In library" z hledání míří na konkrétní píseň → vždy do Songs, i když
+    // byl naposledy otevřený nástroj (Setlists / Duplicates).
+    if (targets && targets.length) {
+      setTool(null)
+      void revealTarget(targets[0])
+    } else void load(lastCwd, initSnap !== null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // „In library" z hledání, když je Library už otevřená.
   useEffect(() => {
-    if (libraryReveal && libraryReveal.length) void revealTarget(libraryReveal[0])
-    else setRevealActive(null)
+    if (libraryReveal && libraryReveal.length) {
+      setTool(null)
+      void revealTarget(libraryReveal[0])
+    } else setRevealActive(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [libraryReveal])
 
@@ -379,17 +474,31 @@ export function LibraryView(): JSX.Element {
   }
 
   // ── Položky: druh, filtr, řazení ─────────────────────────────────
-  const items: Item[] = useMemo(
-    () =>
-      entries.map((e) => {
-        const rel = cwd ? `${cwd}/${e.name}` : e.name
-        const isSng = e.type === 'file' && /\.sng$/i.test(e.name)
-        const kind: Kind =
-          e.type === 'dir' ? (e.problem ? 'broken' : e.isSong ? 'song' : 'folder') : isSng ? 'song' : 'file'
-        return { e, name: e.name, rel, kind, isSng }
-      }),
-    [entries, cwd]
-  )
+  const deep = brokenDeep && brokenDeep.path === cwd ? brokenDeep.entries : null
+  const items: Item[] = useMemo(() => {
+    // Filtr „Broken songs“ ukazuje rozbité písně z celé větve, ne jen z této složky.
+    if (filters.broken && deep) {
+      return deep.map((e) => {
+        const cut = e.name.lastIndexOf('/')
+        return {
+          e,
+          name: e.name,
+          label: cut >= 0 ? e.name.slice(cut + 1) : e.name,
+          dir: cut >= 0 ? e.name.slice(0, cut) : undefined,
+          rel: cwd ? `${cwd}/${e.name}` : e.name,
+          kind: 'broken' as Kind,
+          isSng: false
+        }
+      })
+    }
+    return entries.map((e) => {
+      const rel = cwd ? `${cwd}/${e.name}` : e.name
+      const isSng = e.type === 'file' && /\.sng$/i.test(e.name)
+      const kind: Kind =
+        e.type === 'dir' ? (e.problem ? 'broken' : e.isSong ? 'song' : 'folder') : isSng ? 'song' : 'file'
+      return { e, name: e.name, label: e.name, rel, kind, isSng }
+    })
+  }, [entries, cwd, filters.broken, deep])
 
   const metaFilter = filters.inst.length > 0 || filters.min > 0 || filters.max < 6 || !!filters.charter.trim()
   const activeFilterCount =
@@ -397,7 +506,13 @@ export function LibraryView(): JSX.Element {
     (filters.min > 0 || filters.max < 6 ? 1 : 0) +
     (filters.charter.trim() ? 1 : 0) +
     (filters.broken ? 1 : 0)
-  const brokenCount = items.filter((i) => i.kind === 'broken').length
+  // Všechny rozbité písně této větve (pro „Fix all").
+  const brokenTargets = (): { rel: string; name: string }[] =>
+    deep
+      ? deep.map((e) => ({ rel: cwd ? `${cwd}/${e.name}` : e.name, name: e.name.split('/').pop() ?? e.name }))
+      : items.filter((i) => i.kind === 'broken').map((i) => ({ rel: i.rel, name: i.label }))
+  // Počet za celou větev (jakmile doběhne sken), jinak aspoň z této složky.
+  const brokenCount = deep ? deep.length : items.filter((i) => i.kind === 'broken').length
 
   const visible: Item[] = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -451,24 +566,26 @@ export function LibraryView(): JSX.Element {
           return info?.difficulties[sortKey.slice(2) as InstId]
       }
     }
-    return list.sort((a, b) => {
+    // Klíče řazení spočítat JEDNOU na položku (ne při každém porovnání) a
+    // porovnávat sdíleným Collatorem — u tisíců písní je to řádově rychlejší
+    // než localeCompare s volbami, které si pokaždé staví nový porovnávač.
+    const keyed = list.map((it) => ({ it, g: group(it), v: val(it) }))
+    keyed.sort((a, b) => {
       // Složky vždy nahoře, pak písně, pak ostatní soubory — nezávisle na směru.
-      const g = group(a) - group(b)
+      const g = a.g - b.g
       if (g) return g
-      const va = val(a)
-      const vb = val(b)
+      const va = a.v
+      const vb = b.v
       // Chybějící hodnota (nenacharovaný nástroj, žádný rok…) vždy na konec.
       if (va === undefined && vb !== undefined) return 1
       if (vb === undefined && va !== undefined) return -1
       if (va !== undefined && vb !== undefined) {
-        const c =
-          typeof va === 'number' && typeof vb === 'number'
-            ? va - vb
-            : String(va).localeCompare(String(vb), undefined, { sensitivity: 'base', numeric: true })
+        const c = typeof va === 'number' && typeof vb === 'number' ? va - vb : NAME_COLLATOR.compare(String(va), String(vb))
         if (c) return c * sortDir
       }
-      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
+      return NAME_COLLATOR.compare(a.it.name, b.it.name)
     })
+    return keyed.map((k) => k.it)
   }, [items, infos, q, filters, metaFilter, sortKey, sortDir, folderCounts])
 
   // Zaškrtnuté položky, které filtr schoval, z výběru vyřaď — hromadná akce se
@@ -609,8 +726,15 @@ export function LibraryView(): JSX.Element {
   const toggleAll = (): void => setChecked(allChecked ? new Set() : new Set(visible.map((i) => i.name)))
 
   const rowClick = (name: string, e: React.MouseEvent): void => {
-    if (e.ctrlKey || e.metaKey) toggleCheck(name)
-    else if (e.shiftKey && anchor) {
+    if (e.ctrlKey || e.metaKey) {
+      // Ctrl+klik začíná vícenásobný výběr i s položkou, na kterou se klikalo
+      // předtím (jako v Průzkumníku) — jinak by se tiše vynechala.
+      if (checked.size === 0 && focus && focus !== name) {
+        setChecked(new Set([focus, name]))
+        setFocus(name)
+        setAnchor(name)
+      } else toggleCheck(name)
+    } else if (e.shiftKey && anchor) {
       const names = visible.map((i) => i.name)
       const a = names.indexOf(anchor)
       const b = names.indexOf(name)
@@ -619,6 +743,9 @@ export function LibraryView(): JSX.Element {
         setChecked(new Set(names.slice(lo, hi + 1)))
       }
     } else {
+      // Obyčejný klik = jen tahle položka. Dřívější zaškrtnutí se ruší, jinak by
+      // Delete / Ctrl+C působily na jiné položky, než na kterou uživatel klikl.
+      if (checked.size) setChecked(new Set())
       setFocus(name)
       setAnchor(name)
     }
@@ -640,8 +767,8 @@ export function LibraryView(): JSX.Element {
   // Stabilní handlery pro memoizované řádky.
   const startFix = useStore((s) => s.startFix)
   const fixItem = (it: Item): void => {
-    const q = fixQuery(it.name)
-    startFix(it.rel, it.name, q.artist, q.title)
+    const q = fixQuery(it.label)
+    startFix(it.rel, it.label, q.artist, q.title)
   }
   const h = useRef({ rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem })
   h.current = { rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem }
@@ -677,7 +804,7 @@ export function LibraryView(): JSX.Element {
     const names = targetNames()
     if (names.length === 1) {
       setDialog({ type: 'rename', name: names[0] })
-      setDialogValue(names[0])
+      setDialogValue(names[0].split('/').pop() ?? names[0])
     } else if (names.length > 1) setDialog({ type: 'bulkRename', names })
   }
   const openDelete = (): void => {
@@ -704,7 +831,9 @@ export function LibraryView(): JSX.Element {
         for (const n of d.names) await window.api.libTrash(relOf(n))
         setChecked(new Set())
         setFocus(null)
-      }, `Moved ${d.names.length} item${d.names.length === 1 ? '' : 's'} to the trash`)
+      }, config?.deleteMode === 'permanent'
+        ? `Deleted ${d.names.length} item${d.names.length === 1 ? '' : 's'} permanently`
+        : `Moved ${d.names.length} item${d.names.length === 1 ? '' : 's'} to the ${IS_MAC ? 'Trash' : 'Recycle Bin'}`)
   }
 
   const bulkDone = (msg: string): void => {
@@ -776,6 +905,7 @@ export function LibraryView(): JSX.Element {
   // ── Render ────────────────────────────────────────────────────────
   const checkedSngCount = checked.size > 1 ? visible.filter((i) => checked.has(i.name) && i.isSng).length : 0
   // Do přehrávače jdou vybrané písně i složky (hrají se celé), v pořadí seznamu.
+  const checkedBroken = checked.size > 1 ? visible.filter((i) => checked.has(i.name) && i.kind === 'broken') : []
   const playableChecked = checked.size > 1 ? visible.filter((i) => checked.has(i.name) && (i.kind === 'song' || i.kind === 'folder') && !i.isSng) : []
   const targets = targetNames()
   const targetSongs = bulkItems(targets).filter((i) => i.isSong && !i.isSng).length
@@ -791,18 +921,33 @@ export function LibraryView(): JSX.Element {
         {/* Nástroje nahoře, ať nejsou pod dlouhým seznamem složek. */}
         <div className="lv__treesec">
           <div className="lv__treelabel">Tools</div>
-          <button type="button" className="lv__titem" onClick={() => setPlmOpen(true)}>
+          <button
+            type="button"
+            className={`lv__titem ${tool === 'setlists' ? 'lv__titem--on' : ''}`}
+            onClick={() => setTool('setlists')}
+          >
             <Icon name="note" size={15} />
             <span className="lv__tname">Setlists</span>
           </button>
-          <button type="button" className="lv__titem" onClick={() => setDupOpen(true)}>
+          <button
+            type="button"
+            className={`lv__titem ${tool === 'duplicates' ? 'lv__titem--on' : ''}`}
+            onClick={() => setTool('duplicates')}
+          >
             <Icon name="copy" size={15} />
             <span className="lv__tname">Duplicates</span>
           </button>
         </div>
         <div className="lv__treesec">
           <div className="lv__treelabel">Songs</div>
-          <button type="button" className={`lv__titem ${cwd === '' ? 'lv__titem--on' : ''}`} onClick={() => void load('')}>
+          <button
+            type="button"
+            className={`lv__titem ${!tool && cwd === '' ? 'lv__titem--on' : ''}`}
+            onClick={() => {
+              setTool(null)
+              void load('')
+            }}
+          >
             <Icon name="folder" size={15} />
             <span className="lv__tname">All folders</span>
             <span className="lv__tcount">{rootDirs.length}</span>
@@ -811,8 +956,11 @@ export function LibraryView(): JSX.Element {
             <button
               key={d.name}
               type="button"
-              className={`lv__titem ${topFolder === d.name ? 'lv__titem--on' : ''}`}
-              onClick={() => void load(d.name)}
+              className={`lv__titem ${!tool && topFolder === d.name ? 'lv__titem--on' : ''}`}
+              onClick={() => {
+                setTool(null)
+                void load(d.name)
+              }}
               title={d.name}
             >
               <Icon name="folder" size={15} />
@@ -823,7 +971,26 @@ export function LibraryView(): JSX.Element {
         </div>
       </aside>
 
-      <section className="lv__main" aria-label="Library">
+      {tool === 'setlists' ? (
+        <SetlistsView
+          onReveal={(rel) => {
+            setTool(null)
+            void revealTarget(rel)
+          }}
+        />
+      ) : tool === 'duplicates' ? (
+        <DuplicatesView
+          onChanged={() => {
+            void load(cwd, true)
+            loadTree()
+          }}
+          onReveal={(rel) => {
+            setTool(null)
+            void revealTarget(rel)
+          }}
+        />
+      ) : null}
+      <section className="lv__main" aria-label="Library" hidden={tool !== null}>
         {/* Dva řádky: cesta + akce se složkou nahoře, hledání / řazení / pohled
             dole. Spodní řádek se na úzkém okně zalomí, nic se neschová pod panel. */}
         <div className="lv__bar">
@@ -1133,7 +1300,14 @@ export function LibraryView(): JSX.Element {
           ref={listRef}
           className={`lv__list lv__list--${view}`}
           onScroll={(e) => {
-            if (snap && snap.path === cwd) snap.scroll = e.currentTarget.scrollTop
+            const st = e.currentTarget.scrollTop
+            if (snap && snap.path === cwd) snap.scroll = st
+            if (!vRaf.current) {
+              vRaf.current = requestAnimationFrame(() => {
+                vRaf.current = 0
+                setVScroll(listRef.current?.scrollTop ?? 0)
+              })
+            }
           }}
           onContextMenu={(e) => {
             if (e.target === e.currentTarget) {
@@ -1164,7 +1338,15 @@ export function LibraryView(): JSX.Element {
               ) : null}
             </div>
           ) : (
-            visible.map((it) => (
+            (() => {
+              visibleRef.current = visible
+              const virt = view === 'cards' && visible.length > VIRT_MIN
+              // Začátek vždy na sudém indexu: zebra pruhy (nth-child) pak při
+              // scrollu neproblikávají.
+              const start0 = virt ? Math.max(0, Math.floor(vScroll / CARD_ROW) - VIRT_OVERSCAN) : 0
+              const start = start0 - (start0 % 2)
+              const end = virt ? Math.min(visible.length, Math.ceil((vScroll + vHeight) / CARD_ROW) + VIRT_OVERSCAN) : visible.length
+              const rows = visible.slice(start, end).map((it) => (
               <LibRow
                 // Klíč = celá cesta: stejně pojmenovaná píseň v jiné složce musí
                 // dostat nový řádek, jinak se pro ni nevyžádá náhled obalu.
@@ -1179,7 +1361,16 @@ export function LibraryView(): JSX.Element {
                 cut={cutSet.has(it.rel)}
                 h={handlers}
               />
-            ))
+              ))
+              if (!virt) return rows
+              return (
+                <>
+                  <div className="lv__vspace" style={{ height: start * CARD_ROW }} aria-hidden="true" />
+                  {rows}
+                  <div className="lv__vspace" style={{ height: (visible.length - end) * CARD_ROW }} aria-hidden="true" />
+                </>
+              )
+            })()
           )}
         </div>
 
@@ -1199,6 +1390,33 @@ export function LibraryView(): JSX.Element {
               <Icon name="alert" size={13} /> {brokenCount} broken {brokenCount === 1 ? 'song' : 'songs'}
             </button>
           ) : null}
+          {brokenCount && !bulkRun ? (
+            <button
+              type="button"
+              className="lv__fixall"
+              title="Find a replacement for every broken song in this folder and its subfolders"
+              onClick={() => openBulkFix(brokenTargets())}
+            >
+              Fix all
+            </button>
+          ) : null}
+          {bulkRun ? (
+            <span className={`lv__bulkrun ${fixedCount >= bulkRun.total ? 'lv__bulkrun--done' : ''}`} role="status">
+              {fixedCount >= bulkRun.total ? (
+                <>
+                  <Icon name="check" size={13} /> Fixed {bulkRun.ok} of {bulkRun.total}
+                  {bulkRun.failed ? ` · ${bulkRun.failed} failed` : ''}
+                  <button type="button" className="lv__bulkrun-x" onClick={dismissBulkRun} aria-label="Dismiss">
+                    <Icon name="close" size={11} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <i className="catact__spin" aria-hidden="true" /> Fixing broken songs {fixedCount}/{bulkRun.total}
+                </>
+              )}
+            </span>
+          ) : null}
           <div className="lib__spacer" />
           {clip ? (
             <button className="lib__btn lib__btn--accent" onClick={doPaste}>
@@ -1214,7 +1432,7 @@ export function LibraryView(): JSX.Element {
       </section>
 
       {/* ── Detail ── */}
-      <aside className="lv__detail" aria-label="Details">
+      <aside className="lv__detail" aria-label="Details" hidden={tool !== null}>
         {checked.size > 1 ? (
           <div className="lv__dmulti">
             <CoverStack
@@ -1223,6 +1441,15 @@ export function LibraryView(): JSX.Element {
             />
             <div className="lv__dlabel">{checked.size} items selected</div>
             <PanelActions
+              primary={
+                checkedBroken.length
+                  ? {
+                      label: `Fix ${checkedBroken.length} broken ${checkedBroken.length === 1 ? 'song' : 'songs'}`,
+                      icon: 'alert',
+                      onClick: () => openBulkFix(checkedBroken.map((i) => ({ rel: i.rel, name: i.label })))
+                    }
+                  : undefined
+              }
               onPlay={
                 playableChecked.length
                   ? () => void playFolders(playableChecked.map((i) => i.rel), `${playableChecked.length} selected`)
@@ -1339,10 +1566,17 @@ export function LibraryView(): JSX.Element {
           <div className="lib__dialog">
             {dialog.type === 'delete' ? (
               <>
-                <p>
-                  Move {dialog.names.length === 1 ? <strong>{dialog.names[0]}</strong> : `${dialog.names.length} items`} to the{' '}
-                  {IS_MAC ? 'Trash' : 'Recycle Bin'}? You can restore {dialog.names.length === 1 ? 'it' : 'them'} from there.
-                </p>
+                {config?.deleteMode === 'permanent' ? (
+                  <p>
+                    Permanently delete {dialog.names.length === 1 ? <strong>{dialog.names[0]}</strong> : `${dialog.names.length} items`}?{' '}
+                    {dialog.names.length === 1 ? 'It' : 'They'} won’t go to the {IS_MAC ? 'Trash' : 'Recycle Bin'} and can’t be restored.
+                  </p>
+                ) : (
+                  <p>
+                    Move {dialog.names.length === 1 ? <strong>{dialog.names[0]}</strong> : `${dialog.names.length} items`} to the{' '}
+                    {IS_MAC ? 'Trash' : 'Recycle Bin'}? You can restore {dialog.names.length === 1 ? 'it' : 'them'} from there.
+                  </p>
+                )}
                 <div className="lib__dialog-foot">
                   <button className="btn-secondary" onClick={() => setDialog(null)}>Cancel</button>
                   <button className="btn-primary" autoFocus onClick={() => void confirmDialog()}>Delete</button>
@@ -1399,16 +1633,6 @@ export function LibraryView(): JSX.Element {
         />
       ) : null}
       {playlistFor ? <PlaylistDialog rels={playlistFor} onClose={() => setPlaylistFor(null)} /> : null}
-      {dupOpen ? (
-        <DuplicatesModal
-          onClose={() => setDupOpen(false)}
-          onChanged={() => {
-            void load(cwd, true)
-            loadTree()
-          }}
-        />
-      ) : null}
-      {plmOpen ? <PlaylistManagerModal onClose={() => setPlmOpen(false)} /> : null}
 
       {toast ? <div className="lv__toast" role="status">{toast}</div> : null}
     </div>
@@ -1455,20 +1679,7 @@ const PROBLEM: Record<LibProblem, { badge: string; sub: string; hint: string; he
   }
 }
 /** Interpret a název z názvu rozbité složky („Artist - Title (RB3 Version)"). */
-function fixQuery(name: string): { artist: string; title: string } {
-  const clean = (x: string): string =>
-    x
-      .replace(/\((?:rb\d?|rock band[^)]*?)\s*version\)/gi, '')
-      .replace(/(\w)_(s|t|m|d|ll|re|ve)\b/gi, "$1'$2")
-      .replace(/_+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-  const base = name.replace(/\.sng$/i, '')
-  const dash = base.indexOf(' - ')
-  return dash > 0
-    ? { artist: clean(base.slice(0, dash)), title: clean(base.slice(dash + 3)) }
-    : { artist: '', title: clean(base) }
-}
+const fixQuery = songFromFolderName
 const problemOf = (it: Item): (typeof PROBLEM)[LibProblem] => PROBLEM[it.e.problem ?? 'chart']
 
 interface RowHandlers {
@@ -1528,7 +1739,10 @@ const LibRow = memo(function LibRow({
           size={17}
           color={it.kind === 'song' ? 'var(--accent)' : undefined}
         />
-        <span className="lvli__name">{it.name}</span>
+        <span className="lvli__name">
+          {it.dir ? <span className="lvli__dir">{it.dir}/</span> : null}
+          {it.label}
+        </span>
         {it.kind === 'broken' ? (
           <span className="lib__tag lvtag-broken" title={problemOf(it).hint}>
             {problemOf(it).badge.toLowerCase()}
@@ -1559,9 +1773,12 @@ const LibRow = memo(function LibRow({
         </div>
         <div className="song__main">
           <div className="song__title" title={it.name}>
-            {it.name}
+            {it.label}
           </div>
-          <div className="song__artist lvbroken-sub">{problemOf(it).sub}</div>
+          <div className="song__artist lvbroken-sub">
+            {problemOf(it).sub}
+            {it.dir ? <span className="lvbroken-dir"> · in {it.dir}</span> : null}
+          </div>
         </div>
         <div className="lvbroken-cell">
           <span className="lvbroken-badge">
@@ -1996,7 +2213,7 @@ function PanelActions({
         <button
           className="btn-secondary"
           onClick={onUnpack}
-          title="Unpack into a normal song folder, the same as a Song folder download. The .sng goes to the trash."
+          title="Unpack into a normal song folder, the same as a Song folder download. The .sng file is then deleted."
         >
           <Icon name="folder" size={13} /> {unpackLabel}
         </button>

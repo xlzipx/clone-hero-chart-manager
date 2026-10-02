@@ -143,14 +143,17 @@ clicks — a whole setlist from a playlist you already love. See
 
 ### Library manager
 - **Built‑in file manager** for your `Songs` folder — multi‑select,
-  cut/copy/paste/delete (uses the Windows recycle bin), rename, create folder,
+  cut/copy/paste/delete (to the Recycle Bin or permanently, set in Settings), rename, create folder,
   right‑click context menu and keyboard shortcuts. Every folder shows **how many
   songs** it holds.
-- **Playlists** — create and edit Clone Hero `.setlist` files right here, so
-  setlists you build show up in the game.
-- **Duplicate finder** — spot identical charts (same hash) and other copies
-  of the same song, compare them side by side, and move the ones you don't want
-  out of the way.
+- **Setlists** — create and edit Clone Hero `.setlist` files right here, so
+  setlists you build show up in the game. Play them, preview songs, and clear
+  out entries that are no longer in your library.
+- **Duplicates & broken songs** — spot identical charts (same hash) and other
+  versions of the same song, compare them side by side with previews, and keep
+  the best copy in one click (optionally preferring versions with your
+  instruments). Broken song folders are found across all subfolders and can be
+  fixed in bulk with a fresh download.
 - **Edit metadata** — adjust a song's `song.ini` (title, artist, charter, …)
   in‑app; open any song to see its album art and per‑instrument difficulties.
 
@@ -160,7 +163,7 @@ clicks — a whole setlist from a playlist you already love. See
 <table>
   <tr>
     <td width="50%" valign="top"><img alt="Create and edit Clone Hero setlists" width="100%" src="docs/img/setlist-manager.png" /></td>
-    <td width="50%" valign="top"><img alt="Duplicate finder comparing copies side by side" width="100%" src="docs/img/find-duplicates.webp" /></td>
+    <td width="50%" valign="top"><img alt="Duplicates and broken songs, copies compared side by side" width="100%" src="docs/img/find-duplicates.png" /></td>
   </tr>
 </table>
 

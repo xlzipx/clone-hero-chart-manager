@@ -93,7 +93,7 @@ const DATE_PRESETS: FilterOption[] = [
   { id: 'custom', label: 'Custom range…' }
 ]
 
-/** Textové zúžení (charter / album). S hotovým lokálním katalogem prohledává
+/** Textové zúžení (charter / artist). S hotovým lokálním katalogem prohledává
  *  CELÉ katalogy obou DB (store → catalogQuery); do té doby jen zužuje načtené
  *  výsledky (klientský contains v App.tsx). */
 function FilterText({
@@ -122,7 +122,7 @@ function FilterText({
 
 /**
  * Jeden sjednocený filtrovací panel. Nahoře „browse" (žánr / rok / délka —
- * serverově, jen RhythmVerse), pod tím „refine" (charter / album / skrýt
+ * serverově, jen RhythmVerse), pod tím „refine" (charter / artist / skrýt
  * vlastněné — klientsky nad načtenými výsledky, funguje i na Encore). Nahrazuje
  * dřívější samostatné „Refine" tlačítko v liště výsledků.
  */
@@ -136,10 +136,10 @@ export function FilterPanel(): JSX.Element {
   const doSearch = useStore((s) => s.doSearch)
 
   const charter = useStore((s) => s.charterFilter)
-  const album = useStore((s) => s.albumFilter)
+  const artist = useStore((s) => s.artistFilter)
   const reductions = useStore((s) => s.reductions)
   const setCharter = useStore((s) => s.setCharterFilter)
-  const setAlbum = useStore((s) => s.setAlbumFilter)
+  const setArtist = useStore((s) => s.setArtistFilter)
   const setReductions = useStore((s) => s.setReductions)
   const catalog = useStore((s) => s.catalogStatus)
   const dateFilter = useStore((s) => s.dateFilter)
@@ -186,7 +186,7 @@ export function FilterPanel(): JSX.Element {
           <Icon name="info" size={16} />
           {catalog?.state === 'syncing' ? (
             // Katalog se právě staví (jednorázově pár minut) → řekni, že filtry
-            // doskočí samy, s průběhem ENCORE části. Řádka dole u charter/album
+            // doskočí samy, s průběhem ENCORE části. Řádka dole u charter/artist
             // ukazuje TENTÝŽ per-databázový průběh, ať čísla sedí vedle sebe.
             <span>
               Filters will work for <strong>Chorus Encore</strong> once the local catalog is built
@@ -214,7 +214,7 @@ export function FilterPanel(): JSX.Element {
 
       {/* Jedna mřížka pro VŠECHNA pole (browse i refine) → na širokém okně se
           vejdou do jedné řádky a každé pole je kompaktní. S lokálním katalogem
-          fungují žánr/rok/dekáda/délka i charter/album stejně na obou DB, takže
+          fungují žánr/rok/dekáda/délka i charter/artist stejně na obou DB, takže
           je nemá smysl vizuálně oddělovat. Když je Encore ještě bez katalogu
           (encoreOnly), browse pole ustoupí banneru a zůstane jen refine část. */}
       <div className="filterpanel__grid">
@@ -286,8 +286,8 @@ export function FilterPanel(): JSX.Element {
           </div>
         ) : null}
         <FilterText label="Charter" value={charter} placeholder="e.g. Chezy" onChange={setCharter} />
-        <FilterText label="Album" value={album} placeholder="e.g. Meteora" onChange={setAlbum} />
-        {/* Redukce (Expert-only vs E/M/H/X) VEDLE Charter/Album ve stejné
+        <FilterText label="Artist" value={artist} placeholder="e.g. Linkin Park" onChange={setArtist} />
+        {/* Redukce (Expert-only vs E/M/H/X) VEDLE Charter/Artist ve stejné
             řadě, ať panel neroste na výšku. Přepínače vypadají jako odznaky
             u řádku výsledků; klik na aktivní ho vypne. Trochu širší (dva
             přepínače v jedné buňce), ať se „Expert only" nemačká. */}
@@ -318,7 +318,7 @@ export function FilterPanel(): JSX.Element {
 
       {/* Průběh stavby katalogu — JEN dokud pro vybranou databázi neběží
           naplno (hotový stav se nehlásí, prostě to funguje). Do té doby
-          charter/album jen zužují načtenou stránku (staré chování). Procento
+          charter/artist jen zužují načtenou stránku (staré chování). Procento
           je PER-DATABÁZE (stejné číslo jako v Encore banneru výš). */}
       {!dbReady && catalog?.state === 'syncing' ? (
         <div className="filterpanel__cat">
@@ -330,7 +330,7 @@ export function FilterPanel(): JSX.Element {
                 ? catalog.sources.rv.progress
                 : (catalog.progress ?? 0)) * 100
           )}
-          % — until it finishes, charter and album only narrow the loaded page.
+          % — until it finishes, charter and artist only narrow the loaded page.
         </div>
       ) : null}
 

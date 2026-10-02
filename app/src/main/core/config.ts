@@ -204,6 +204,8 @@ function defaults(): AppConfig {
     showReminder: false, // opt-in
     reminderPosition: 'bottom-right',
     dupMoveDir: '', // poslední karanténní složka pro duplicity
+    dupPreferInstruments: [],
+    setlistCompact: false,
     // Šablona složky chartu — výchozí hodnota je PŘESNĚ ten formát, který byl do
     // 0.9.6 natvrdo v `install()`, a auto je vypnuté → kdo si nic nenastaví, má
     // bit-identické chování jako dřív (i po aktualizaci; `{...def, ...parsed}`
@@ -220,7 +222,8 @@ function defaults(): AppConfig {
     encoreFormat: 'folder',
     downloadVideos: true,
     maxConcurrentDownloads: 2,
-    autoClearFinished: true
+    autoClearFinished: true,
+    deleteMode: 'trash'
   }
 }
 

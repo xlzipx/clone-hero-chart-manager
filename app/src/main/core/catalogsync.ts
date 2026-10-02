@@ -40,8 +40,9 @@ const CURSOR_OVERLAP_MS = 24 * 60 * 60 * 1000
 const RESUME_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 /** Perioda delta syncu za běhu appky. */
 const PERIODIC_MS = 30 * 60 * 1000
-/** Odklad prvního syncu po startu (ať nesoupeří se startem UI a update checkem). */
-const STARTUP_DELAY_MS = 8000
+/** Odklad prvního syncu po startu (ať nesoupeří s načtením UI; kontrola je pak
+ *  hned vidět vlevo dole, viz CatalogActivity). */
+const STARTUP_DELAY_MS = 3000
 /** Za jak dlouho zkusit sync znovu, když selhal (ne až za celou periodu). */
 const FAIL_RETRY_MS = 5 * 60 * 1000
 /**

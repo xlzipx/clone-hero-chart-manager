@@ -17,6 +17,7 @@ import {
   songKey
 } from '../utils'
 import { Icon } from './Icon'
+import { findChartVersions } from '../chartmatch'
 
 // Import playlistu (v1): vlož odkaz na veřejný Spotify playlist → appka dohledá
 // charty (RhythmVerse „all" + podle aktuální databáze), ukáže i více verzí a
@@ -38,69 +39,9 @@ interface Row {
 }
 
 const CONCURRENCY = 4
-const RECORDS = 60
 
-// Očisti název skladby od šumu (remaster/verze/feat…), jinak i existující chart vypadne.
-const NOISE_RE =
-  /\s*[-–]\s*[^-–]*\b(?:remaster(?:ed)?|mono|stereo|version|mix|edit|live|remix|deluxe|anniversary|single|album|acoustic|demo|radio|re-?recorded)\b.*$/i
-function normTitle(t: string): string {
-  return t
-    .replace(NOISE_RE, '')
-    .replace(/\s*\((?:feat|ft|with)\.?[^)]*\)/gi, '')
-    .replace(/\s*\[[^\]]*\]/g, '')
-    .trim()
-}
-// Srovnávací klíč: bez diakritiky, bez „the ", jen alfanum.
-function keyOf(s: string): string {
-  return (s || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/^the\s+/, '')
-    .replace(/[^a-z0-9]/g, '')
-}
-// Hlavní interpret (bez feat./doprovodu). Slovní oddělovače (feat/ft/x/with)
-// MUSÍ mít kolem sebe mezeru — jinak „ft"/„feat" jako podřetězec zmrší jména
-// typu „Daft Punk" → „Da" nebo „Kraftwerk" → „Kra".
-function mainArtist(a: string): string {
-  return a.split(/\s*,\s*|\s*&\s*|\s+(?:featuring|feat|ft|with|x)\.?\s+/i)[0]?.trim() || a
-}
-
-async function matchTrack(track: PlaylistTrack): Promise<SongResult[]> {
-  const nt = normTitle(track.title)
-  if (!nt) return []
-  const db = useStore.getState().database
-  let songs: SongResult[]
-  try {
-    // system 'all' = nejširší pokrytí chartů (CH + PS + RB), db respektuje volbu.
-    // Fulltext hledá jen podle NÁZVU a je „fuzzy" — „Iris" chytne i „Osiris",
-    // „Irish Blood", „Donnie Iris"… U krátkých/častých názvů to zaplaví okno
-    // balastem a skutečnou písničku vytlačí za hranici (ověřeno: 262 výsledků
-    // na „Iris", v relevanci jediný Goo Goo Dolls záznam = Official DLC). Proto
-    // řadíme dotaz podle STAŽENÍ: populární verze reálné písně vyplavou do okna
-    // a dopárování interpreta pak nabídne i stažitelné charty, ne jen ten nej.
-    const resp = await window.api.search(nt, 1, RECORDS, 'all', db, undefined, 'downloads')
-    songs = resp.songs
-  } catch {
-    return []
-  }
-  const wantT = keyOf(nt)
-  const wantA = keyOf(mainArtist(track.artist))
-  const hits = songs.filter((s) => {
-    const st = keyOf(normTitle(s.title))
-    const sa = keyOf(s.artist)
-    const titleOk = st === wantT || (st.length > 3 && (st.includes(wantT) || wantT.includes(st)))
-    const artistOk = !!wantA && (sa.includes(wantA) || wantA.includes(sa))
-    return titleOk && artistOk
-  })
-  hits.sort((a, b) => {
-    const da = (isAutoDownloadable(a) ? 0 : 1) - (isAutoDownloadable(b) ? 0 : 1)
-    if (da !== 0) return da
-    const nc = (a.needsConversion ? 1 : 0) - (b.needsConversion ? 1 : 0)
-    if (nc !== 0) return nc
-    return (b.downloads ?? 0) - (a.downloads ?? 0)
-  })
-  return hits
+function matchTrack(track: PlaylistTrack): Promise<SongResult[]> {
+  return findChartVersions(track.artist, track.title, useStore.getState().database)
 }
 
 const ERROR_MSG: Record<PlaylistResolveError, string> = {
@@ -112,7 +53,7 @@ const ERROR_MSG: Record<PlaylistResolveError, string> = {
   unknown: 'Something went wrong. Try again.'
 }
 
-function chartLabel(c: SongResult): string {
+export function chartLabel(c: SongResult): string {
   return formatLabel(c.gameFormat) + (c.needsConversion ? ' → CH' : '')
 }
 
@@ -136,7 +77,7 @@ function instrumentHint(label: string, value: number | undefined): string {
  * bicí?" scanovat okem svisle po sloupci. Kdyby se vynechávaly, pozice by se
  * řádek od řádku posouvaly a hledání by bylo pomalejší.
  */
-function PlInstruments({ difficulties }: { difficulties: InstrumentDifficulties }): JSX.Element {
+export function PlInstruments({ difficulties }: { difficulties: InstrumentDifficulties }): JSX.Element {
   // Tooltip je na KAŽDÉ ikoně zvlášť (ne souhrnný na skupině) — jinak by při
   // přejíždění myší problikával souhrn s per-nástrojovým popiskem.
   return (
@@ -164,7 +105,7 @@ function PlInstruments({ difficulties }: { difficulties: InstrumentDifficulties 
 
 // Krátký štítek, PROČ chart nejde stáhnout automaticky (null = stažitelný sám).
 // Google Drive sem NEpatří — ten appka stahuje bez ruční interakce.
-function unavailableTag(c: SongResult): string | null {
+export function unavailableTag(c: SongResult): string | null {
   if (c.official) return 'Official DLC'
   const host = detectManualHost(c.source, c.downloadUrl || c.downloadPageUrl)
   if (host === 'Shortener') return 'Manual link'
@@ -174,13 +115,13 @@ function unavailableTag(c: SongResult): string | null {
 // Otevře nestažitelný chart v prohlížeči — obchod (DLC) nebo stránku hostitele
 // (MEGA/Mediafire/shortener), odkud si ho uživatel stáhne ručně. Stejné pořadí
 // URL jako v běžných výsledcích (SongRow).
-function openChartExternal(c: SongResult): void {
+export function openChartExternal(c: SongResult): void {
   const url = c.official
     ? c.externalUrl || c.downloadPageUrl || c.downloadUrl
     : c.downloadPageUrl || c.downloadUrl || c.externalUrl
   if (url) window.api.openExternal(url)
 }
-function externalHint(c: SongResult): string {
+export function externalHint(c: SongResult): string {
   if (c.official) return 'Official DLC — open the store page in your browser'
   const host = unavailableTag(c) ?? 'an external host'
   return `Hosted on ${host} — open in your browser, then drop the file into the drop zone`

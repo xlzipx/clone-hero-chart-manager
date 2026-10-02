@@ -20,7 +20,7 @@ import type {
   SortKey
 } from '../../shared/types'
 import { SORT_DEFAULT_DIR } from '../../shared/types'
-import { mergeKey, mergeKeyRaw, songKey } from '../../shared/songid'
+import { ARTIST_SEPARATORS, artistWords, mergeKey, mergeKeyRaw, songKey } from '../../shared/songid'
 import { stripRichTags } from './songmeta'
 
 /** Zdroj řádku v katalogu. */
@@ -566,6 +566,16 @@ export function queryCatalog(q: CatalogQuery): SearchResponse {
     if (parts.length) where.push(`(${parts.join(' OR ')})`)
   }
 
+  const artist = q.artist?.trim()
+  if (artist) {
+    // Celé slovo / fráze v poli interpreta (viz artistWords): oddělovače → mezery,
+    // obalit mezerami a hledat „ jméno ". Zdvojené mezery se slijí dvojím replace.
+    let expr = 'lower(artist)'
+    for (const c of ARTIST_SEPARATORS) expr = `replace(${expr}, '${c.replace(/'/g, "''")}', ' ')`
+    expr = `replace(replace(${expr}, '  ', ' '), '  ', ' ')`
+    where.push(`(artist = ? OR (' ' || ${expr} || ' ') LIKE ? ESCAPE '\\')`)
+    args.push(artist, '%' + artistWords(artist).replace(/[\\%_]/g, (c) => '\\' + c) + '%')
+  }
   const charter = q.charter?.trim()
   if (charter) {
     where.push(`charter_plain LIKE ? ESCAPE '\\'`)
@@ -573,8 +583,10 @@ export function queryCatalog(q: CatalogQuery): SearchResponse {
   }
   const album = q.album?.trim()
   if (album) {
-    where.push(`album LIKE ? ESCAPE '\\'`)
-    args.push(likeArg(album))
+    // Přesný název alba (klik na album ve výsledcích, vždy spolu s interpretem —
+    // stejně pojmenované album mívá víc kapel). Sloupec je COLLATE NOCASE.
+    where.push('(album = ? OR trim(album) = ?)')
+    args.push(q.album as string, album)
   }
 
   // Redukce (Expert-only vs E/M/H/X). expert_only: 1 = jen Expert, 0 = má

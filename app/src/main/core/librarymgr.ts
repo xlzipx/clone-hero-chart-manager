@@ -3,7 +3,7 @@
 
 import { nativeImage, shell } from 'electron'
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'fs'
-import { readdir } from 'fs/promises'
+import { readdir, rm } from 'fs/promises'
 import { basename, dirname, extname, join, relative, resolve, sep } from 'path'
 import { getConfig } from './config'
 import { readAlbumArt, readSongInfo, readSongMeta, writeSongMeta } from './songmeta'
@@ -29,7 +29,8 @@ import type {
   PlaylistSong,
   SongDetail,
   SongMeta,
-  LibProblem
+  LibProblem,
+  LibEntry as LibEntryFull
 } from '../../shared/types'
 
 const SONG_MARKERS = ['song.ini', 'notes.chart', 'notes.mid']
@@ -39,6 +40,15 @@ export interface LibEntry {
   type: 'dir' | 'file'
   isSong: boolean
   problem?: LibProblem
+}
+
+/**
+ * Smazání složky / souboru z knihovny podle Nastavení: do koše (výchozí, jde
+ * obnovit), nebo rovnou natrvalo. Všechna mazání v knihovně jdou tudy.
+ */
+async function removePath(abs: string): Promise<void> {
+  if (getConfig().deleteMode === 'permanent') await rm(abs, { recursive: true, force: true })
+  else await shell.trashItem(abs)
 }
 
 function rootDir(): string {
@@ -253,7 +263,7 @@ export function libRename(relItem: string, newName: string): void {
 export async function libTrash(relItem: string): Promise<void> {
   const abs = safeAbs(relItem)
   if (abs === rootDir()) throw new Error('Cannot delete the Songs root')
-  await shell.trashItem(abs)
+  await removePath(abs)
   invalidateLibraryIndex()
   invalidateOwnedIndex()
 }
@@ -269,7 +279,7 @@ export async function libReplaceBroken(brokenRel: string, installAbs: string): P
   if (broken === rootDir()) throw new Error('Cannot replace the Songs root')
   let inst = safeAbs(relative(rootDir(), resolve(installAbs)))
   if (existsSync(broken) && inspectDir(broken).problem) {
-    await shell.trashItem(broken)
+    await removePath(broken)
     const name = basename(broken)
     const instName = basename(inst)
     if (
@@ -286,6 +296,71 @@ export async function libReplaceBroken(brokenRel: string, installAbs: string): P
   return relative(rootDir(), inst).split(sep).join('/')
 }
 
+/** Problém složky z jejího výpisu (stejná pravidla jako `inspectDir`). */
+function problemFromNames(names: string[]): { isSong: boolean; problem?: LibProblem } {
+  const lower = names.map((x) => x.toLowerCase())
+  const isSong = SONG_MARKERS.some((m) => lower.includes(m))
+  const hasChart = lower.includes('notes.chart') || lower.includes('notes.mid')
+  const hasAudio = names.some((n) => AUDIO_EXT.test(n))
+  const hasIni = lower.includes('song.ini')
+  if (!hasChart && hasAudio) return { isSong, problem: 'chart' }
+  if (hasChart && !hasAudio) return { isSong, problem: 'audio' }
+  if (!hasChart && !hasAudio && hasIni) return { isSong, problem: 'both' }
+  return { isSong }
+}
+
+/**
+ * Rozbité písně ve složce `rel` a ve VŠECH jejích podsložkách (filtr „Broken
+ * songs"). `name` ve výsledku je cesta relativně k `rel` (např. „Pack/Píseň"),
+ * takže je unikátní i napříč podsložkami. Do zdravé písně se nezanořuje.
+ */
+export async function libFindBroken(rel: string): Promise<LibEntryFull[]> {
+  const base = safeAbs(rel)
+  const out: LibEntryFull[] = []
+  const walk = async (abs: string, depth: number): Promise<void> => {
+    if (depth > 12) return
+    let ents
+    try {
+      ents = await readdir(abs, { withFileTypes: true })
+    } catch {
+      return
+    }
+    const subdirs = ents.filter((e) => e.isDirectory() && !isJunkEntry(e.name))
+    await Promise.all(
+      subdirs.map(async (d) => {
+        const full = join(abs, d.name)
+        let names: string[] = []
+        try {
+          names = await readdir(full)
+        } catch {
+          return
+        }
+        const info = problemFromNames(names)
+        if (info.problem) {
+          try {
+            const st = statSync(full)
+            out.push({
+              name: relative(base, full).split(sep).join('/'),
+              type: 'dir',
+              ...info,
+              size: st.size,
+              mtimeMs: st.mtimeMs,
+              birthtimeMs: st.birthtimeMs
+            })
+          } catch {
+            /* mezitím smazáno */
+          }
+        }
+        // Zdravá píseň = konec větve; složky a rozbité písně procházej dál.
+        if (!info.isSong || info.problem) await walk(full, depth + 1)
+      })
+    )
+  }
+  await walk(base, 0)
+  out.sort((a, b) => a.name.localeCompare(b.name, 'cs'))
+  return out
+}
+
 /**
  * Rozbalí .sng z knihovny do normální složky písně vedle něj (stejně jako při
  * stahování) a .sng pošle do koše. Vrací relativní cestu nové složky.
@@ -299,7 +374,7 @@ export async function libUnpackSng(relItem: string): Promise<string> {
   // Volný název vedle .sng (např. když už složka stejného jména existuje).
   const name = basename(uniqueDest(parent, basename(src).replace(/\.sng$/i, '')))
   const out = await extractSng(src, parent, name)
-  await shell.trashItem(src)
+  await removePath(src)
   invalidateLibraryIndex()
   invalidateOwnedIndex()
   return relative(rootDir(), out).split(sep).join('/')
@@ -319,7 +394,7 @@ export function libMove(srcRelItem: string, destRelDir: string): void {
     // (EBUSY/EPERM — píseň otevřená ve hře) musí selhat čistě, ne polovičatě.
     if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
     cpSync(src, dest, { recursive: true })
-    void shell.trashItem(src)
+    void removePath(src)
   }
   invalidateLibraryIndex()
   invalidateOwnedIndex()

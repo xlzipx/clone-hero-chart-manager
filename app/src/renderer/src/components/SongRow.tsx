@@ -123,6 +123,8 @@ function SongRowBase({
   // „In library" → otevři píseň v Library Manageru (ne v Průzkumníku). Duplikáty
   // (víc kopií) předáme jako seznam — manager pak nabídne přepínání mezi nimi.
   const openLibraryAt = useStore((s) => s.openLibraryAt)
+  const searchArtist = useStore((s) => s.searchArtist)
+  const searchAlbum = useStore((s) => s.searchAlbum)
   const revealInLibrary = async (): Promise<void> => {
     try {
       const rels = await window.api.ownedFolders(song.artist, song.title)
@@ -253,9 +255,39 @@ function SongRowBase({
         <div className="song__title" title={song.title}>
           {song.title}
         </div>
-        <div className="song__artist" title={song.artist}>
-          {song.artist}
-          {song.album ? <span className="song__album"> · {song.album}</span> : null}
+        <div className="song__artist">
+          {song.artist ? (
+            <button
+              type="button"
+              className="song__artistlink"
+              title={`Show all charts by ${song.artist}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                searchArtist(song.artist)
+              }}
+              onDoubleClick={(e) => e.stopPropagation()}
+            >
+              {song.artist}
+            </button>
+          ) : null}
+          {song.album ? (
+            <span className="song__album">
+              {' · '}
+              <button
+                type="button"
+                className="song__artistlink"
+                title={song.artist ? `Show all charts from ${song.album} by ${song.artist}` : undefined}
+                disabled={!song.artist}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  searchAlbum(song.artist, song.album)
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+              >
+                {song.album}
+              </button>
+            </span>
+          ) : null}
           {song.year ? <span className="song__year"> · {song.year}</span> : null}
         </div>
         <div className="song__meta">

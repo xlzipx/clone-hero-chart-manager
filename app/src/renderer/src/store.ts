@@ -96,7 +96,11 @@ interface AppState {
   /** „Fix it": rozbitá složka z Library, pro kterou se v Search hledá náhrada. */
   fixTarget: { rel: string; name: string; artist: string; title: string } | null
   /** Rozjeté náhrady: id stahování → rozbitá složka, kterou po dokončení nahradí. */
-  fixJobs: Record<string, { rel: string; name: string }>
+  fixJobs: Record<string, { rel: string; name: string; bulk?: boolean }>
+  /** Okno hromadné opravy: rozbité složky, ke kterým se hledá náhrada. */
+  bulkFix: { rel: string; name: string }[] | null
+  /** Průběh hromadné opravy (pro řádek v knihovně). */
+  bulkRun: { total: number; ok: number; failed: number } | null
   /** Krátká zpráva o výsledku opravy (zobrazí se v pruhu nad hledáním). */
   fixNotice: string | null
   /** Hledání „Fix it" nenašlo interpreta, ukazují se všechny verze názvu. */
@@ -122,6 +126,8 @@ interface AppState {
   // Zpřesňující filtry přes načtené výsledky (contains, case-insensitive)
   charterFilter: string
   albumFilter: string
+  /** Přesný interpret (klik na jméno ve výsledcích); prázdné = vypnuto. */
+  artistFilter: string
   /** „Added/modified" — kdy chart v databázi přibyl nebo byl upraven. */
   dateFilter: DateFilter
   setDateFilter: (f: DateFilter) => void
@@ -247,11 +253,16 @@ interface AppState {
   playerClose: () => void
 
   setQuery: (q: string) => void
+  /** Ukáže všechny charty daného interpreta (klik na jméno ve výsledcích). */
+  searchArtist: (artist: string) => void
+  /** Charty z daného alba daného interpreta (klik na album ve výsledcích). */
+  searchAlbum: (artist: string, album: string) => void
   setDatabase: (d: Database) => void
   setSystem: (s: RhythmVerseSystem) => void
   toggleInstrumentFilter: (id: string) => void
   setDiffRange: (min: number, max: number) => void
   setCharterFilter: (v: string) => void
+  setArtistFilter: (v: string) => void
   setAlbumFilter: (v: string) => void
   setReductions: (v: 'any' | 'expert' | 'full') => void
   setDirectOnly: (v: boolean) => void
@@ -275,6 +286,11 @@ interface AppState {
   /** Přepne na Search s dotazem na píseň a další stažení nahradí rozbitou složku. */
   startFix: (rel: string, name: string, artist: string, title: string) => void
   cancelFix: () => void
+  openBulkFix: (items: { rel: string; name: string }[]) => void
+  closeBulkFix: () => void
+  /** Zařadí náhrady rozbitých složek; každá po stažení svou složku nahradí. */
+  startBulkFix: (pairs: { rel: string; name: string; song: SongResult }[]) => Promise<void>
+  dismissBulkRun: () => void
   dismissFixNotice: () => void
   /** Otevře Library Manager rovnou na dané písni (kopiích) a vybere ji. */
   openLibraryAt: (rels: string[]) => void
@@ -804,7 +820,7 @@ export const useStore = create<AppState>((set, get) => {
   const catalogEligible = (): boolean => {
     const s = get()
     if (!catalogUsableForDb()) return false
-    if (s.charterFilter.trim() || s.albumFilter.trim()) return true
+    if (s.charterFilter.trim() || s.albumFilter.trim() || s.artistFilter) return true
     if (s.reductions !== 'any') return true
     if (s.directOnly) return true
     if (s.hideOwned) return true
@@ -1113,8 +1129,9 @@ export const useStore = create<AppState>((set, get) => {
         year: f.year,
         decade: f.decade,
         songLength: f.songLength,
+        artist: s.artistFilter || undefined,
         charter: s.charterFilter.trim() || undefined,
-        album: s.albumFilter.trim() || undefined,
+        album: s.albumFilter || undefined,
         reductions: s.reductions === 'any' ? undefined : s.reductions,
         directOnly: s.directOnly || undefined,
         excludeOwned: s.hideOwned || undefined,
@@ -1445,6 +1462,8 @@ export const useStore = create<AppState>((set, get) => {
   showLibrary: false,
   fixTarget: null,
   fixJobs: {},
+  bulkFix: null,
+  bulkRun: null,
   fixNotice: null,
   fixLoose: false,
   fixDoneRel: null,
@@ -1458,6 +1477,7 @@ export const useStore = create<AppState>((set, get) => {
   diffMax: 6,
   charterFilter: '',
   albumFilter: '',
+  artistFilter: '',
   dateFilter: { preset: 'any', from: '', to: '' },
   reductions: 'any',
   directOnly: false,
@@ -1811,13 +1831,33 @@ export const useStore = create<AppState>((set, get) => {
   },
 
   setQuery: (q) => {
-    set({ query: q })
+    // Filtr z kliknutí na interpreta (dotaz = jméno) zruší ruční přepsání dotazu.
+    // Interpret zadaný v panelu Filters zůstává i při psaní do hledání.
+    const { artistFilter: af, query: prevQ } = get()
+    const fromClick = !!af && prevQ.trim() === af.trim()
+    set(fromClick && q.trim() !== af.trim() ? { query: q, artistFilter: '', albumFilter: '' } : { query: q })
     // Vyprázdnění dotazu ukončí deep režim — jinak by nad prázdným polem
     // zůstaly viset zfiltrované výsledky z předchozího dotazu (a další změna
     // filtru by pak deep-skenovala prázdný dotaz s prázdným výsledkem).
     if (!q.trim() && get().deep) {
       set({ deep: false, deepSongs: [], deepLoading: false, deepCapHit: false })
     }
+  },
+  searchArtist: (artist) => {
+    const name = artist.trim()
+    if (!name) return
+    // Do pole hledání jméno interpreta + přesný filtr: z katalogu přijdou jen
+    // jeho charty (ne písně, které ho mají jen v názvu nebo albu). Filtr drží
+    // jméno přesně, jak je v databázi (katalog porovnává celý sloupec).
+    set({ query: name, artistFilter: artist, albumFilter: '', selectedIndex: -1, selectedKeys: [] })
+    void get().doSearch(1)
+  },
+  searchAlbum: (artist, album) => {
+    const name = artist.trim()
+    if (!name || !album.trim()) return
+    // Album vždy spolu s interpretem: „Greatest Hits" má stovky kapel.
+    set({ query: name, artistFilter: artist, albumFilter: album, selectedIndex: -1, selectedKeys: [] })
+    void get().doSearch(1)
   },
   setDatabase: (d) => {
     // Chorus Encore neumí žánr/rok/délku → při přepnutí na něj je vyčistíme, ať
@@ -1915,6 +1955,10 @@ export const useStore = create<AppState>((set, get) => {
   // chování: jen klientské zúžení načtené stránky v App.tsx.
   setCharterFilter: (v) => {
     set({ charterFilter: v, selectedIndex: -1 })
+    if (catalogUsableForDb()) runRefineSearch(get, v)
+  },
+  setArtistFilter: (v) => {
+    set({ artistFilter: v, selectedIndex: -1 })
     if (catalogUsableForDb()) runRefineSearch(get, v)
   },
   setAlbumFilter: (v) => {
@@ -2070,6 +2114,7 @@ export const useStore = create<AppState>((set, get) => {
       diffMax: 6,
       charterFilter: '',
       albumFilter: '',
+      artistFilter: '',
       dateFilter: { preset: 'any', from: '', to: '' },
       reductions: 'any',
       directOnly: false,
@@ -2117,6 +2162,26 @@ export const useStore = create<AppState>((set, get) => {
     void fixSearch(artist, title)
   },
   cancelFix: () => set({ fixTarget: null }),
+  openBulkFix: (items) => set({ bulkFix: items }),
+  closeBulkFix: () => set({ bulkFix: null }),
+  dismissBulkRun: () => set({ bulkRun: null }),
+  startBulkFix: async (pairs) => {
+    if (!pairs.length) return
+    set({ bulkFix: null, bulkRun: { total: pairs.length, ok: 0, failed: 0 } })
+    for (const p of pairs) {
+      // Náhrada jde do STEJNÉ složky jako rozbitá píseň (po dokončení ji nahradí).
+      const parent = p.rel.split('/').slice(0, -1).join('/')
+      try {
+        const jobId = await window.api.enqueueDownload(p.song, parent || undefined)
+        set((s) => ({
+          enqueuedKeys: { ...s.enqueuedKeys, [p.song.key]: jobId },
+          fixJobs: { ...s.fixJobs, [jobId]: { rel: p.rel, name: p.name, bulk: true } }
+        }))
+      } catch {
+        set((s) => (s.bulkRun ? { bulkRun: { ...s.bulkRun, failed: s.bulkRun.failed + 1 } } : {}))
+      }
+    }
+  },
   dismissFixNotice: () => set({ fixNotice: null, fixDoneRel: null }),
   setShowWhatsNew: (v) => set({ showWhatsNew: v }),
   setShowPlaylistImport: (v) => set({ showPlaylistImport: v }),
@@ -2447,11 +2512,28 @@ export const useStore = create<AppState>((set, get) => {
         const { [job.id]: _done, ...rest } = s.fixJobs
         return { fixJobs: rest }
       })
-      if (job.stage === 'done' && job.installPath) {
+      if (fix.bulk) {
+        // Hromadná oprava: žádná zpráva na každou píseň, jen souhrnné počítadlo.
+        const bump = (ok: boolean): void =>
+          set((s) =>
+            s.bulkRun
+              ? { bulkRun: { ...s.bulkRun, ok: s.bulkRun.ok + (ok ? 1 : 0), failed: s.bulkRun.failed + (ok ? 0 : 1) } }
+              : {}
+          )
+        if (job.stage === 'done' && job.installPath) {
+          void window.api
+            .libReplaceBroken(fix.rel, job.installPath)
+            .then(() => bump(true))
+            .catch(() => bump(false))
+        } else bump(false)
+      } else if (job.stage === 'done' && job.installPath) {
         void window.api
           .libReplaceBroken(fix.rel, job.installPath)
           .then((rel) =>
-            set({ fixNotice: `Fixed “${fix.name}”. The broken folder was moved to the trash.`, fixDoneRel: rel })
+            set({
+              fixNotice: `Fixed “${fix.name}”. The broken folder was ${get().config?.deleteMode === 'permanent' ? 'deleted' : 'moved to the trash'}.`,
+              fixDoneRel: rel
+            })
           )
           .catch((e) =>
             set({ fixNotice: `Downloaded, but the broken folder couldn’t be removed: ${userMsg(e)}`, fixDoneRel: null })

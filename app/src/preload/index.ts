@@ -9,6 +9,7 @@ import type {
   DownloadJob,
   DupGroup,
   FilterOptions,
+  LibEntry,
   LibListing,
   LibSongInfo,
   PlayerTrack,
@@ -100,6 +101,7 @@ const api = {
     ipcRenderer.invoke('lib:rename', relItem, newName) as Promise<void>,
   libTrash: (relItem: string) => ipcRenderer.invoke('lib:trash', relItem) as Promise<void>,
   libUnpackSng: (relItem: string) => ipcRenderer.invoke('lib:unpackSng', relItem) as Promise<string>,
+  libFindBroken: (rel: string) => ipcRenderer.invoke('lib:findBroken', rel) as Promise<LibEntry[]>,
   libReplaceBroken: (brokenRel: string, installAbs: string) =>
     ipcRenderer.invoke('lib:replaceBroken', brokenRel, installAbs) as Promise<string>,
   libMoveOut: (relItems: string[], destAbsDir: string) =>

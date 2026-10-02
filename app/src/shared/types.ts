@@ -232,9 +232,11 @@ export interface CatalogQuery {
   year?: string[]
   decade?: string[]
   songLength?: string[]
+  /** Přesné jméno interpreta (case-insensitive) — klik na interpreta ve výsledcích. */
+  artist?: string
   /** Podřetězec jména chartera (case-insensitive, bez <color=…> tagů). */
   charter?: string
-  /** Podřetězec názvu alba. */
+  /** Přesný název alba (bez ohledu na velikost písmen). */
   album?: string
   /** Vybrané nástroje — každý musí být nacharovaný a v tier rozsahu. */
   instruments?: string[]
@@ -314,6 +316,10 @@ export interface AppConfig {
   reminderPosition: ReminderPosition
   /** Poslední složka, kam se přesouvaly duplicity („Move to folder" místo koše). */
   dupMoveDir: string
+  /** Duplicity, různé verze: upřednostnit verzi s těmito nástroji (guitar/bass/…). */
+  dupPreferInstruments: string[]
+  /** Setlisty: kompaktní seznam bez obalů. */
+  setlistCompact: boolean
   /**
    * Šablona názvu/umístění složky chartu, `/` = podsložky uvnitř Songs.
    * Viz `shared/foldertemplate.ts`. Výchozí `{artist} - {title}` = formát, který
@@ -349,6 +355,8 @@ export interface AppConfig {
   maxConcurrentDownloads: number
   /** Hotová stažení zmizí z fronty samy po pár sekundách (jinak zůstanou do Clear). */
   autoClearFinished: boolean
+  /** Co se stane se smazanými složkami: koš (lze obnovit) / trvalé smazání. */
+  deleteMode: 'trash' | 'permanent'
 }
 
 export type RhythmVerseSystem = 'ch' | 'ps' | 'rb3' | 'all'
@@ -447,6 +455,8 @@ export interface PlaylistSong {
   artist: string
   title: string
   found: boolean
+  /** Složka písně v knihovně (relativně k Songs), jen u nalezených. */
+  rel?: string
 }
 
 /** Výsledek přidání písní do playlistu. */
@@ -535,6 +545,8 @@ export interface RendererApi {
   libTrash(relItem: string): Promise<void>
   /** Rozbalí .sng do složky písně vedle něj; .sng jde do koše. Vrací rel nové složky. */
   libUnpackSng(relItem: string): Promise<string>
+  /** Rozbité písně ve složce a všech podsložkách; `name` = cesta relativně k `rel`. */
+  libFindBroken(rel: string): Promise<LibEntry[]>
   /** „Fix it": rozbitou složku do koše, nově staženou na její místo. */
   libReplaceBroken(brokenRel: string, installAbs: string): Promise<string>
   /** Přesune položky knihovny do složky MIMO knihovnu (karanténa duplicit — funguje i tam, kde koš ne, např. Wine). */

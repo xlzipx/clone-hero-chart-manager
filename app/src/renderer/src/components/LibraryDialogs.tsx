@@ -170,7 +170,7 @@ export function BulkRenameDialog({
     <div className="lib__dialog-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div className="lib__dialog lvdlg">
         <p className="metadlg__head">
-          Rename <span className="metadlg__sub">{items.length} items</span>
+          Rename <span className="metadlg__sub">{items.length} {items.length === 1 ? 'item' : 'items'}</span>
         </p>
 
         <div className="lvseg" role="group" aria-label="Rename mode">
@@ -372,7 +372,7 @@ export function FolderPickerDialog({
     <div className="lib__dialog-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div className="lib__dialog lvdlg lvdlg--sm">
         <p className="metadlg__head">
-          {verb} to… <span className="metadlg__sub">{items.length} items</span>
+          {verb} to… <span className="metadlg__sub">{items.length} {items.length === 1 ? 'item' : 'items'}</span>
         </p>
         <div className="lvpick__crumbs">
           <button type="button" onClick={() => setAt('')}>

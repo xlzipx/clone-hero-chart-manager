@@ -21,6 +21,8 @@ import { TargetFolderModal } from './components/TargetFolderModal'
 import { TitleBar } from './components/TitleBar'
 import { WhatsNew } from './components/WhatsNew'
 import { useStore } from './store'
+import { BulkFixModal } from './components/BulkFixModal'
+import { artistMatches } from '../../shared/songid'
 import {
   INSTRUMENTS,
   detectManualHost,
@@ -57,6 +59,7 @@ export function App(): JSX.Element {
   const diffMax = useStore((s) => s.diffMax)
   const charterFilter = useStore((s) => s.charterFilter)
   const albumFilter = useStore((s) => s.albumFilter)
+  const artistFilter = useStore((s) => s.artistFilter)
   const reductions = useStore((s) => s.reductions)
   const directOnly = useStore((s) => s.directOnly)
   const setDirectOnly = useStore((s) => s.setDirectOnly)
@@ -89,6 +92,8 @@ export function App(): JSX.Element {
     const cf = charterFilter.trim().toLowerCase()
     const dr = dateFilterRange(dateFilter)
     const af = albumFilter.trim().toLowerCase()
+    // Interpret přesně (bez katalogu jde dotaz na živé API textem → dorovnat).
+    const arf = artistFilter.trim().toLowerCase()
     const diffNarrowed = diffMin > 0 || diffMax < 6
     const filtered = source.filter((song) => {
       if (instrumentFilters.length > 0) {
@@ -110,7 +115,8 @@ export function App(): JSX.Element {
       }
       // stripTags: filtr musí matchovat čistý text, ne <color=…> značky.
       if (cf && !stripTags(song.charter ?? '').toLowerCase().includes(cf)) return false
-      if (af && !(song.album ?? '').toLowerCase().includes(af)) return false
+      if (af && (song.album ?? '').trim().toLowerCase() !== af) return false
+      if (arf && !artistMatches(song.artist, artistFilter)) return false
       if (dr) {
         const t = song.updatedMs
         if (!t || (dr.from !== undefined && t < dr.from) || (dr.to !== undefined && t > dr.to)) return false
@@ -150,6 +156,7 @@ export function App(): JSX.Element {
     diffMax,
     charterFilter,
     albumFilter,
+    artistFilter,
     reductions,
     directOnly,
     hideOwned,
@@ -483,6 +490,7 @@ export function App(): JSX.Element {
   const filtersNarrow =
     !!charterFilter.trim() ||
     !!albumFilter.trim() ||
+    !!artistFilter ||
     reductions !== 'any' ||
     directOnly ||
     hideOwned ||
@@ -764,6 +772,7 @@ export function App(): JSX.Element {
       <LocalDropModal />
       <WhatsNew />
       <PlaylistImportModal />
+      <BulkFixModal />
       <AboutModal />
       <PlayerBar />
     </div>

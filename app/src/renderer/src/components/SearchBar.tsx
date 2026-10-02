@@ -47,6 +47,7 @@ export function SearchBar(): JSX.Element {
   // opravdu není co mazat (a shoduje se s tím, co dělá clearFilters).
   const charterFilter = useStore((s) => s.charterFilter)
   const albumFilter = useStore((s) => s.albumFilter)
+  const artistFilter = useStore((s) => s.artistFilter)
   const hideOwned = useStore((s) => s.hideOwned)
   const reductions = useStore((s) => s.reductions)
   const directOnly = useStore((s) => s.directOnly)
@@ -172,6 +173,7 @@ export function SearchBar(): JSX.Element {
     activeFilterCount > 0 ||
     !!charterFilter.trim() ||
     !!albumFilter.trim() ||
+    !!artistFilter.trim() ||
     hideOwned ||
     reductions !== 'any' ||
     directOnly ||

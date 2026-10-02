@@ -20,7 +20,7 @@
 import { app } from 'electron'
 import { createHash } from 'crypto'
 import { existsSync, promises as fsp } from 'fs'
-import { basename, join, relative } from 'path'
+import { basename, join, relative, sep } from 'path'
 import { getConfig } from './config'
 import { readSongMeta } from './songmeta'
 import type {
@@ -412,6 +412,42 @@ async function libraryHashIndex(): Promise<
 }
 
 /** Písně v setlistu, rozřešené proti knihovně (nenalezené = `found:false`). */
+// ── Poslední známé názvy písní ze setlistů ────────────────────────────────
+// Setlist ukládá jen hash chartu. Když píseň z knihovny zmizí (smazání, nová
+// verze chartu), nešlo by poznat, o co šlo — proto si pamatujeme interpreta a
+// název každé písně, kterou jsme v setlistu někdy viděli nalezenou.
+type KnownNames = Record<string, { artist: string; title: string }>
+let knownNames: KnownNames | null = null
+let knownDirty = false
+let knownTimer: ReturnType<typeof setTimeout> | null = null
+function knownPath(): string {
+  return join(app.getPath('userData'), 'setlist-names.json')
+}
+async function loadKnown(): Promise<KnownNames> {
+  if (knownNames) return knownNames
+  try {
+    knownNames = JSON.parse(await fsp.readFile(knownPath(), 'utf-8')) as KnownNames
+  } catch {
+    knownNames = {}
+  }
+  return knownNames
+}
+function rememberName(hash: string, artist: string, title: string): void {
+  if (!knownNames || !title) return
+  const cur = knownNames[hash]
+  if (cur && cur.artist === artist && cur.title === title) return
+  knownNames[hash] = { artist, title }
+  knownDirty = true
+  if (knownTimer) return
+  knownTimer = setTimeout(() => {
+    knownTimer = null
+    if (!knownDirty || !knownNames) return
+    knownDirty = false
+    void writeSetlistAtomic(knownPath(), Buffer.from(JSON.stringify(knownNames))).catch(() => undefined)
+  }, 1500)
+  knownTimer.unref?.()
+}
+
 export async function getPlaylistSongs(name: string): Promise<PlaylistSong[]> {
   const file = join(setlistsDir(), `${sanitizeSetlistName(name)}.setlist`)
   let hashes: string[]
@@ -421,9 +457,17 @@ export async function getPlaylistSongs(name: string): Promise<PlaylistSong[]> {
     return []
   }
   const idx = await libraryHashIndex()
+  const known = await loadKnown()
+  const root = getConfig().songsDir
   return hashes.map((h) => {
     const e = idx.get(h)
-    return { hash: h, artist: e?.artist ?? '', title: e?.title ?? '', found: !!e }
+    if (e) {
+      rememberName(h, e.artist, e.title)
+      return { hash: h, artist: e.artist, title: e.title, found: true, rel: relative(root, e.dir).split(sep).join('/') }
+    }
+    // V knihovně není → aspoň poslední známý název (pokud jsme ho kdy viděli).
+    const k = known[h]
+    return { hash: h, artist: k?.artist ?? '', title: k?.title ?? '', found: false }
   })
 }
 
