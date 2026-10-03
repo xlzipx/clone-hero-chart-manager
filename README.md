@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://chartmanager.pages.dev/" title="Open the Chart Manager landing page">
-    <img alt="Chart Manager — a desktop app for Clone Hero and YARG. Click to visit the landing page." width="880" src="docs/img/landing-page.jpg" />
+    <img alt="Chart Manager, a desktop app for Clone Hero and YARG. Click to visit the landing page." width="880" src="docs/img/landing-page.jpg" />
   </a>
 </p>
 
@@ -12,29 +12,29 @@
 
 A **Windows, macOS and Linux** desktop app for searching, downloading and automatically
 converting Clone Hero charts from the [RhythmVerse](https://rhythmverse.co/songfiles/game)
-and [Chorus Encore](https://www.enchor.us) databases — with drag‑and‑drop
+and [Chorus Encore](https://www.enchor.us) databases, with drag‑and‑drop
 manual installs, an in‑game hotkey reminder pill, and one‑click launch of
 Clone Hero or YARG.
 
 **Import a Spotify playlist.** Paste a public Spotify playlist link and
 CHM finds a chart for every song in it, then downloads them all in a few
-clicks — a whole setlist from a playlist you already love. See
+clicks: a whole setlist from a playlist you already love. See
 [Import a Spotify playlist](#import-a-spotify-playlist) below.
 
 ## Features
 
 ### Import a Spotify playlist
-- **Paste a Spotify link, get the charts** — drop a public Spotify playlist
+- **Paste a Spotify link, get the charts**: drop a public Spotify playlist
   URL into the sidebar and CHM looks up a chart for every song in it, then lets
   you download the matches in bulk. Turn a playlist you already listen to into a
   set of Clone Hero songs in a couple of clicks.
-- **Any length** — it reads the whole playlist, not just the first 100 songs,
+- **Any length**: it reads the whole playlist, not just the first 100 songs,
   through a small Cloudflare Worker that talks to the official Spotify Web API
   (the built‑in reader is used as a fallback and covers up to 100).
-- **Choose the chart** — when a song has more than one chart you can open
+- **Choose the chart**: when a song has more than one chart you can open
   its versions and pick which charter's to grab; the best auto‑downloadable one
   is preselected.
-- **Manual hosts and DLC included** — songs whose charts live on MEGA /
+- **Manual hosts and DLC included**: songs whose charts live on MEGA /
   Mediafire, or that are official Rock Band DLC, are labelled and can be opened
   in your browser straight from the results, so nothing silently goes missing.
 - Reads **public** playlists only; no Spotify login and no account data.
@@ -47,38 +47,38 @@ clicks — a whole setlist from a playlist you already love. See
 </p>
 
 ### Search & discovery
-- **Two databases, one UI** — RhythmVerse + Chorus Encore. Pick one or
+- **Two databases, one UI**: RhythmVerse + Chorus Encore. Pick one or
   search both at once (merged & de‑duplicated by artist + title + charter,
   Encore preferred when duplicates appear because its hosting is direct).
-- **Browse the whole catalog** — leave the search box empty and the app
+- **Browse the whole catalog**: leave the search box empty and the app
   loads the entire library (140k+ files on RhythmVerse, 90k+ on Encore) so you
   can page through everything, not just what a keyword matches.
-- **Instant, offline‑first catalog** — CHM keeps a local index of both
+- **Instant, offline‑first catalog**: CHM keeps a local index of both
   databases (a snapshot ships with the installer, then a quick background check
   at startup and every half hour keeps it current). Browsing, paging, sorting
-  and every filter respond instantly instead of waiting on the sites — and
+  and every filter respond instantly instead of waiting on the sites, and
   filters run across the **entire catalog of both databases**, not just the page
   you're looking at. No setup; it just works from the first launch.
-- **Type‑ahead suggestions** — debounced top‑results dropdown appears as
+- **Type‑ahead suggestions**: debounced top‑results dropdown appears as
   you type, with album thumbnails and prefix highlighting.
-- **Instrument & difficulty** — large round instrument buttons (guitar,
+- **Instrument & difficulty**: large round instrument buttons (guitar,
   bass, drums, keys, vocals) and a difficulty range picker (`MIN`–`MAX` or
   exact dots) to narrow results.
-- **Advanced filters** — an expandable Filters panel: **genre**, **release
+- **Advanced filters**: an expandable Filters panel: **genre**, **release
   year**, **decade**, **song length**, **charter**, **album** and **date added or modified**, plus a "hide
   songs I already have" toggle. Backed by the local catalog, every filter works
-  across the **whole catalog of both databases** at once — including charter and
-  album, which the sites' own APIs can't search — and results come back
+  across the **whole catalog of both databases** at once (including charter and
+  album, which the sites' own APIs can't search), and results come back
   instantly.
 - **Sort** the whole catalog by title, artist, length, **most downloaded** or
   **recently added** (the default), each with an ascending / descending toggle.
   Leave it untouched for the source's own relevance order.
-- **Surprise me** — one button in the sidebar picks **five** random charts out
+- **Surprise me**: one button in the sidebar picks **five** random charts out
   of everything you're currently browsing, respecting your instrument filter;
   click again for five more.
-- **Preview before you download** — hover a song's album art and press play
+- **Preview before you download**: hover a song's album art and press play
   for a 30‑second clip of the real recording, matched by artist + title.
-- **Download counts & "In library" tags** — see how popular a RhythmVerse
+- **Download counts & "In library" tags**: see how popular a RhythmVerse
   chart is, and spot at a glance which songs you already own (click the tag to
   jump to that song in the library manager).
 - **Rotating tips** in the top bar surface the less obvious features; toggle
@@ -92,21 +92,21 @@ clicks — a whole setlist from a playlist you already love. See
 </p>
 
 ### Downloads
-- **Multi‑host downloader** — Google Drive (files & folders, including the
+- **Multi‑host downloader**: Google Drive (files & folders, including the
   virus‑scan confirm bypass), Mediafire (HTML scrape), Dropbox (`dl=1`),
   shorteners (bit.ly, tinyurl, t.co, goo.gl, ow.ly, …) and direct links.
-- **Manual hosts get a different button** — MEGA, Mediafire and unresolved
+- **Manual hosts get a different button**: MEGA, Mediafire and unresolved
   shorteners render as **Get on MEGA** / **Get on Mediafire** / **Download
   manually** instead of a Download button, because they need a real browser
   click (CAPTCHA, encryption, …). Shorteners are resolved in the background
   and re‑label themselves once the final host is known.
-- **Truncated download retry** — if the host closes the connection early
+- **Truncated download retry**: if the host closes the connection early
   (Content‑Length mismatch), the download is retried once before reporting
   the error.
-- **Batch download** — Ctrl/Shift‑click rows (or the select‑all checkbox) to
+- **Batch download**: Ctrl/Shift‑click rows (or the select‑all checkbox) to
   pick several charts at once, then grab them all with **Download selected**.
   The count only ever includes charts that can actually be auto‑downloaded.
-- **All archives unpack natively** — zip / 7z / RAR5 via bundled modern
+- **All archives unpack natively**: zip / 7z / RAR5 via bundled modern
   7‑Zip 24.09. CRC errors and not‑an‑archive cases get friendly, actionable
   error messages.
 
@@ -128,9 +128,9 @@ clicks — a whole setlist from a playlist you already love. See
 
 ### Manual installs (drag & drop)
 - Drop a `.zip`, `.rar`, `.7z`, `.sng` or Rock Band CON file (with **or
-  without** extension — magic‑byte detection) onto the drop zone. Or click
+  without** extension, thanks to magic‑byte detection) onto the drop zone. Or click
   to browse.
-- **Auto‑fill artist + title** — the app strips common tags (`_PS`, `_RB3`,
+- **Auto‑fill artist + title**: the app strips common tags (`_PS`, `_RB3`,
   `_v2`, …), splits CamelCase (`LinkinParkNumb` → `Linkin Park Numb`), reads
   metadata directly from `.sng` headers, and falls back to a quick database
   lookup so you don't have to type anything for most files.
@@ -142,19 +142,19 @@ clicks — a whole setlist from a playlist you already love. See
 </p>
 
 ### Library manager
-- **Built‑in file manager** for your `Songs` folder — multi‑select,
+- **Built‑in file manager** for your `Songs` folder: multi‑select,
   cut/copy/paste/delete (to the Recycle Bin or permanently, set in Settings), rename, create folder,
   right‑click context menu and keyboard shortcuts. Every folder shows **how many
   songs** it holds.
-- **Setlists** — create and edit Clone Hero `.setlist` files right here, so
+- **Setlists**: create and edit Clone Hero `.setlist` files right here, so
   setlists you build show up in the game. Play them, preview songs, and clear
   out entries that are no longer in your library.
-- **Duplicates & broken songs** — spot identical charts (same hash) and other
+- **Duplicates & broken songs**: spot identical charts (same hash) and other
   versions of the same song, compare them side by side with previews, and keep
   the best copy in one click (optionally preferring versions with your
   instruments). Broken song folders are found across all subfolders and can be
   fixed in bulk with a fresh download.
-- **Edit metadata** — adjust a song's `song.ini` (title, artist, charter, …)
+- **Edit metadata**: adjust a song's `song.ini` (title, artist, charter, …)
   in‑app; open any song to see its album art and per‑instrument difficulties.
 
 <p align="center">
@@ -168,25 +168,25 @@ clicks — a whole setlist from a playlist you already love. See
 </table>
 
 ### Clone Hero &amp; YARG integration
-- **Launch / Switch to Clone Hero** button in the sidebar — auto‑detects
+- **Launch / Switch to Clone Hero** button in the sidebar: auto‑detects
   `Clone Hero.exe` from common install paths (Steam, Program Files, parent of
   Songs). Lights up green with a pulsing dot when the game is running, and
   brings it to the foreground if it's already open (via Win32
   `SetForegroundWindow` / `ShowWindowAsync` so it works even from a
   minimized state).
-- **Launch YARG** too — a separate sidebar button that auto‑detects `YARG.exe`
+- **Launch YARG** too: a separate sidebar button that auto‑detects `YARG.exe`
   (override it in Settings if needed). YARG reads charts from the same Clone
   Hero `Songs` folder, so there's no separate library to manage.
-- **Manual `Clone Hero.exe` path field** in Settings — always available as an
+- **Manual `Clone Hero.exe` path field** in Settings: always available as an
   override, in case auto‑detection picks the wrong install or you have several.
-- **Focus restore** — when you hide CHM (hotkey / minimize button), the app
+- **Focus restore**: when you hide CHM (hotkey / minimize button), the app
   brings the running game (Clone Hero or YARG) back to the foreground so you
   don't have to click on its window.
-- **macOS** — both games are supported here too: detection, launch (`open -a`)
+- **macOS**: both games are supported here too: detection, launch (`open -a`)
   and focus‑back (AppleScript `activate`) work for Clone Hero and YARG (YARG has
   an official macOS universal build via the YARC Launcher). Songs auto‑detects
   from `~/Clone Hero/Songs` and other common locations.
-- **Linux** — both games have official native Linux builds and are
+- **Linux**: both games have official native Linux builds and are
   auto‑detected. YARG is found in the usual YARC Launcher install paths
   (`~/YARG`, `~/.local/share/…`). Clone Hero (`CloneHero.x86_64` from
   `Linux.x86_64-Standalone.tar` on clonehero.net, or the
@@ -256,22 +256,22 @@ Clone Hero Song Downloader/
 ## Install
 
 > **Windows** ships as a signed‑by‑you installer / portable `.exe` with full
-> auto‑update. **macOS** ships as an unsigned `.dmg` (see below) — everything in
+> auto‑update. **macOS** ships as an unsigned `.dmg` (see below). Everything in
 > the app works the same, but the first launch needs a right‑click → Open and
-> updates are manual. **Linux** ships as a portable `.AppImage` — download,
+> updates are manual. **Linux** ships as a portable `.AppImage`: download,
 > `chmod +x` and run; updates are manual (grab the new AppImage from Releases).
 
-### Windows — Installer (recommended)
+### Windows installer (recommended)
 
 Download **`CHM-Setup-<version>.exe`** and run it. The installer is around
-180 MB because everything the app needs is bundled inside — the **Onyx**
+180 MB because everything the app needs is bundled inside: the **Onyx**
 converter, **modern 7‑Zip 24.09** (with RAR5 support), **parse‑sng**, and a
 snapshot of the **local catalog** so search and filters work the instant you
-open the app — so there are no extra downloads. The installer creates
+open the app, so there are no extra downloads. The installer creates
 Start‑menu and desktop shortcuts and registers an entry under *Apps & Features*
 named **Clone Hero Chart Manager**.
 
-### Windows — Portable
+### Windows portable
 
 Alternatively, **`CHM-Portable-<version>.exe`** is a single‑file portable
 build that runs without installing. Drop it anywhere (its own folder is
@@ -284,7 +284,7 @@ Intel), open it and drag **Clone Hero Chart Manager** to Applications. Because
 the build is **unsigned**, the first launch needs a **right‑click → Open**
 (a normal double‑click only offers *Cancel*); after that it opens normally.
 
-On Apple Silicon the bundled Onyx converter runs through **Rosetta 2** — install
+On Apple Silicon the bundled Onyx converter runs through **Rosetta 2**; install
 it once with `softwareupdate --install-rosetta --agree-to-license` if you don't
 have it. To build the `.dmg` yourself, see [docs/mac-build.md](docs/mac-build.md).
 
@@ -297,7 +297,7 @@ distribution (Ubuntu, Fedora, Arch, Debian, …); nothing gets installed system�
 
 Everything the app needs is bundled inside: the **Onyx** converter (extracted
 from its Linux AppImage), **7‑Zip 26.02** (static `7zz` binary) and the local
-catalog snapshot. Both YARG and Clone Hero have official native Linux builds —
+catalog snapshot. Both YARG and Clone Hero have official native Linux builds, and
 CHM auto‑detects them in common locations (extract CH's
 `Linux.x86_64-Standalone.tar` from [clonehero.net](https://clonehero.net/) or
 install the [Flathub build](https://flathub.org/apps/net.clonehero.CloneHero);
@@ -313,9 +313,9 @@ the new `.exe` yourself.
 
 On **macOS** auto‑install isn't available (that needs an Apple‑signed build), so
 CHM does the same check and shows a **View release** banner / button that opens
-the new GitHub release — you download the new `.dmg` and replace the app.
+the new GitHub release, where you download the new `.dmg` and replace the app.
 
-On **Linux** it works the same way as macOS — CHM checks for a new release and
+On **Linux** it works the same way as macOS: CHM checks for a new release and
 shows the **View release** banner. Grab the newer `.AppImage`, `chmod +x` and
 replace the old one.
 
@@ -350,7 +350,7 @@ npm run dist            # → app\dist\CHM-Setup-<version>.exe (installer)
 npm run dist:portable   # → app\dist\CHM-Portable-<version>.exe (portable)
 ```
 
-**macOS** (must be built on a Mac — electron‑builder can't make a `.dmg` from
+**macOS** (must be built on a Mac, since electron‑builder can't make a `.dmg` from
 Windows):
 
 ```bash
@@ -359,7 +359,7 @@ npm install
 npm run dist:mac        # → app/dist/CHM-<version>-mac-<arch>.dmg (+ .zip)
 ```
 
-**Linux** (must be built on Linux — AppImage packaging can't be done from
+**Linux** (must be built on Linux, since AppImage packaging can't be done from
 Windows/macOS; CI does it on `ubuntu-latest`):
 
 ```bash
@@ -368,34 +368,34 @@ npm install
 npm run dist:linux      # → app/dist/CHM-<version>-linux-x86_64.AppImage
 ```
 
-All three platforms write into **`app/dist/`** — those are the files published to
+All three platforms write into **`app/dist/`**, and those are the files published to
 [GitHub Releases](https://github.com/xlzipx/clone-hero-chart-manager/releases)
 (the Windows installer also emits `latest.yml` / `.blockmap` for auto‑update).
 
 The `dist` scripts first build the bundled catalog snapshot
-(`app/build/catalog-seed.db.gz`) by crawling both databases once — that step
+(`app/build/catalog-seed.db.gz`) by crawling both databases once. That step
 needs network access and takes a few minutes; the result is cached for a week,
 so back‑to‑back builds skip it. Run it on its own with `npm run seed`.
 
 Requirements to build: Node.js 20+ (tested on 24), plus the bundled tools
 present locally under `native/`:
 
-- **Onyx CLI** — Windows: `native/onyx/onyx-command-line-*/onyx.exe`
+- **Onyx CLI.** Windows: `native/onyx/onyx-command-line-*/onyx.exe`
   (`onyx-command-line-*-windows-x64.zip`); macOS: `native/onyx-mac/`
-  (`onyx-*-macos-x64.zip`); Linux: `native/onyx-linux/` — Onyx has no separate
+  (`onyx-*-macos-x64.zip`); Linux: `native/onyx-linux/`; Onyx has no separate
   Linux CLI zip, so extract its AppImage instead
   (`./onyx-*-linux-x64.AppImage --appimage-extract` and move `squashfs-root/*`
   into `native/onyx-linux/`; the ELF binary at `usr/bin/onyx` accepts the same
   `import` / `build` commands). Grab all of them from the
   [Onyx releases](https://github.com/mtolly/onyx/releases).
-- **7‑Zip** (LGPL — needed for RAR5) — Windows: `7z.exe` / `7z.dll` in
+- **7‑Zip** (LGPL, needed for RAR5). Windows: `7z.exe` / `7z.dll` in
   `native/7zip/` from https://www.7-zip.org; macOS: the `7zz` binary in
   `native/7zip-mac/`; Linux: the `7zz` binary in `native/7zip-linux/`
   (`7z*-linux-x64.tar.xz` from https://github.com/ip7z/7zip/releases).
 
 The full macOS build walkthrough is in [docs/mac-build.md](docs/mac-build.md).
 The Linux AppImage build is automated in `.github/workflows/build-linux.yml`
-and needs no local setup — push a `v*` tag or run the workflow manually.
+and needs no local setup: push a `v*` tag or run the workflow manually.
 
 `scripts\make-release.ps1` packages the portable .exe with Onyx + 7‑Zip
 sidecars and a README into a Release folder + ZIP if you want a "drop
@@ -406,12 +406,12 @@ anywhere" bundle for sharing.
 - Pick a **database** (RhythmVerse / Chorus Encore / Both) and a **system
   tab** (Clone Hero / Phase Shift / Rock Band / All; hidden for Encore which
   is CH‑only).
-- Type a song or artist. Type‑ahead suggestions appear after a short pause —
+- Type a song or artist. Type‑ahead suggestions appear after a short pause;
   click one to jump straight to that song, or hit **Search** for the full
   results page.
 - Leave the search box empty to **browse the whole catalog**, or use the
   **instrument circles**, **difficulty range** and the **Filters** panel
-  (genre, release year, decade, song length, charter, album) to narrow results —
+  (genre, release year, decade, song length, charter, album) to narrow results;
   every filter covers the whole catalog of both databases, instantly.
 - In the left sidebar, hit **Surprise me** for five random picks, or **Import
   playlist** to pull in a whole Spotify playlist at once.
@@ -421,15 +421,15 @@ anywhere" bundle for sharing.
   **Download manually**; click that, save the file in your browser, and drop
   it on the drop zone.
 - The **Download queue** sits at the bottom of the window during downloads.
-  **Cancel** any item mid‑flight (or **Stop all**) — it aborts the download or
+  **Cancel** any item mid‑flight (or **Stop all**); it aborts the download or
   conversion right away and cleans up the half‑finished files. Finished items
   auto‑dismiss after 5 seconds; failures stick around with a friendly
   explanation. The whole panel collapses to nothing when idle.
 
 ### Title bar
-- **Left** — the **Chart Manager.** wordmark; click it for the About window.
-- **Centre** — rotating tips (toggle with the lightbulb).
-- **Right** — **My Library** (the `Songs` file manager), **Settings**, **Hide
+- **Left**: the **Chart Manager.** wordmark; click it for the About window.
+- **Centre**: rotating tips (toggle with the lightbulb).
+- **Right**: **My Library** (the `Songs` file manager), **Settings**, **Hide
   to tray** and **Quit**.
 
 **Settings** is a full screen with sections: Songs folder and the Clone Hero /
@@ -447,8 +447,8 @@ left sidebar, not the title bar.
   <img alt="Settings: every section, from library paths to maintenance" width="820" src="https://chartmanager.pages.dev/assets/readme-settings-v2.gif" />
 </p>
 
-> **Scanning into the game:** Clone Hero has no external rescan command —
-> after a download finishes, switch to the game (the sidebar button does
+> **Scanning into the game:** Clone Hero has no external rescan command.
+> After a download finishes, switch to the game (the sidebar button does
 > this and then sits idle), open **Settings → General → Scan Songs**, and
 > your new songs appear.
 >
@@ -464,15 +464,15 @@ organise charts, Chart Studio is how you make them. Free and open source.
 
 <p align="center">
   <a href="https://github.com/xlzipx/clone-hero-chart-studio" title="Open Clone Hero Chart Studio on GitHub">
-    <img alt="Chart Studio — the drum editor, 3D highway and synced lyrics side by side" width="880" src="docs/img/chart-studio.png" />
+    <img alt="Chart Studio: the drum editor, 3D highway and synced lyrics side by side" width="880" src="docs/img/chart-studio.png" />
   </a>
 </p>
 
 ## License
 
-The app's own code (`app/`) is licensed under the **MIT** license — see
+The app's own code (`app/`) is licensed under the **MIT** license, see
 [LICENSE](LICENSE).
 
 The app bundles and invokes separate programs with their own licenses
-(**Onyx** — GPLv3, **7‑Zip** — LGPL, **parse‑sng** — MIT). See
+(**Onyx**: GPLv3, **7‑Zip**: LGPL, **parse‑sng**: MIT). See
 [THIRD‑PARTY.txt](THIRD-PARTY.txt) for the full list.
