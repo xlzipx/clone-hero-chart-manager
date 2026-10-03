@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import type { DupExtras, DupGroup, DupSong, LibEntry, LibProblem, LibSongInfo } from '../../../shared/types'
-import { errMsg } from '../../../shared/errors'
+import { userMsg } from '../../../shared/errors'
 import { songFromFolderName } from '../chartmatch'
 import { useStore } from '../store'
 import { INSTRUMENTS, deleteWords, formatLength, stripTags } from '../utils'
@@ -283,7 +283,7 @@ export function DuplicatesView({
       setBroken(b)
       lastScan = { scope: sc, groups: g, broken: b }
     } catch (e) {
-      setError(errMsg(e))
+      setError(userMsg(e))
     } finally {
       setScanning(false)
     }
@@ -305,6 +305,11 @@ export function DuplicatesView({
   }
   const shownGroups = (groups ?? []).filter((g) => kind === 'all' || g.reason === kind)
   const allRels = useMemo(() => (groups ?? []).flatMap((g) => g.songs.map((s) => s.rel)), [groups])
+  // Akce se týkají jen skupin, které filtr právě ukazuje — nic skrytého se nesmaže.
+  const shownRels = useMemo(
+    () => new Set((groups ?? []).filter((g) => kind === 'all' || g.reason === kind).flatMap((g) => g.songs.map((s) => s.rel))),
+    [groups, kind]
+  )
   const { thumbs, infos } = useSongExtras(allRels)
   const scoreCtx: ScoreCtx = { broken: brokenMap, infos, prefer }
   const identicalCount = (groups ?? []).filter((g) => g.reason === 'identical').length
@@ -320,10 +325,10 @@ export function DuplicatesView({
     []
   )
 
-  // Hromadný výběr: ve každé skupině vše kromě nejlepší kopie.
+  // Hromadný výběr: v každé zobrazené skupině vše kromě nejlepší kopie.
   const autoSelect = (): void => {
     const next = new Set<string>()
-    for (const g of groups ?? []) {
+    for (const g of shownGroups) {
       const keep = bestOf(g, scoreCtx)
       for (const s of g.songs) if (s.rel !== keep.rel) next.add(s.rel)
     }
@@ -332,9 +337,9 @@ export function DuplicatesView({
 
   const brokenRel = (e: LibEntry): string => e.name
   const brokenRels = (broken ?? []).map(brokenRel)
-  const selectedHere = tab === 'dups' ? [...checked].filter((r) => allRels.includes(r)) : [...checked].filter((r) => brokenRels.includes(r))
+  const selectedHere = tab === 'dups' ? [...checked].filter((r) => shownRels.has(r)) : [...checked].filter((r) => brokenRels.includes(r))
   // Skupina, ze které je vybrané úplně všechno — chceme varovat.
-  const wipedGroups = (groups ?? []).filter((g) => g.songs.every((s) => checked.has(s.rel))).length
+  const wipedGroups = shownGroups.filter((g) => g.songs.every((s) => checked.has(s.rel))).length
 
   const afterChange = async (rels: string[], msg: string, failed: string | null): Promise<void> => {
     forgetSongExtras(rels)
@@ -354,7 +359,7 @@ export function DuplicatesView({
       try {
         await window.api.libTrash(rel)
       } catch (e) {
-        failed = errMsg(e)
+        failed = userMsg(e)
       }
     }
     const what = `${rels.length} ${rels.length === 1 ? 'folder' : 'folders'}`
@@ -374,7 +379,7 @@ export function DuplicatesView({
       await window.api.libMoveOut(rels, dir)
       void useStore.getState().saveConfig({ dupMoveDir: dir })
     } catch (e) {
-      failed = errMsg(e)
+      failed = userMsg(e)
     }
     await afterChange(rels, `Moved ${rels.length} ${rels.length === 1 ? 'folder' : 'folders'} to ${dir}`, failed)
     setBusy(false)
@@ -528,8 +533,9 @@ export function DuplicatesView({
           </div>
 
           <div className="ltool__body">
-            {tab === 'dups' ? (
-              <>
+            {/* Seznam duplicit zůstává vykreslený i na záložce Broken songs (jen skrytý),
+                jinak by se při návratu stovky skupin sestavovaly znovu a přepnutí by vázlo. */}
+            <div className="dpv__pane" hidden={tab !== 'dups'}>
                 {groups && groups.length > 0 ? (
                   <div className="dpv__summary">
                     <div className="dpv__stat">
@@ -549,7 +555,13 @@ export function DuplicatesView({
                       <div className="dpv__quickbtns">
                         <button
                           className="btn-secondary"
-                          title="In every group, select all copies except the best one"
+                          title={
+                            kind === 'identical'
+                              ? 'In every identical group, select all copies except the best one'
+                              : kind === 'same-song'
+                                ? 'In every different-versions group, select all copies except the best one'
+                                : 'In every group, select all copies except the best one'
+                          }
                           onClick={autoSelect}
                         >
                           All extra copies
@@ -627,8 +639,8 @@ export function DuplicatesView({
                     />
                   ))
                 )}
-              </>
-            ) : (
+            </div>
+            {tab === 'broken' ? (
               <>
                 {broken && broken.length > 0 ? (
                   <div className="dpv__brokenhead">
@@ -716,7 +728,7 @@ export function DuplicatesView({
                   </div>
                 )}
               </>
-            )}
+            ) : null}
             {error ? <div className="lib__error">⚠ {error}</div> : null}
           </div>
 

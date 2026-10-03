@@ -453,6 +453,9 @@ export function libCopy(srcRelItem: string, destRelDir: string): void {
   const src = safeAbs(srcRelItem)
   const destDir = safeAbs(destRelDir)
   const dest = uniqueDest(destDir, basename(src))
+  if (resolve(dest).startsWith(resolve(src) + sep)) {
+    throw new Error('Cannot copy a folder into itself')
+  }
   cpSync(src, dest, { recursive: true })
   invalidateLibraryIndex()
   invalidateOwnedIndex()

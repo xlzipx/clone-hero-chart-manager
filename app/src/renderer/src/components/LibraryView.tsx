@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { InstrumentDifficulties, LibEntry, LibProblem, LibSongInfo, SongDetail } from '../../../shared/types'
-import { errMsg } from '../../../shared/errors'
+import type { InstrumentDifficulties, LibEntry, LibListing, LibProblem, LibSongInfo, SongDetail } from '../../../shared/types'
+import { userMsg } from '../../../shared/errors'
 import { IS_MAC } from '../platform'
 import { useStore } from '../store'
 import { formatLength, INSTRUMENTS, stripTags } from '../utils'
@@ -75,13 +75,14 @@ const NO_FILTERS: Filters = { inst: [], min: 0, max: 6, charter: '', broken: fal
 
 type Dialog =
   | { type: 'new' }
-  | { type: 'rename'; name: string }
-  | { type: 'delete'; names: string[] }
+  | { type: 'rename'; name: string; base?: string }
+  | { type: 'delete'; names: string[]; base?: string }
   | { type: 'bulkRename'; names: string[] }
-  | { type: 'pick'; mode: 'move' | 'copy'; names: string[] }
+  | { type: 'pick'; mode: 'move' | 'copy'; names: string[]; base?: string }
   | null
 type Clip = { op: 'cut' | 'copy'; items: string[]; names: string[] } | null
-type Ctx = { x: number; y: number } | null
+/** `side` = menu pro složku z levého panelu (název v kořeni Songs). */
+type Ctx = { x: number; y: number; side?: string } | null
 
 // Mezi přepnutími Search ↔ Library si pamatujeme otevřenou složku a náhledy.
 /** Sdílený porovnávač názvů (přirozené řazení čísel, bez ohledu na velikost). */
@@ -100,6 +101,8 @@ let lastQ = ''
 let lastFilters: Filters = NO_FILTERS
 let lastFiltersOpen = false
 const thumbCache = new Map<string, string | null>()
+/** Obaly do koláže složky v pravém panelu (rel složky → až 4 různé obaly). */
+const folderCoverCache = new Map<string, string[]>()
 // Poslední stav otevřené složky (seznam, metadata, počty, strom, scroll). Po návratu
 // do Library se hned vykreslí a jen se na pozadí obnoví — bez probliknutí holých
 // názvů složek, než se znovu načtou song.ini.
@@ -330,6 +333,7 @@ export function LibraryView(): JSX.Element {
   }
 
   const loadTree = (): void => {
+    folderCoverCache.clear()
     void window.api
       .libList('')
       .then((r) => setRootDirs(r.entries.filter((e) => e.type === 'dir' && !e.isSong)))
@@ -393,7 +397,7 @@ export function LibraryView(): JSX.Element {
       void scanBroken(res.path, my)
     } catch (e) {
       if (my !== loadSeq.current) return
-      setError(errMsg(e))
+      setError(userMsg(e))
     } finally {
       if (my === loadSeq.current) setLoading(false)
     }
@@ -444,16 +448,28 @@ export function LibraryView(): JSX.Element {
   }, [libraryReveal])
 
   const run = async (fn: () => Promise<void>, okMsg?: string): Promise<void> => {
+    let failed: string | null = null
     try {
       setError(null)
       await fn()
       if (okMsg) showToast(okMsg)
     } catch (e) {
-      setError(errMsg(e))
+      failed = userMsg(e)
     }
-    await load(cwd, true)
+    await load(reloadPath(), true)
+    // Až po načtení: load() chybu na začátku maže, jinak by hláška hned zmizela.
+    if (failed) setError(failed)
     loadTree()
   }
+  /** Složka z levého panelu, kterou poslední akce přejmenovala / smazala / přesunula. */
+  const sideAffect = useRef<string | null>(null)
+  const reloadPath = (): string => {
+    const a = sideAffect.current
+    sideAffect.current = null
+    return a && (cwd === a || cwd.startsWith(`${a}/`)) ? '' : cwd
+  }
+  const relIn = (base: string | undefined, name: string): string =>
+    base === undefined ? relOf(name) : base ? `${base}/${name}` : name
 
   // Rozbalení .sng souborů (z výběru nebo zaostřené položky) do složek písní.
   const unpackSng = (): void => {
@@ -770,13 +786,19 @@ export function LibraryView(): JSX.Element {
     const q = fixQuery(it.label)
     startFix(it.rel, it.label, q.artist, q.title)
   }
-  const h = useRef({ rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem })
-  h.current = { rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem }
+  // Zaškrtnuté písně zůstávají (preview nesmí zrušit rozpracovaný výběr).
+  const selectOnly = (name: string): void => {
+    setFocus(name)
+    setAnchor(name)
+  }
+  const h = useRef({ rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem, selectOnly })
+  h.current = { rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem, selectOnly }
   const handlers = useMemo<RowHandlers>(
     () => ({
       click: (n, e) => h.current.rowClick(n, e),
       open: (it) => h.current.rowOpen(it),
       ctx: (n, e) => h.current.rowCtx(n, e),
+      select: (n) => h.current.selectOnly(n),
       check: (n) => h.current.toggleCheck(n),
       observe: (el) => h.current.observe(el),
       fix: (it) => h.current.fixItem(it)
@@ -824,11 +846,13 @@ export function LibraryView(): JSX.Element {
     const d = dialog
     if (!d) return
     setDialog(null)
+    if (d.type === 'rename' && d.base !== undefined) sideAffect.current = relIn(d.base, d.name)
+    if (d.type === 'delete' && d.base !== undefined) sideAffect.current = relIn(d.base, d.names[0])
     if (d.type === 'new') await run(() => window.api.libCreateFolder(cwd, dialogValue.trim()))
-    else if (d.type === 'rename') await run(() => window.api.libRename(relOf(d.name), dialogValue.trim()))
+    else if (d.type === 'rename') await run(() => window.api.libRename(relIn(d.base, d.name), dialogValue.trim()))
     else if (d.type === 'delete')
       await run(async () => {
-        for (const n of d.names) await window.api.libTrash(relOf(n))
+        for (const n of d.names) await window.api.libTrash(relIn(d.base, n))
         setChecked(new Set())
         setFocus(null)
       }, config?.deleteMode === 'permanent'
@@ -842,7 +866,7 @@ export function LibraryView(): JSX.Element {
       setChecked(new Set())
       showToast(msg)
     }
-    void load(cwd, !msg)
+    void load(reloadPath(), !msg)
     loadTree()
   }
 
@@ -866,6 +890,23 @@ export function LibraryView(): JSX.Element {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || anyDialog) return
       const ctrl = e.ctrlKey || e.metaKey
+      // Otevřené menu složky z levého panelu: zkratky míří na tu složku, ne na
+      // vybranou položku v seznamu.
+      if (ctx?.side !== undefined) {
+        const n = ctx.side
+        if (e.key === 'Delete' || (IS_MAC && ctrl && e.key === 'Backspace')) {
+          e.preventDefault()
+          setDialog({ type: 'delete', names: [n], base: '' })
+        } else if (e.key === 'F2') {
+          e.preventDefault()
+          setDialog({ type: 'rename', name: n, base: '' })
+          setDialogValue(n)
+        } else if (ctrl && e.key.toLowerCase() === 'c') setClip({ op: 'copy', items: [n], names: [n] })
+        else if (ctrl && e.key.toLowerCase() === 'x') setClip({ op: 'cut', items: [n], names: [n] })
+        else return
+        setCtx(null)
+        return
+      }
       const isDelete = e.key === 'Delete' || (IS_MAC && ctrl && e.key === 'Backspace')
       if (isDelete) {
         e.preventDefault()
@@ -956,10 +997,16 @@ export function LibraryView(): JSX.Element {
             <button
               key={d.name}
               type="button"
-              className={`lv__titem ${!tool && topFolder === d.name ? 'lv__titem--on' : ''}`}
+              className={`lv__titem ${!tool && topFolder === d.name ? 'lv__titem--on' : ''} ${ctx?.side === d.name ? 'lv__titem--ctx' : ''}`}
               onClick={() => {
                 setTool(null)
                 void load(d.name)
+              }}
+              onContextMenu={(e) => {
+                // Stejné akce jako u složky v seznamu, ale bez opuštění otevřené složky.
+                e.preventDefault()
+                e.stopPropagation()
+                setCtx({ x: e.clientX, y: e.clientY, side: d.name })
               }}
               title={d.name}
             >
@@ -1505,6 +1552,42 @@ export function LibraryView(): JSX.Element {
             }}
           />
           <div ref={ctxRef} className="ctxmenu" style={{ left: ctx.x, top: ctx.y }} onMouseDown={(e) => e.stopPropagation()}>
+            {ctx.side !== undefined ? (
+              (() => {
+                const n = ctx.side
+                const act = (fn: () => void) => () => {
+                  fn()
+                  setCtx(null)
+                }
+                return (
+                  <>
+                    <button className="ctxmenu__item" onClick={act(() => { setTool(null); void load(n) })}>
+                      <Icon name="folder" size={14} /> Open
+                    </button>
+                    <button className="ctxmenu__item" onClick={act(() => void playFolder(n, n))}>
+                      <Icon name="play" size={14} /> Listen in music player
+                    </button>
+                    <button className="ctxmenu__item" onClick={act(() => { setDialog({ type: 'rename', name: n, base: '' }); setDialogValue(n) })}>
+                      <Icon name="charter" size={14} /> Rename
+                    </button>
+                    <div className="ctxmenu__sep" />
+                    <button className="ctxmenu__item" onClick={act(() => setClip({ op: 'copy', items: [n], names: [n] }))}>
+                      <Icon name="copy" size={14} /> Copy
+                    </button>
+                    <button className="ctxmenu__item" onClick={act(() => setClip({ op: 'cut', items: [n], names: [n] }))}>
+                      <Icon name="scissors" size={14} /> Cut
+                    </button>
+                    <button className="ctxmenu__item" onClick={act(() => setDialog({ type: 'pick', mode: 'move', names: [n], base: '' }))}>
+                      <Icon name="arrowRight" size={14} /> Move to…
+                    </button>
+                    <button className="ctxmenu__item ctxmenu__item--danger" onClick={act(() => setDialog({ type: 'delete', names: [n], base: '' }))}>
+                      <Icon name="trash" size={14} /> Delete
+                    </button>
+                  </>
+                )
+              })()
+            ) : (
+            <>
             {single && (single.kind === 'folder' || single.kind === 'broken') ? (
               <button className="ctxmenu__item" onClick={() => { void load(single.rel); setCtx(null) }}>
                 <Icon name="folder" size={14} /> Open
@@ -1556,6 +1639,8 @@ export function LibraryView(): JSX.Element {
                 <Icon name="paste" size={14} /> Paste ({clip.items.length})
               </button>
             ) : null}
+            </>
+            )}
           </div>
         </>
       ) : null}
@@ -1617,11 +1702,18 @@ export function LibraryView(): JSX.Element {
       ) : null}
       {dialog?.type === 'pick' ? (
         <FolderPickerDialog
-          items={bulkItems(dialog.names)}
+          items={
+            dialog.base !== undefined
+              ? dialog.names.map((n) => ({ name: n, rel: relIn(dialog.base, n), isSong: false, isSng: false, info: undefined }))
+              : bulkItems(dialog.names)
+          }
           mode={dialog.mode}
           startAt={cwd}
           onClose={() => setDialog(null)}
-          onDone={bulkDone}
+          onDone={(m) => {
+            if (m && dialog.base !== undefined && dialog.mode === 'move') sideAffect.current = relIn(dialog.base, dialog.names[0])
+            bulkDone(m)
+          }}
         />
       ) : null}
       {metaFor ? (
@@ -1686,6 +1778,7 @@ interface RowHandlers {
   click: (name: string, e: React.MouseEvent) => void
   open: (it: Item) => void
   ctx: (name: string, e: React.MouseEvent) => void
+  select: (name: string) => void
   check: (name: string) => void
   observe: (el: HTMLElement | null) => void
   fix: (it: Item) => void
@@ -1725,7 +1818,12 @@ const LibRow = memo(function LibRow({
   )
   const common = {
     onClick: (e: React.MouseEvent) => h.click(it.name, e),
-    onDoubleClick: () => h.open(it),
+    // Rychlé klikání na tlačítka v kartě (tři tečky, přehrát, zaškrtnout) se
+    // nesmí slít do dvojkliku na kartu, ten by spustil přehrávač.
+    onDoubleClick: (e: React.MouseEvent) => {
+      if ((e.target as HTMLElement).closest('button, label, input, a')) return
+      h.open(it)
+    },
     onContextMenu: (e: React.MouseEvent) => h.ctx(it.name, e),
     onMouseDown: (e: React.MouseEvent) => e.shiftKey && e.preventDefault()
   }
@@ -1832,7 +1930,13 @@ const LibRow = memo(function LibRow({
   return (
     <div className={`song lvcard ${cls}`} data-thumb={it.isSng ? undefined : it.rel} ref={h.observe} {...common}>
       {check}
-      <div className="song__art">
+      <div
+        className="song__art"
+        onClickCapture={(e) => {
+          // Spuštění preview z obalu = zároveň výběr písně (ukáže se v pravém panelu).
+          if ((e.target as HTMLElement).closest('.song__preview')) h.select(it.name)
+        }}
+      >
         {thumb ? (
           <img src={thumb} alt="" draggable={false} />
         ) : (
@@ -1933,9 +2037,13 @@ function DetailPanel({
   if (it.kind !== 'song') {
     return (
       <div className="lv__dsong">
-        <div className="lv__dart lv__dart--none">
-          <Icon name={it.kind === 'folder' ? 'folder' : 'file'} size={48} />
-        </div>
+        {it.kind === 'folder' ? (
+          <FolderCover rel={it.rel} />
+        ) : (
+          <div className="lv__dart lv__dart--none">
+            <Icon name="file" size={48} />
+          </div>
+        )}
         <div className="lv__dtitle">{it.name}</div>
         <div className="lv__dsub">
           {it.kind === 'folder' ? (count === undefined ? 'Folder' : `${count} ${count === 1 ? 'song' : 'songs'}`) : 'File'}
@@ -1976,6 +2084,68 @@ function DetailPanel({
         <dt>Folder</dt>
         <dd className="lv__dpath">{it.rel}</dd>
       </dl>
+    </div>
+  )
+}
+
+/**
+ * Koláž obalů písní ve složce (jako u setlistu). Bere písně přímo ve složce,
+ * a když tam žádné nejsou, i z několika podsložek. Stejné obaly (písně z jednoho
+ * alba) se v koláži neopakují. Čtyři a víc obalů = mřížka 2×2, jinak jeden.
+ */
+function FolderCover({ rel }: { rel: string }): JSX.Element {
+  const [arts, setArts] = useState<string[] | null>(() => folderCoverCache.get(rel) ?? null)
+  useEffect(() => {
+    const hit = folderCoverCache.get(rel)
+    setArts(hit ?? null)
+    if (hit) return
+    let alive = true
+    const songsOf = (l: LibListing): string[] =>
+      l.entries.filter((e) => e.type === 'dir' && e.isSong).map((e) => `${l.path}/${e.name}`)
+    void (async () => {
+      try {
+        const top = await window.api.libList(rel)
+        const rels = songsOf(top)
+        if (!rels.length) {
+          for (const d of top.entries.filter((e) => e.type === 'dir' && !e.isSong).slice(0, 8)) {
+            rels.push(...songsOf(await window.api.libList(`${top.path}/${d.name}`)))
+            if (rels.length >= 24 || !alive) break
+          }
+        }
+        const pick = rels.slice(0, 24)
+        // Do sdílené thumbCache se NEzapisuje: karty podle ní poznají, že obal už
+        // mají ve stavu, a znovu si ho nevyžádají (zůstaly by bez obalu).
+        const got = new Map<string, string | null>()
+        for (const r of pick) if (thumbCache.has(r)) got.set(r, thumbCache.get(r) ?? null)
+        const missing = pick.filter((r) => !got.has(r))
+        if (missing.length) {
+          const t = await window.api.libAlbumThumbs(missing)
+          for (const [r, v] of Object.entries(t)) got.set(r, v)
+        }
+        const uniq = [...new Set(pick.map((r) => got.get(r)).filter((t): t is string => !!t))].slice(0, 4)
+        folderCoverCache.set(rel, uniq)
+        if (alive) setArts(uniq)
+      } catch {
+        if (alive) setArts([])
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [rel])
+  const shown = arts && arts.length >= 4 ? arts : arts?.slice(0, 1) ?? []
+  if (!shown.length) {
+    return (
+      <div className="lv__dart lv__dart--none">
+        <Icon name="folder" size={48} />
+      </div>
+    )
+  }
+  return (
+    <div className={`lv__dart lv__fcover ${shown.length >= 4 ? 'lv__fcover--grid' : ''}`} aria-hidden="true">
+      {shown.map((t, i) => (
+        <img key={i} src={t} alt="" />
+      ))}
     </div>
   )
 }

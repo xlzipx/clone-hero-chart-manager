@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { LibEntry, LibSongInfo } from '../../../shared/types'
-import { errMsg } from '../../../shared/errors'
+import { userMsg } from '../../../shared/errors'
 import { cleanSegment, renderFolderTemplate } from '../../../shared/foldertemplate'
 import { stripTags } from '../utils'
 import { Icon } from './Icon'
@@ -138,7 +138,7 @@ export function BulkRenameDialog({
         await window.api.libRename(relOf(r.item.name), tmp)
         temps.set(r, tmp)
       } catch (e) {
-        failed.push(`${r.item.name}: ${errMsg(e)}`)
+        failed.push(`${r.item.name}: ${userMsg(e)}`)
       }
     }
     for (const r of direct) {
@@ -146,7 +146,7 @@ export function BulkRenameDialog({
         await window.api.libRename(relOf(r.item.name), r.next)
         done++
       } catch (e) {
-        failed.push(`${r.item.name}: ${errMsg(e)}`)
+        failed.push(`${r.item.name}: ${userMsg(e)}`)
       }
     }
     for (const [r, tmp] of temps) {
@@ -154,7 +154,7 @@ export function BulkRenameDialog({
         await window.api.libRename(relOf(tmp), r.next)
         done++
       } catch (e) {
-        failed.push(`${r.item.name}: ${errMsg(e)}`)
+        failed.push(`${r.item.name}: ${userMsg(e)}`)
       }
     }
     setBusy(false)
@@ -324,7 +324,7 @@ export function FolderPickerDialog({
       setAt(at ? `${at}/${name}` : name)
       setReload((x) => x + 1)
     } catch (e) {
-      setError(errMsg(e))
+      setError(userMsg(e))
     }
   }
 
@@ -355,7 +355,7 @@ export function FolderPickerDialog({
         if (mode === 'move') await window.api.libMove(it.rel, at)
         else await window.api.libCopy(it.rel, at)
       } catch (e) {
-        failed.push(`${it.name}: ${errMsg(e)}`)
+        failed.push(`${it.name}: ${userMsg(e)}`)
       }
     }
     setBusy(false)

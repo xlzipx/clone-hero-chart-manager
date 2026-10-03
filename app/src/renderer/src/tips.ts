@@ -4,14 +4,17 @@
  * drop zóna). Text krátký, jedna věta, bez emoji (produktový tón).
  */
 export const TIPS: string[] = [
+  'Click an artist or album name in the results to see all of its charts.',
+  'Duplicates in My Library keeps the best copy of every song in one click.',
+  'Broken songs in My Library can be fixed all at once with a fresh download.',
   'Hover a song’s album art and press play to preview it before you download.',
   'Leave the search box empty to browse the entire catalogue, no keyword needed.',
   'Surprise me in the sidebar picks a handful of random charts from whatever you’re currently browsing.',
   'Import playlist in the sidebar takes a public Spotify link and finds charts for the whole playlist at once.',
   'Set the database to Both to search RhythmVerse and Chorus Encore at the same time.',
   'Chorus Encore charts download directly as .sng files, no Google Drive or MEGA step.',
-  'Open Filters to narrow by genre, year, decade, length, charter, album or difficulty.',
-  'Charter and album filters search the full catalog of both databases.',
+  'Open Filters to narrow by genre, year, decade, length, charter, artist or difficulty.',
+  'Charter and artist filters search the full catalog of both databases.',
   'In Sort by, pick Added for the newest charts or Downloads for the most popular.',
   'Rock Band CON charts are converted to Clone Hero automatically when you download them.',
   'A chart tagged Official DLC is a paid Rock Band song, so it opens the store instead of downloading.',
