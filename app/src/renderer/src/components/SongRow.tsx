@@ -40,7 +40,8 @@ interface Props {
   // NESMÍ to být closury nad indexem: memo komparátor callbacky neporovnává,
   // takže po přeřazení výsledků (sort/filtr) by řádek držel starý index a klik
   // by označil/stáhl jinou píseň.
-  onToggleCheck?: (key: string) => void
+  /** `range` = Shift+klik: zaškrtnout vše od posledního zaškrtnutého řádku. */
+  onToggleCheck?: (key: string, range?: boolean) => void
   /** Klik do řádku — modifikátory řídí výběr: ctrl/meta = přepnout jednu,
    *  shift = rozsah od kotvy, jinak = vybrat jen tuto. */
   onSelect: (key: string, ctrl: boolean, shift: boolean) => void
@@ -194,7 +195,16 @@ function SongRowBase({
     >
       <div className="song__check">
         {checkable ? (
-          <label className="chk" onClick={(e) => e.stopPropagation()}>
+          <label
+            className="chk"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (e.shiftKey) {
+                e.preventDefault()
+                onToggleCheck?.(song.key, true)
+              }
+            }}
+          >
             <input
               type="checkbox"
               checked={checked}

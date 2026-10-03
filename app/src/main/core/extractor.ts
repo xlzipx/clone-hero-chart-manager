@@ -94,12 +94,12 @@ export async function extract(archivePath: string, destDir: string): Promise<str
 
   if (perFileCrc || headersOrPw) {
     throw new Error(
-      'Archive is corrupted (CRC errors during extraction). The original upload on the host is damaged. Try a different version of this song from the search results, or open the chart page in browser (⋮ menu) and download manually.'
+      'Archive is corrupted (CRC errors during extraction). The original upload on the host is damaged. Try a different version of this song from the search results, or open the page in your browser and download it manually.'
     )
   }
   if (cantOpen) {
     throw new Error(
-      'Downloaded file is not a valid archive. The link may have returned an HTML error page or a partial download. Try again, or use the ⋮ menu to open in browser.'
+      'Downloaded file is not a valid archive. The link may have returned an HTML error page or a partial download. Try again, or open the page in your browser.'
     )
   }
   // Generic fallback — zkrácený výstup, žádný flood cestami.

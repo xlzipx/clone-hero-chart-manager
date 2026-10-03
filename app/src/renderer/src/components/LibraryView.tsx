@@ -14,6 +14,7 @@ import { PlaylistDialog } from './PlaylistDialog'
 import { SetlistsView } from './SetlistsView'
 import { SongMetaDialog } from './SongMetaDialog'
 import { BulkRenameDialog, FolderPickerDialog, type BulkItem } from './LibraryDialogs'
+import { isTypingTarget } from '../rangeToggle'
 
 /** broken = složka s audiem, ale bez souboru s notami (Clone Hero ji nenačte). */
 type Kind = 'folder' | 'song' | 'broken' | 'file'
@@ -217,10 +218,20 @@ export function LibraryView(): JSX.Element {
   useEffect(() => {
     const el = listRef.current
     if (!el) return
-    const ro = new ResizeObserver(() => setVHeight(el.clientHeight))
+    // Výška se mění i během animací (vysouvání filtrů) — překreslovat celou
+    // knihovnu v každém snímku by animaci sekalo. Stačí hodnota po doběhnutí;
+    // rezerva karet (VIRT_OVERSCAN) mezitím pokryje případné zvětšení.
+    let t = 0
+    const ro = new ResizeObserver(() => {
+      window.clearTimeout(t)
+      t = window.setTimeout(() => setVHeight(el.clientHeight), 120)
+    })
     ro.observe(el)
     setVHeight(el.clientHeight)
-    return () => ro.disconnect()
+    return () => {
+      window.clearTimeout(t)
+      ro.disconnect()
+    }
   }, [])
   const ctxRef = useRef<HTMLDivElement>(null)
   const crumbsRef = useRef<HTMLDivElement>(null)
@@ -766,6 +777,34 @@ export function LibraryView(): JSX.Element {
       setAnchor(name)
     }
   }
+  // Posun výběru klávesnicí (šipky / Home / End), se Shiftem rozšíření rozsahu.
+  const moveFocus = (step: number, extend: boolean): void => {
+    const names = visible.map((i) => i.name)
+    if (!names.length) return
+    const cur = focus ? names.indexOf(focus) : -1
+    const next =
+      step === Infinity ? names.length - 1 : step === -Infinity ? 0 : cur < 0 ? 0 : Math.max(0, Math.min(names.length - 1, cur + step))
+    const name = names[next]
+    if (extend && anchor && names.includes(anchor)) {
+      const a = names.indexOf(anchor)
+      const [lo, hi] = a < next ? [a, next] : [next, a]
+      setChecked(new Set(names.slice(lo, hi + 1)))
+    } else {
+      if (checked.size) setChecked(new Set())
+      setAnchor(name)
+    }
+    setFocus(name)
+    // Doscrollovat na řádek (u virtualizovaných karet nemusí být v DOM).
+    requestAnimationFrame(() => {
+      const el = listRef.current
+      const row = el?.querySelector('.lvrow--focus')
+      if (row) row.scrollIntoView({ block: 'nearest' })
+      else if (el && view === 'cards') {
+        el.scrollTop = Math.max(0, next * CARD_ROW - el.clientHeight / 2)
+        requestAnimationFrame(() => el.querySelector('.lvrow--focus')?.scrollIntoView({ block: 'nearest' }))
+      }
+    })
+  }
   const rowOpen = (it: Item): void => {
     if (it.kind === 'folder' || it.kind === 'broken') void load(it.rel)
     else if (it.kind === 'song' && !it.isSng) void playFolder(it.rel, stripTags(infos[it.rel]?.title || it.name))
@@ -887,8 +926,7 @@ export function LibraryView(): JSX.Element {
         }
         return
       }
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || anyDialog) return
+      if (isTypingTarget(e.target) || anyDialog) return
       const ctrl = e.ctrlKey || e.metaKey
       // Otevřené menu složky z levého panelu: zkratky míří na tu složku, ne na
       // vybranou položku v seznamu.
@@ -905,6 +943,23 @@ export function LibraryView(): JSX.Element {
         else if (ctrl && e.key.toLowerCase() === 'x') setClip({ op: 'cut', items: [n], names: [n] })
         else return
         setCtx(null)
+        return
+      }
+      // Šipky nahoru/dolů posouvají výběr, se Shiftem ho rozšiřují; Home/End na
+      // začátek/konec. Enter otevře složku nebo pustí píseň (na macu je Enter
+      // přejmenování jako ve Finderu, tam zůstává dvojklik).
+      const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : e.key === 'End' ? Infinity : e.key === 'Home' ? -Infinity : 0
+      if (step && !ctrl && !e.altKey) {
+        e.preventDefault()
+        moveFocus(step, e.shiftKey)
+        return
+      }
+      if (e.key === 'Enter' && !IS_MAC && !ctrl) {
+        const it = visible.find((i) => i.name === focus)
+        if (it) {
+          e.preventDefault()
+          rowOpen(it)
+        }
         return
       }
       const isDelete = e.key === 'Delete' || (IS_MAC && ctrl && e.key === 'Backspace')
@@ -1125,7 +1180,16 @@ export function LibraryView(): JSX.Element {
             </div>
             <button
               className={`lib__btn ${filtersOpen ? 'lib__btn--on' : ''}`}
-              onClick={() => setFiltersOpen((v) => !v)}
+              onClick={() => {
+                setFiltersOpen((v) => !v)
+                // Seznam jen po dobu vysouvání na vlastní vrstvě (plynulá roleta);
+                // natrvalo by vrstva zpomalovala scrollování.
+                const el = listRef.current
+                if (el) {
+                  el.classList.add('lv__list--rolling')
+                  window.setTimeout(() => el.classList.remove('lv__list--rolling'), 400)
+                }
+              }}
               aria-expanded={filtersOpen}
             >
               <Icon name="filter" size={14} /> Filters
@@ -1142,7 +1206,9 @@ export function LibraryView(): JSX.Element {
           </div>
         </div>
 
-        {filtersOpen ? (
+        {/* Filtry se vysouvají roletou stejně jako panel filtrů v hledání. */}
+        <div className={`lvfroll ${filtersOpen ? 'lvfroll--open' : ''}`} aria-hidden={!filtersOpen}>
+          <div className="lvfroll__inner">
           <div className="lv__filters">
             <div className="lv__fgroup">
               <span className="lv__flabel">Instruments</span>
@@ -1237,7 +1303,8 @@ export function LibraryView(): JSX.Element {
               </button>
             </div>
           </div>
-        ) : null}
+          </div>
+        </div>
 
         {libraryReveal && libraryReveal.length > 1 ? (
           <div className="lib__reveal">
@@ -1808,7 +1875,17 @@ const LibRow = memo(function LibRow({
   const cls = `lvrow ${focused ? 'lvrow--focus song--selected' : ''} ${checked ? 'song--checked lvrow--checked' : ''} ${cut ? 'lvrow--cut' : ''}`
   const check = (
     <div className="song__check">
-      <label className="chk" onClick={(e) => e.stopPropagation()}>
+      <label
+        className="chk"
+        onClick={(e) => {
+          e.stopPropagation()
+          // Shift+klik na políčko = rozsah, stejně jako Shift+klik na řádek.
+          if (e.shiftKey) {
+            e.preventDefault()
+            h.click(it.name, e)
+          }
+        }}
+      >
         <input type="checkbox" checked={checked} onChange={() => h.check(it.name)} aria-label={`Select ${it.name}`} />
         <span className="chk__box">
           <Icon name="check" size={12} />

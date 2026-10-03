@@ -61,6 +61,18 @@ function tagValue(song: FolderTagSource, tag: string): string {
 }
 
 /**
+ * Doladí název souboru/složky, aby s ním Windows uměly pracovat: tečky a mezery
+ * na konci Windows potichu zahodí (cesta by se pak neshodovala), a rezervované
+ * názvy (CON, NUL, COM1…) vytvoří složku, kterou Průzkumník neotevře ani nesmaže.
+ * Na všech systémech stejně, ať knihovna zůstane přenositelná. Zakázané znaky
+ * odstraňuje volající.
+ */
+export function portableName(name: string): string {
+  const trimmed = name.replace(/[. ]+$/, '')
+  return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i.test(trimmed) ? `${trimmed}_` : trimmed
+}
+
+/**
  * Očistí JEDEN segment cesty. Shodná pravidla jako `sanitize()` v library.ts,
  * ale prázdný vrací prázdný (ne 'Unknown') — prázdné segmenty se musí dát zahodit.
  *
@@ -69,11 +81,13 @@ function tagValue(song: FolderTagSource, tag: string): string {
  * v ŠABLONĚ, nikdy data.
  */
 export function cleanSegment(s: string): string {
-  return s
+  const out = s
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 120)
+  // Pahýl oddělovače po prázdném tagu („Metallica -") a Windows-nekompatibilní konec.
+  return portableName(out.replace(/(\s+-)+$/, '').replace(/^(-\s+)+/, '').trim())
 }
 
 function substitute(seg: string, song: FolderTagSource): string {

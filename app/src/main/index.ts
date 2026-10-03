@@ -80,6 +80,8 @@ if (!app.requestSingleInstanceLock()) {
         console.warn('[catalog] open failed, recreating:', err)
         try {
           for (const suf of ['', '-wal', '-shm']) rmSync(dbPath + suf, { force: true })
+          // Znovu z přibaleného snímku, ať se katalog nemusí stahovat celý z API.
+          await ensureCatalogSeed(dbPath, seedGz)
           initCatalog(dbPath)
         } catch (err2) {
           console.warn('[catalog] init failed:', err2)

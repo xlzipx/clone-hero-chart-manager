@@ -17,6 +17,7 @@ import {
   songKey
 } from '../utils'
 import { Icon } from './Icon'
+import { isRowClick, noShiftSelect, useRangeToggle } from '../rangeToggle'
 import { findChartVersions } from '../chartmatch'
 
 // Import playlistu (v1): vlož odkaz na veřejný Spotify playlist → appka dohledá
@@ -170,6 +171,17 @@ export function PlaylistImportModal(): JSX.Element | null {
 
   const patchRow = (i: number, patch: Partial<Row>): void =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  // Vybrat jde jen nalezený a automaticky stažitelný chart. Klik na řádek nebo
+  // políčko přepne, Shift+klik celý rozsah (stejně jako ostatní seznamy).
+  const pickable = rows.flatMap((r, i) => {
+    const c = r.charts[r.chosen]
+    return r.status === 'matched' && c && isAutoDownloadable(c) ? [i] : []
+  })
+  const toggleRow = useRangeToggle(
+    pickable,
+    (i) => !!rows[i]?.selected,
+    (ids, on) => setRows((rs) => rs.map((r, j) => (ids.includes(j) ? { ...r, selected: on } : r)))
+  )
 
   const runMatching = async (tracks: PlaylistTrack[]): Promise<void> => {
     const mine = ++runId.current
@@ -377,15 +389,29 @@ export function PlaylistImportModal(): JSX.Element | null {
                   const dl = chart ? isAutoDownloadable(chart) : false
                   const owned = isOwned(chart)
                   return (
-                    <div key={i} className={`plrow plrow--${r.status}`}>
+                    <div
+                      key={i}
+                      className={`plrow plrow--${r.status} ${dl && r.status === 'matched' ? 'plrow--pick' : ''}`}
+                      onClick={(e) => dl && r.status === 'matched' && isRowClick(e) && toggleRow(i, e.shiftKey)}
+                      onMouseDown={noShiftSelect}
+                    >
                       <div className="plrow__lead">
                         {r.status === 'matched' ? (
                           dl ? (
-                            <label className="chk" onClick={(e) => e.stopPropagation()}>
+                            <label
+                              className="chk"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (e.shiftKey) {
+                                  e.preventDefault()
+                                  toggleRow(i, true)
+                                }
+                              }}
+                            >
                               <input
                                 type="checkbox"
                                 checked={r.selected}
-                                onChange={() => patchRow(i, { selected: !r.selected })}
+                                onChange={() => toggleRow(i, false)}
                               />
                               <span className="chk__box">
                                 <Icon name="check" size={12} />

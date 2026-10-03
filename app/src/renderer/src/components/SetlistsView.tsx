@@ -6,6 +6,7 @@ import { formatLength, stripTags } from '../utils'
 import { Icon, type IconName } from './Icon'
 import { LocalPreview } from './LocalPreview'
 import { RichText } from './RichText'
+import { isRowClick, noShiftSelect, setInSet, useChecklistKeys, useRangeToggle } from '../rangeToggle'
 
 /** Hlavička nástroje knihovny ve stylu Nastavení (barevná dlaždice + titulek). */
 export function ToolHead({
@@ -230,12 +231,19 @@ export function SetlistsView({ onReveal }: { onReveal: (rel: string) => void }):
   const totalLen = (songs ?? []).reduce((a, s) => a + ((s.rel && infos[s.rel]?.lengthSeconds) || 0), 0)
   const allChecked = shown.length > 0 && shown.every((s) => checked.has(s.hash))
 
-  const toggle = (h: string): void =>
-    setChecked((c) => {
-      const n = new Set(c)
-      n.has(h) ? n.delete(h) : n.add(h)
-      return n
-    })
+  const toggle = useRangeToggle(
+    shown.map((s) => s.hash),
+    (h) => checked.has(h),
+    setInSet(setChecked)
+  )
+  useChecklistKeys(
+    () => setChecked(new Set(shown.map((s) => s.hash))),
+    () => {
+      if (!checked.size) return false
+      setChecked(new Set())
+      return true
+    }
+  )
 
   return (
     <div className="ltool" style={{ '--sc': '#d23bd2' } as React.CSSProperties}>
@@ -432,10 +440,20 @@ export function SetlistsView({ onReveal }: { onReveal: (rel: string) => void }):
                       <div
                         key={s.hash}
                         className={`slv__song ${checked.has(s.hash) ? 'slv__song--on' : ''} ${s.found ? '' : 'slv__song--missing'}`}
-                        onClick={() => toggle(s.hash)}
+                        onClick={(e) => isRowClick(e) && toggle(s.hash, e.shiftKey)}
+                        onMouseDown={noShiftSelect}
                       >
-                        <label className="chk" onClick={(e) => e.stopPropagation()}>
-                          <input type="checkbox" checked={checked.has(s.hash)} onChange={() => toggle(s.hash)} />
+                        <label
+                          className="chk"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (e.shiftKey) {
+                              e.preventDefault()
+                              toggle(s.hash, true)
+                            }
+                          }}
+                        >
+                          <input type="checkbox" checked={checked.has(s.hash)} onChange={() => toggle(s.hash, false)} />
                           <span className="chk__box">
                             <Icon name="check" size={12} />
                           </span>

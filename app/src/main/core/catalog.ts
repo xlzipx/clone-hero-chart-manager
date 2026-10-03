@@ -108,17 +108,25 @@ CREATE TABLE IF NOT EXISTS loudness (
 /** Otevře (nebo založí) katalogovou DB. Volat jednou při startu appky. */
 export function initCatalog(dbPath: string): void {
   if (db) return
-  db = new Database(dbPath)
-  // WAL: zápisy syncu neblokují souběžné čtecí dotazy z UI.
-  db.pragma('journal_mode = WAL')
-  db.pragma('synchronous = NORMAL')
-  db.exec(SCHEMA)
-  // Sada normalizovaných klíčů písní, které už uživatel má v knihovně — pro
-  // filtr „Hide owned" napříč CELÝM katalogem (ne jen načtenou stránkou).
-  // TEMP = jen pro tuto session, neukládá se do souboru katalogu; plní ji
-  // renderer přes catalog:setOwned, jakmile načte owned index.
-  db.exec('CREATE TEMP TABLE IF NOT EXISTS owned_keys (k TEXT PRIMARY KEY)')
-  migrate(db)
+  const d = new Database(dbPath)
+  try {
+    // WAL: zápisy syncu neblokují souběžné čtecí dotazy z UI.
+    d.pragma('journal_mode = WAL')
+    d.pragma('synchronous = NORMAL')
+    d.exec(SCHEMA)
+    // Sada normalizovaných klíčů písní, které už uživatel má v knihovně — pro
+    // filtr „Hide owned" napříč CELÝM katalogem (ne jen načtenou stránkou).
+    // TEMP = jen pro tuto session, neukládá se do souboru katalogu; plní ji
+    // renderer přes catalog:setOwned, jakmile načte owned index.
+    d.exec('CREATE TEMP TABLE IF NOT EXISTS owned_keys (k TEXT PRIMARY KEY)')
+    migrate(d)
+  } catch (err) {
+    // Poškozený soubor: spojení zavřít, jinak ho volající nesmaže (EBUSY)
+    // a další initCatalog by kvůli `if (db) return` nic neudělal.
+    d.close()
+    throw err
+  }
+  db = d
 }
 
 /** Migrace starších DB (seed/katalog z předchozí verze schématu). `CREATE

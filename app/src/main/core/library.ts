@@ -3,6 +3,7 @@
 import { existsSync, mkdirSync, promises as fsp, readdirSync, statSync, writeFileSync } from 'fs'
 import { basename, join, relative, resolve, sep } from 'path'
 import { getConfig } from './config'
+import { portableName } from '../../shared/foldertemplate'
 import { invalidateLibraryIndex } from './playlists'
 import { renderFolderTemplate } from '../../shared/foldertemplate'
 import { songKey } from '../../shared/songid'
@@ -225,11 +226,15 @@ export async function ownedFolders(artist: string, title: string): Promise<strin
 }
 
 export function sanitize(name: string): string {
-  return name
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 120) || 'Unknown'
+  return (
+    portableName(
+      name
+        .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 120)
+    ) || 'Unknown'
+  )
 }
 
 function uniqueDir(base: string): string {
@@ -289,7 +294,9 @@ export async function install(
   // Proto je explicitně vyfiltrujeme a výslednou cestu ještě ověříme uvnitř base.
   const cleanSub = (subfolder ?? '')
     .split(/[\\/]/)
-    .filter(Boolean)
+    // Segmenty jen z teček/mezer (`.`, `..`, `...`) zahodit PŘED sanitizací —
+    // ta by z nich udělala prázdný název → složku „Unknown".
+    .filter((p) => /[^.\s]/.test(p))
     .map((p) => sanitize(p))
     .filter((p) => p && p !== '.' && p !== '..')
     .join('\\')

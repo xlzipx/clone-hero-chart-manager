@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DupExtras, DupGroup, DupSong, LibEntry, LibProblem, LibSongInfo } from '../../../shared/types'
 import { userMsg } from '../../../shared/errors'
 import { songFromFolderName } from '../chartmatch'
@@ -8,6 +8,7 @@ import { IS_MAC } from '../platform'
 import { Icon } from './Icon'
 import { PlInstruments } from './PlaylistImportModal'
 import { RichText } from './RichText'
+import { isRowClick, noShiftSelect, setInSet, useChecklistKeys, useRangeToggle } from '../rangeToggle'
 import { SongArt, ToolHead, forgetSongExtras, useSongExtras } from './SetlistsView'
 
 // Duplicity a rozbité písně jako plnohodnotná obrazovka knihovny (dřív modální
@@ -90,7 +91,7 @@ const DupGroupCard = memo(function DupGroupCard({
   infos: Record<string, LibSongInfo>
   thumbs: Record<string, string | null>
   preferOn: boolean
-  toggle: (rel: string) => void
+  toggle: (rel: string, shift: boolean) => void
   onReveal: (rel: string) => void
 }): JSX.Element {
   const sel = new Set(selKey ? selKey.split(SEL_SEP) : [])
@@ -132,7 +133,8 @@ const DupGroupCard = memo(function DupGroupCard({
             <div
               key={s.rel}
               className={`dpv__copy ${on ? 'dpv__copy--on' : ''} ${brokenMap.has(s.rel) ? 'dpv__copy--broken' : ''}`}
-              onClick={() => toggle(s.rel)}
+              onClick={(e) => toggle(s.rel, e.shiftKey)}
+              onMouseDown={noShiftSelect}
               title={on ? 'Selected for removal. Click to keep.' : 'Click to select for removal'}
             >
               <div className="dpv__copytop">
@@ -315,15 +317,6 @@ export function DuplicatesView({
   const identicalCount = (groups ?? []).filter((g) => g.reason === 'identical').length
   const extraCopies = (groups ?? []).reduce((a, g) => a + g.songs.length - 1, 0)
 
-  const toggle = useCallback(
-    (rel: string): void =>
-      setChecked((c) => {
-        const n = new Set(c)
-        n.has(rel) ? n.delete(rel) : n.add(rel)
-        return n
-      }),
-    []
-  )
 
   // Hromadný výběr: v každé zobrazené skupině vše kromě nejlepší kopie.
   const autoSelect = (): void => {
@@ -337,6 +330,28 @@ export function DuplicatesView({
 
   const brokenRel = (e: LibEntry): string => e.name
   const brokenRels = (broken ?? []).map(brokenRel)
+  // Klik přepne kopii, Shift+klik celý rozsah (v pořadí, jak jsou karty vidět).
+  const dupOrder = useMemo(
+    () => (groups ?? []).filter((g) => kind === 'all' || g.reason === kind).flatMap((g) => g.songs.map((s) => s.rel)),
+    [groups, kind]
+  )
+  const rangeDup = useRangeToggle(dupOrder, (r) => checked.has(r), setInSet(setChecked))
+  const rangeBroken = useRangeToggle(brokenRels, (r) => checked.has(r), setInSet(setChecked))
+  // Stabilní funkce pro memoizované karty skupin (jinak by se překreslily všechny).
+  const rangeDupRef = useRef(rangeDup)
+  rangeDupRef.current = rangeDup
+  const toggle = useCallback((rel: string, shift: boolean) => rangeDupRef.current(rel, shift), [])
+  useChecklistKeys(
+    // Na duplicitách Ctrl+A = „All extra copies" (nejlepší kopie zůstanou), ne
+    // úplně všechno — jinak by smazání odstranilo každou kopii písně.
+    () => (tab === 'dups' ? autoSelect() : setChecked(new Set(brokenRels))),
+    () => {
+      if (!checked.size) return false
+      setChecked(new Set())
+      setConfirmTrash(false)
+      return true
+    }
+  )
   const selectedHere = tab === 'dups' ? [...checked].filter((r) => shownRels.has(r)) : [...checked].filter((r) => brokenRels.includes(r))
   // Skupina, ze které je vybrané úplně všechno — chceme varovat.
   const wipedGroups = shownGroups.filter((g) => g.songs.every((s) => checked.has(s.rel))).length
@@ -678,9 +693,23 @@ export function DuplicatesView({
                       const label = rel.split('/').pop() ?? rel
                       const p = PROBLEM[e.problem ?? 'chart']
                       return (
-                        <div key={rel} className={`dpv__brow ${on ? 'dpv__brow--on' : ''}`} onClick={() => toggle(rel)}>
-                          <label className="chk" onClick={(ev) => ev.stopPropagation()}>
-                            <input type="checkbox" checked={on} onChange={() => toggle(rel)} />
+                        <div
+                          key={rel}
+                          className={`dpv__brow ${on ? 'dpv__brow--on' : ''}`}
+                          onClick={(ev) => isRowClick(ev) && rangeBroken(rel, ev.shiftKey)}
+                          onMouseDown={noShiftSelect}
+                        >
+                          <label
+                            className="chk"
+                            onClick={(ev) => {
+                              ev.stopPropagation()
+                              if (ev.shiftKey) {
+                                ev.preventDefault()
+                                rangeBroken(rel, true)
+                              }
+                            }}
+                          >
+                            <input type="checkbox" checked={on} onChange={() => rangeBroken(rel, false)} />
                             <span className="chk__box">
                               <Icon name="check" size={12} />
                             </span>

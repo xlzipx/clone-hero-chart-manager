@@ -8,6 +8,16 @@ import { basename, join } from 'path'
 import { randomUUID } from 'crypto'
 import type { DownloadJob, JobStage, SongResult } from '../../shared/types'
 import { errMsg } from '../../shared/errors'
+
+/** Síťové chyby z fetch („fetch failed" + kód v `cause`) přeloží do lidské věty. */
+function jobErrorText(err: unknown): string {
+  const msg = errMsg(err)
+  const code = (err as { cause?: { code?: string } })?.cause?.code ?? ''
+  if (msg === 'fetch failed' || /^(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|UND_ERR_\w+)$/.test(code)) {
+    return 'Could not reach the download host. Check your internet connection, or try again later.'
+  }
+  return msg
+}
 import { downloadDriveFolder, downloadTo, guessFileName, isDriveFolder } from './download'
 import { extract } from './extractor'
 import {
@@ -356,7 +366,7 @@ class JobManager extends EventEmitter {
           workDir = exDir
         } else if (await isHtmlFile(downloadPath)) {
           throw new Error(
-            'The link returned a web page, not a song file. Use the ⋮ menu → Open page in browser to download it manually.'
+            'The link returned a web page, not a song file. Open the page in your browser to download it manually.'
           )
         }
       }
@@ -450,7 +460,7 @@ class JobManager extends EventEmitter {
         this.update(id, {
           stage: 'error',
           progress: -1,
-          error: errMsg(err)
+          error: jobErrorText(err)
         })
       }
     } finally {

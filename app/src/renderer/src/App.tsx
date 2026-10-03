@@ -32,6 +32,7 @@ import {
   stripTags
 } from './utils'
 import type { SongResult } from '../../shared/types'
+import { isTypingTarget } from './rangeToggle'
 
 /** Manuální host (MEGA/Mediafire/shortener) nejde spolehlivě auto-stáhnout —
  *  místo zařazení do fronty (kde by jen spadlo) otevřeme stránku v prohlížeči. */
@@ -282,8 +283,20 @@ export function App(): JSX.Element {
     const song = visibleRef.current.find((s) => s.key === key)
     if (song) useStore.getState().openMarketplace(song)
   }, [])
-  const handleRowToggleCheck = useCallback((key: string) => {
-    useStore.getState().toggleSelected(key)
+  // Zaškrtávátko: klik přepne řádek a udělá z něj kotvu, Shift+klik přidá
+  // celý rozsah od kotvy (jako v Průzkumníku).
+  const handleRowToggleCheck = useCallback((key: string, range?: boolean) => {
+    const list = visibleRef.current
+    const idx = list.findIndex((s) => s.key === key)
+    const st = useStore.getState()
+    if (range && idx >= 0 && st.selectedIndex >= 0) {
+      const a = Math.min(st.selectedIndex, idx)
+      const b = Math.max(st.selectedIndex, idx)
+      st.setSelection([...new Set([...st.selectedKeys, ...list.slice(a, b + 1).map((s) => s.key)])])
+      return
+    }
+    st.toggleSelected(key)
+    if (idx >= 0) st.setSelectedIndex(idx)
   }, [])
   const applyJobUpdate = useStore((s) => s.applyJobUpdate)
   const loadConfig = useStore((s) => s.loadConfig)
@@ -394,10 +407,10 @@ export function App(): JSX.Element {
   }, [])
 
   // Globální klávesová navigace v overlayi.
+  const keyAnchor = useRef<number | null>(null)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
-      const typing = tag === 'INPUT' || tag === 'TEXTAREA'
+      const typing = isTypingTarget(e.target)
 
       // Když je otevřený modal výběru složky, klávesy řeší samotný modal.
       if (useStore.getState().pendingSong) return
@@ -418,6 +431,9 @@ export function App(): JSX.Element {
         // Nastavení leží nad knihovnou i hledáním → zavírá se první.
         else if (st.showSettings) st.setShowSettings(false)
         else if (st.showLibrary) st.setShowLibrary(false)
+        // Označené písně: první Escape jen zruší výběr (jako v My Library),
+        // teprve další schová okno.
+        else if (st.selectedKeys.length > 0 && !typing) st.clearSelection()
         else window.api.hideOverlay()
         return
       }
@@ -438,12 +454,22 @@ export function App(): JSX.Element {
       if (typing) return
 
       const max = visible.length - 1
-      if (e.key === 'ArrowDown') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        // Ctrl+A = vybrat všechny stažitelné písně na stránce (jako políčko „vybrat vše").
         e.preventDefault()
-        setSelectedIndex(Math.min(selectedIndex + 1, max))
-      } else if (e.key === 'ArrowUp') {
+        const st = useStore.getState()
+        st.setSelection(visible.filter((s) => isAutoDownloadable(s) && !enqueuedKeys[s.key]).map((s) => s.key))
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
-        setSelectedIndex(Math.max(selectedIndex - 1, 0))
+        const next =
+          e.key === 'ArrowDown' ? Math.min(selectedIndex + 1, max) : Math.max(selectedIndex - 1, 0)
+        // Shift+šipka rozšiřuje výběr od místa, kde Shift začal (jako v My Library).
+        if (e.shiftKey) {
+          if (keyAnchor.current === null) keyAnchor.current = Math.max(selectedIndex, 0)
+          const [lo, hi] = keyAnchor.current < next ? [keyAnchor.current, next] : [next, keyAnchor.current]
+          useStore.getState().setSelection(visible.slice(lo, hi + 1).map((s) => s.key))
+        } else keyAnchor.current = null
+        setSelectedIndex(next)
       } else if (e.key === 'Enter') {
         const song = visible[selectedIndex]
         if (song) {
@@ -523,7 +549,9 @@ export function App(): JSX.Element {
       <FixBanner />
       <SearchBar />
 
-      {source.length > 0 && !error ? (
+      {/* Lišta zůstává i bez výsledků, když je zapnutý Hide owned / Direct only —
+          jinak by přepínač, který výsledky skryl, zmizel s nimi a nešel vypnout. */}
+      {(source.length > 0 || ((hideOwned || directOnly) && !loading)) && !error ? (
         <div className="resultsbar">
           <div className="resultsbar__lead">
           {checkableSongs.length > 0 ? (
@@ -650,9 +678,12 @@ export function App(): JSX.Element {
 
       <div className="tablewrap">
       <div
-        className={`results ${loading || (source.length > 0 && !error && visible.length > 0) ? 'results--table' : ''}`}
+        className={`results ${loading || (source.length > 0 && !error && visible.length > 0) ? 'results--table' : ''} ${loading && !surprise && source.length > 0 ? 'results--stale' : ''}`}
       >
-        {loading ? (
+        {/* Skeleton jen když není co ukázat. Při změně filtru / řazení / stránky
+            zůstanou dosavadní výsledky (lehce ztlumené), dokud nedorazí nové —
+            jinak by seznam při každém přepnutí problikl. */}
+        {loading && (surprise || source.length === 0) ? (
           surprise ? (
             // „Surprise me" má vlastní tématickou animaci (převalující se kostka
             // v barvách nástrojů) místo generického shimmeru.
@@ -709,7 +740,9 @@ export function App(): JSX.Element {
           // S aktivním zužujícím filtrem poslat uživatele k filtrům.
           filtersNarrow ? (
             <div className="state">
-              No songs match the current filters. Try clearing a filter in Filters.
+              {hideOwned || directOnly
+                ? `No songs match. Turn off ${hideOwned && directOnly ? 'Hide owned and Direct downloads only' : hideOwned ? 'Hide owned' : 'Direct downloads only'} above, or clear a filter in Filters.`
+                : 'No songs match the current filters. Try clearing a filter in Filters.'}
             </div>
           ) : (
             <div className="state state--empty">

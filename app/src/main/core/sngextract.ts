@@ -11,13 +11,14 @@ import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import { SngStream } from 'parse-sng'
 import { asError } from '../../shared/errors'
+import { portableName } from '../../shared/foldertemplate'
 
 /** Magic prefix `SNGPKG` (ASCII). */
 const SNG_MAGIC = Buffer.from([0x53, 0x4e, 0x47, 0x50, 0x4b, 0x47])
 
 /** Bezpečné jméno složky/souboru (žádné Windows zakázané znaky). */
 function sanitize(name: string): string {
-  return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'song'
+  return portableName(name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim()) || 'song'
 }
 
 /** Detekuje .sng podle magic bytů — robustnější než přípona. */

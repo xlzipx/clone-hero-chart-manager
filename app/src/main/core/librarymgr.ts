@@ -6,6 +6,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSyn
 import { readdir, rm } from 'fs/promises'
 import { basename, dirname, extname, join, relative, resolve, sep } from 'path'
 import { getConfig } from './config'
+import { portableName } from '../../shared/foldertemplate'
 import { readAlbumArt, readSongInfo, readSongMeta, writeSongMeta } from './songmeta'
 import {
   addSongsToPlaylist,
@@ -66,7 +67,7 @@ function safeAbs(rel: string): string {
 }
 
 function sanitizeName(name: string): string {
-  const clean = name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim()
+  const clean = portableName(name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim())
   if (!clean || clean === '.' || clean === '..') throw new Error('Invalid name')
   return clean
 }

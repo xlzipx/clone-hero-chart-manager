@@ -212,7 +212,7 @@ export async function resolve(url: string): Promise<ResolvedDownload> {
   // MEGA – šifrované, nejde stáhnout přes HTTP
   if (/mega\.(nz|co\.nz)/i.test(url)) {
     throw new Error(
-      'Hosted on MEGA, which can’t be downloaded automatically. Use the ⋮ menu → Open page in browser.'
+      'Hosted on MEGA, which can’t be downloaded automatically. Open the page in your browser to download it.'
     )
   }
   // Mediafire (libovolná cesta)
@@ -231,6 +231,17 @@ export async function resolve(url: string): Promise<ResolvedDownload> {
   }
   // rhythmverse a přímé odkazy – fetch následuje redirecty sám.
   return { url, fileName: null }
+}
+
+/** Srozumitelný text k HTTP chybě hostingu (místo holého „HTTP 404"). */
+function httpErrorText(status: number): string {
+  if (status === 404 || status === 410)
+    return `The file is no longer on the host (HTTP ${status}). Try a different version of this song, or open the page in your browser.`
+  if (status === 401 || status === 403)
+    return `The host refused the download (HTTP ${status}). Open the page in your browser to download it.`
+  if (status === 429) return 'The host is limiting downloads right now (HTTP 429). Wait a moment and try again.'
+  if (status >= 500) return `The download host is having problems (HTTP ${status}). Try again later.`
+  return `Download failed: HTTP ${status}`
 }
 
 /** Stáhne URL na disk – vlastní implementace pro jednu iteraci.
@@ -254,7 +265,7 @@ async function downloadOnce(
     const action = html.match(/action="([^"]+)"/i)
     if (!action) {
       throw new Error(
-        'Google Drive download is not available (quota exceeded, private, or sign-in required). Use the ⋮ menu → Open page in browser.'
+        'Google Drive download is not available (quota exceeded, private, or sign-in required). Open the page in your browser to download it.'
       )
     }
     const params: Record<string, string> = {}
@@ -266,9 +277,7 @@ async function downloadOnce(
     res = await fetch(u.toString(), { headers: { 'User-Agent': UA }, redirect: 'follow', signal })
   }
 
-  if (!res.ok || !res.body) {
-    throw new Error(`Download failed: HTTP ${res.status}`)
-  }
+  if (!res.ok || !res.body) throw new Error(httpErrorText(res.status))
 
   const total = Number(res.headers.get('content-length')) || null
   let received = 0
@@ -323,7 +332,7 @@ export async function downloadTo(
       continue
     }
     throw new Error(
-      `Download was truncated (got ${received} of ${total} bytes). The host closed the connection early — try again, or use the ⋮ menu to open in browser.`
+      `Download was truncated (got ${received} of ${total} bytes). The host closed the connection early. Try again, or open the page in your browser.`
     )
   }
 }

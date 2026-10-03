@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { Icon } from './Icon'
+import type { DownloadJob } from '../../../shared/types'
 
 const STAGE_LABEL: Record<string, string> = {
   queued: 'Queued',
@@ -152,6 +153,7 @@ export function DownloadQueue(): JSX.Element | null {
               </div>
               {job.message ? <div className="qjob__msg">{job.message}</div> : null}
               {job.error ? <div className="qjob__err">⚠ {job.error}</div> : null}
+              {job.stage === 'error' ? <QueueLinks song={job.song} /> : null}
             </div>
             )
           })}
@@ -160,6 +162,34 @@ export function DownloadQueue(): JSX.Element | null {
         </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Odkazy u neúspěšného stažení: stránka chartu (stejná jako „Open page in
+ * browser" v menu ⋮ u výsledku) a případně charterova Google Drive složka.
+ * Ve frontě, ať uživatel nemusí píseň zpátky hledat ve výsledcích.
+ */
+function QueueLinks({ song }: { song: DownloadJob['song'] }): JSX.Element | null {
+  const pageUrl = song.downloadPageUrl || song.downloadUrl
+  if (!pageUrl && !song.driveFolderUrl) return null
+  return (
+    <div className="qjob__links">
+      {pageUrl ? (
+        <button className="qjob__link" onClick={() => window.api.openExternal(pageUrl)}>
+          <Icon name="globe" size={12} /> Open in browser
+        </button>
+      ) : null}
+      {song.driveFolderUrl ? (
+        <button
+          className="qjob__link"
+          title="Open the Google Drive folder this chart lives in (the charter's collection)"
+          onClick={() => window.api.openExternal(song.driveFolderUrl as string)}
+        >
+          <Icon name="folder" size={12} /> Charter&apos;s Google Drive
+        </button>
+      ) : null}
     </div>
   )
 }
