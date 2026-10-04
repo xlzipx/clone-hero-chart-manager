@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { InstrumentDifficulties, LibEntry, LibListing, LibProblem, LibSongInfo, SongDetail } from '../../../shared/types'
+import type { ExtraFolderInfo, InstrumentDifficulties, LibEntry, LibListing, LibProblem, LibSongInfo, SongDetail } from '../../../shared/types'
 import { userMsg } from '../../../shared/errors'
 import { IS_MAC } from '../platform'
 import { useStore } from '../store'
@@ -13,7 +13,7 @@ import { InstrumentDifficulty } from './InstrumentDifficulty'
 import { PlaylistDialog } from './PlaylistDialog'
 import { SetlistsView } from './SetlistsView'
 import { SongMetaDialog } from './SongMetaDialog'
-import { BulkRenameDialog, FolderPickerDialog, type BulkItem } from './LibraryDialogs'
+import { BulkRenameDialog, FolderPickerDialog, useExistingCheck, type BulkItem } from './LibraryDialogs'
 import { isTypingTarget } from '../rangeToggle'
 
 /** broken = složka s audiem, ale bez souboru s notami (Clone Hero ji nenačte). */
@@ -83,12 +83,13 @@ type Dialog =
   | null
 type Clip = { op: 'cut' | 'copy'; items: string[]; names: string[] } | null
 /** `side` = menu pro složku z levého panelu (název v kořeni Songs). */
-type Ctx = { x: number; y: number; side?: string } | null
+type Ctx = { x: number; y: number; side?: string; ext?: string } | null
 
 // Mezi přepnutími Search ↔ Library si pamatujeme otevřenou složku a náhledy.
 /** Sdílený porovnávač názvů (přirozené řazení čísel, bez ohledu na velikost). */
 const NAME_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true })
 let lastCwd = ''
+let lastExtFolders: ExtraFolderInfo[] = []
 /** Výška karty v pohledu Cards (pevná, viz .lv__list--cards > .lvcard v CSS). */
 const CARD_ROW = 98
 /** Od kolika položek se karty virtualizují, a kolik karet navíc nad/pod výřezem. */
@@ -173,6 +174,8 @@ export function LibraryView(): JSX.Element {
   const [infoLoading, setInfoLoading] = useState(false)
   const [thumbs, setThumbs] = useState<Record<string, string | null>>(() => Object.fromEntries(thumbCache))
   const [rootDirs, setRootDirs] = useState<LibEntry[]>(snapRootDirs)
+  // Další složky s charty mimo Songs (issue #8). Cesty v nich: `::id/…`.
+  const [extFolders, setExtFolders] = useState<ExtraFolderInfo[]>(lastExtFolders)
   const [rootCounts, setRootCounts] = useState<Record<string, number>>(snapRootCounts)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -346,6 +349,13 @@ export function LibraryView(): JSX.Element {
   const loadTree = (): void => {
     folderCoverCache.clear()
     void window.api
+      .libExtraFolders()
+      .then((f) => {
+        lastExtFolders = f
+        setExtFolders(f)
+      })
+      .catch(() => undefined)
+    void window.api
       .libList('')
       .then((r) => setRootDirs(r.entries.filter((e) => e.type === 'dir' && !e.isSong)))
       .catch(() => setRootDirs([]))
@@ -408,6 +418,18 @@ export function LibraryView(): JSX.Element {
       void scanBroken(res.path, my)
     } catch (e) {
       if (my !== loadSeq.current) return
+      if (rel.startsWith('::')) {
+        // Složka mezitím odebraná ze seznamu → zpět do Songs. Odpojený disk →
+        // ukázat chybu přímo v té složce (prázdný seznam), ne v té předchozí.
+        const id = rel.slice(2).split('/')[0]
+        if (!lastExtFolders.some((f) => f.id === id)) {
+          void load('')
+          return
+        }
+        lastCwd = rel
+        setCwd(rel)
+        setEntries([])
+      }
       setError(userMsg(e))
     } finally {
       if (my === loadSeq.current) setLoading(false)
@@ -770,9 +792,9 @@ export function LibraryView(): JSX.Element {
         setChecked(new Set(names.slice(lo, hi + 1)))
       }
     } else {
-      // Obyčejný klik = jen tahle položka. Dřívější zaškrtnutí se ruší, jinak by
-      // Delete / Ctrl+C působily na jiné položky, než na kterou uživatel klikl.
-      if (checked.size) setChecked(new Set())
+      // Obyčejný klik jen přesune zvýraznění. Zaškrtnuté položky zůstávají
+      // (issue #14: jeden klik vedle políčka smazal rozpracovaný výběr) — ruší
+      // se tlačítkem Clear selection nebo Escapem.
       setFocus(name)
       setAnchor(name)
     }
@@ -789,10 +811,7 @@ export function LibraryView(): JSX.Element {
       const a = names.indexOf(anchor)
       const [lo, hi] = a < next ? [a, next] : [next, a]
       setChecked(new Set(names.slice(lo, hi + 1)))
-    } else {
-      if (checked.size) setChecked(new Set())
-      setAnchor(name)
-    }
+    } else setAnchor(name) // zaškrtnutí zůstává, stejně jako u kliku
     setFocus(name)
     // Doscrollovat na řádek (u virtualizovaných karet nemusí být v DOM).
     requestAnimationFrame(() => {
@@ -850,17 +869,30 @@ export function LibraryView(): JSX.Element {
     const names = targetNames()
     if (names.length) setClip({ op, items: names.map(relOf), names })
   }
+  const [askExisting, existingDialog] = useExistingCheck()
   const doPaste = (): void => {
     if (!clip) return
     const c = clip
-    void run(async () => {
-      for (const item of c.items) {
+    void (async () => {
+      // Ochrana proti duplicitám: co už v cílové složce je, nabídnout přeskočit.
+      const keep = await askExisting(c.items, cwd, c.op === 'cut' ? 'Move' : 'Copy')
+      if (!keep) return
+      const todo = c.items.filter((i) => keep.includes(i))
+      if (!todo.length) {
+        if (c.op === 'cut') setClip(null)
+        return
+      }
+      await pasteItems(c, todo)
+    })()
+  }
+  const pasteItems = (c: NonNullable<Clip>, todo: string[]): Promise<void> =>
+    run(async () => {
+      for (const item of todo) {
         if (c.op === 'cut') await window.api.libMove(item, cwd)
         else await window.api.libCopy(item, cwd)
       }
       if (c.op === 'cut') setClip(null)
     })
-  }
   const openRename = (): void => {
     const names = targetNames()
     if (names.length === 1) {
@@ -926,7 +958,7 @@ export function LibraryView(): JSX.Element {
         }
         return
       }
-      if (isTypingTarget(e.target) || anyDialog) return
+      if (isTypingTarget(e.target) || anyDialog || existingDialog) return
       const ctrl = e.ctrlKey || e.metaKey
       // Otevřené menu složky z levého panelu: zkratky míří na tu složku, ne na
       // vybranou položku v seznamu.
@@ -1008,10 +1040,31 @@ export function LibraryView(): JSX.Element {
   const single = targets.length === 1 ? items.find((i) => i.name === targets[0]) : undefined
   const songCount = items.filter((i) => i.kind === 'song').length
   const cutSet = new Set(clip && clip.op === 'cut' ? clip.items : [])
-  const topFolder = segments[0] ?? ''
+  const extId = segments[0]?.startsWith('::') ? segments[0].slice(2) : null
+  const inExt = extId !== null
+  const extInfo = inExt ? extFolders.find((f) => f.id === extId) : undefined
+  const topFolder = inExt ? '' : segments[0] ?? ''
+  const addExtFolder = async (): Promise<void> => {
+    const dir = await window.api.chooseDirectory()
+    if (!dir) return
+    try {
+      const f = await window.api.libAddExtraFolder(dir)
+      loadTree()
+      setTool(null)
+      void load(`::${f.id}`)
+    } catch (e) {
+      setError(userMsg(e))
+    }
+  }
+  const removeExtFolder = async (id: string): Promise<void> => {
+    await window.api.libRemoveExtraFolder(id)
+    lastExtFolders = lastExtFolders.filter((f) => f.id !== id)
+    setExtFolders(lastExtFolders)
+    if (segments[0] === `::${id}`) void load('')
+  }
 
   return (
-    <div className="lv">
+    <div className={`lv ${inExt ? 'lv--ext' : ''}`}>
       {/* ── Strom: složky nejvyšší úrovně, playlisty, duplicity ── */}
       <aside className="lv__tree" aria-label="Library folders">
         {/* Nástroje nahoře, ať nejsou pod dlouhým seznamem složek. */}
@@ -1032,6 +1085,35 @@ export function LibraryView(): JSX.Element {
           >
             <Icon name="copy" size={15} />
             <span className="lv__tname">Duplicates</span>
+          </button>
+        </div>
+        {/* Další složky s charty mimo Songs (archiv na jiném disku…). Procházejí
+            se stejně jako Songs; Copy to… / Move to… míří do Songs. */}
+        <div className="lv__treesec">
+          <div className="lv__treelabel">Other folders</div>
+          {extFolders.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              className={`lv__titem ${!tool && extId === f.id ? 'lv__titem--on' : ''} ${ctx?.ext === f.id ? 'lv__titem--ctx' : ''}`}
+              onClick={() => {
+                setTool(null)
+                void load(`::${f.id}`)
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setCtx({ x: e.clientX, y: e.clientY, ext: f.id })
+              }}
+              title={f.path}
+            >
+              <Icon name="folder" size={15} />
+              <ScrollName text={f.name} />
+            </button>
+          ))}
+          <button type="button" className="lv__titem lv__titem--add" onClick={() => void addExtFolder()} title="Browse another folder with charts, like an archive on another drive">
+            <Icon name="folderPlus" size={15} />
+            <span className="lv__tname">Add folder…</span>
           </button>
         </div>
         <div className="lv__treesec">
@@ -1100,16 +1182,16 @@ export function LibraryView(): JSX.Element {
             <button
               className="lib__btn lib__btn--icon"
               onClick={() => void load(segments.slice(0, -1).join('/'))}
-              disabled={!cwd}
+              disabled={!cwd || (inExt && segments.length === 1)}
               title="Up one folder"
             >
               <Icon name="chevronLeft" size={15} />
             </button>
             <div className="lib__crumbs lv__crumbs" ref={crumbsRef}>
-              <button className="crumb" onClick={() => void load('')}>
-                <Icon name="folder" size={14} /> Songs
+              <button className="crumb" onClick={() => void load(inExt ? segments[0] : '')} title={extInfo?.path}>
+                <Icon name="folder" size={14} /> {inExt ? extInfo?.name ?? 'Folder' : 'Songs'}
               </button>
-              {segments.map((seg, i) => (
+              {segments.map((seg, i) => (inExt && i === 0 ? null :
                 <span key={i} className="crumb__wrap">
                   <span className="crumb__sep">/</span>
                   <button className="crumb" onClick={() => void load(segments.slice(0, i + 1).join('/'))}>
@@ -1130,6 +1212,12 @@ export function LibraryView(): JSX.Element {
               </button>
             </div>
           </div>
+          {inExt ? (
+            // Další složka není složka Songs — hra ji neprochází (ať nikdo nečeká písně ve hře).
+            <div className="lv__extnote">
+              <Icon name="info" size={13} /> Clone Hero doesn't scan this folder. Copy songs to your Songs folder to play them.
+            </div>
+          ) : null}
           <div className="lv__barrow">
             <label className="lv__search" htmlFor="lv-q">
               <Icon name="search" size={14} />
@@ -1338,9 +1426,11 @@ export function LibraryView(): JSX.Element {
             <button className="lib__btn" onClick={() => openPick('copy')}>
               <Icon name="copy" size={14} /> Copy to…
             </button>
-            <button className="lib__btn" disabled={!targetSongs} onClick={openPlaylist}>
-              <Icon name="note" size={14} /> Add to setlist
-            </button>
+            {inExt ? null : (
+              <button className="lib__btn" disabled={!targetSongs} onClick={openPlaylist}>
+                <Icon name="note" size={14} /> Add to setlist
+              </button>
+            )}
             <button className="lib__btn lv__danger" onClick={openDelete}>
               <Icon name="trash" size={14} /> Delete
             </button>
@@ -1432,10 +1522,8 @@ export function LibraryView(): JSX.Element {
             }
           }}
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-              setChecked(new Set())
-              setFocus(null)
-            }
+            // Klik do prázdna zruší jen zvýraznění, zaškrtnutí zůstává (viz rowClick).
+            if (e.target === e.currentTarget && !e.ctrlKey && !e.metaKey && !e.shiftKey) setFocus(null)
           }}
         >
           {loading && !entries.length ? (
@@ -1494,6 +1582,11 @@ export function LibraryView(): JSX.Element {
             {checked.size ? ` · ${checked.size} selected` : ''}
             {clip ? ` · ${clip.items.length} on clipboard (${clip.op})` : ''}
           </span>
+          {checked.size ? (
+            <button type="button" className="lv__link lv__clearsel" onClick={() => setChecked(new Set())}>
+              Clear selection
+            </button>
+          ) : null}
           {brokenCount ? (
             <button
               type="button"
@@ -1569,7 +1662,7 @@ export function LibraryView(): JSX.Element {
                   ? () => void playFolders(playableChecked.map((i) => i.rel), `${playableChecked.length} selected`)
                   : undefined
               }
-              onPlaylist={targetSongs ? openPlaylist : undefined}
+              onPlaylist={targetSongs && !inExt ? openPlaylist : undefined}
               onUnpack={checkedSngCount ? unpackSng : undefined}
               unpackLabel={`Unpack ${checkedSngCount} .sng file${checkedSngCount === 1 ? '' : 's'}`}
               onRename={openRename}
@@ -1591,7 +1684,7 @@ export function LibraryView(): JSX.Element {
             onDelete={() => setDialog({ type: 'delete', names: [focusItem.name] })}
             onFix={() => fixItem(focusItem)}
             onUnpack={focusItem.isSng ? unpackSng : undefined}
-            onPlaylist={focusItem.kind === 'song' && !focusItem.isSng ? openPlaylist : undefined}
+            onPlaylist={focusItem.kind === 'song' && !focusItem.isSng && !inExt ? openPlaylist : undefined}
             onRename={openRename}
             onMove={() => openPick('move')}
             onCopy={() => openPick('copy')}
@@ -1619,7 +1712,32 @@ export function LibraryView(): JSX.Element {
             }}
           />
           <div ref={ctxRef} className="ctxmenu" style={{ left: ctx.x, top: ctx.y }} onMouseDown={(e) => e.stopPropagation()}>
-            {ctx.side !== undefined ? (
+            {ctx.ext !== undefined ? (
+              (() => {
+                const id = ctx.ext
+                const act = (fn: () => void) => () => {
+                  fn()
+                  setCtx(null)
+                }
+                return (
+                  <>
+                    <button className="ctxmenu__item" onClick={act(() => { setTool(null); void load(`::${id}`) })}>
+                      <Icon name="folder" size={14} /> Open
+                    </button>
+                    <button className="ctxmenu__item" onClick={act(() => void playFolder(`::${id}`, extFolders.find((f) => f.id === id)?.name ?? 'Folder'))}>
+                      <Icon name="play" size={14} /> Listen in music player
+                    </button>
+                    <button className="ctxmenu__item" onClick={act(() => window.api.libOpen(`::${id}`))}>
+                      <Icon name="external" size={14} /> {IS_MAC ? 'Open in Finder' : 'Open in Explorer'}
+                    </button>
+                    <div className="ctxmenu__sep" />
+                    <button className="ctxmenu__item" title="The folder and its files stay on your drive" onClick={act(() => void removeExtFolder(id))}>
+                      <Icon name="close" size={14} /> Remove from list
+                    </button>
+                  </>
+                )
+              })()
+            ) : ctx.side !== undefined ? (
               (() => {
                 const n = ctx.side
                 const act = (fn: () => void) => () => {
@@ -1675,7 +1793,7 @@ export function LibraryView(): JSX.Element {
                 <Icon name="file" size={14} /> Edit metadata
               </button>
             ) : null}
-            {targetSongs > 0 ? (
+            {targetSongs > 0 && !inExt ? (
               <button className="ctxmenu__item" onClick={() => { openPlaylist(); setCtx(null) }}>
                 <Icon name="note" size={14} /> Add to setlist ({targetSongs})
               </button>
@@ -1775,7 +1893,9 @@ export function LibraryView(): JSX.Element {
               : bulkItems(dialog.names)
           }
           mode={dialog.mode}
-          startAt={cwd}
+          // Z další složky (archivu) míří Copy to… / Move to… do Songs.
+          startAt={inExt ? '' : cwd}
+          sourceDir={dialog.base ?? cwd}
           onClose={() => setDialog(null)}
           onDone={(m) => {
             if (m && dialog.base !== undefined && dialog.mode === 'move') sideAffect.current = relIn(dialog.base, dialog.names[0])
@@ -1791,6 +1911,7 @@ export function LibraryView(): JSX.Element {
           onSaved={() => void load(cwd, true)}
         />
       ) : null}
+      {existingDialog}
       {playlistFor ? <PlaylistDialog rels={playlistFor} onClose={() => setPlaylistFor(null)} /> : null}
 
       {toast ? <div className="lv__toast" role="status">{toast}</div> : null}
@@ -2099,7 +2220,7 @@ function DetailPanel({
           folder.
         </div>
         <div className="lv__dactions">
-          <button className="btn-primary" onClick={onFix} title="Search the database for this song and replace the folder with a fresh download">
+          <button className="btn-primary lvfix-detail" onClick={onFix} title="Search the database for this song and replace the folder with a fresh download">
             <Icon name="download" size={13} /> Fix it
           </button>
           <button className="btn-secondary" onClick={onOpen}>Open folder</button>

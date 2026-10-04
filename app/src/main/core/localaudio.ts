@@ -18,6 +18,7 @@ import { readdir, readFile, stat } from 'fs/promises'
 import { extname, join, resolve, sep } from 'path'
 import { Readable } from 'stream'
 import type { SongAudio } from '../../shared/types'
+import { isInsideAnyRoot, resolveRel } from './roots'
 import { getConfig } from './config'
 
 export const AUDIO_SCHEME = 'chm-audio'
@@ -64,12 +65,9 @@ export function audioUrl(absPath: string): string {
  */
 function isAllowed(absPath: string): boolean {
   if (!AUDIO_EXT.has(extname(absPath).toLowerCase())) return false
-  const root = getConfig().songsDir
-  if (!root) return false
-  const base = resolve(root)
-  const target = resolve(absPath)
-  // `sep` na konci: jinak by „…/Songs2" prošlo jako podsložka „…/Songs".
-  return target === base || target.startsWith(base.endsWith(sep) ? base : base + sep)
+  if (!getConfig().songsDir) return false
+  // Songs nebo některá z dalších složek (roots.ts hlídá i „…/Songs2" vs „…/Songs").
+  return isInsideAnyRoot(absPath)
 }
 
 /**
@@ -77,14 +75,8 @@ function isAllowed(absPath: string): boolean {
  * z knihovny (stejná ochrana jako `safeAbs` v `librarymgr`).
  */
 function songFolderAbs(rel: string): string {
-  const root = getConfig().songsDir
-  if (!root) throw new Error('Songs library is not set')
-  const base = resolve(root)
-  const abs = resolve(base, rel || '.')
-  if (abs !== base && !abs.startsWith(base + sep)) {
-    throw new Error('Path is outside the Songs library')
-  }
-  return abs
+  if (!getConfig().songsDir) throw new Error('Songs library is not set')
+  return resolveRel(rel).abs
 }
 
 /** Zaregistruje handler. Volat až po `app.whenReady()`. */

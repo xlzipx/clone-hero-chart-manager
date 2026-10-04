@@ -12079,3 +12079,123 @@ button.plrow__na:hover {
 .side-catalog {
   border-radius: 10px;
 }
+/* Okno v pozadí: nekonečné animace stojí (viz main.tsx). Jednorázové přechody
+ * a animace průběhu se tím nemění — jen se nekreslí smyčky, na které nikdo nekouká. */
+.app-blurred *,
+.app-blurred *::before,
+.app-blurred *::after {
+  animation-play-state: paused !important;
+}
+/* Další složky (mimo Songs): oprava stažením by nahradila složku v archivu
+ * písní ze Songs — tam ji nenabízet. */
+.lv--ext .lvfix,
+.lv--ext .lvfix-detail,
+.lv--ext .lv__fixall {
+  display: none;
+}
+.lv__titem--add {
+  color: var(--text-faint);
+}
+.lv__titem--add:hover {
+  color: var(--text);
+}
+/* Upozornění „už je v cílové složce" před kopírováním / přesunem. */
+.lvexist {
+  z-index: 60;
+}
+.lvexist__list {
+  list-style: none;
+  margin: 4px 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.lvexist__list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  font-size: 13px;
+}
+.lvexist__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lvexist__tag {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+}
+.lvexist__tag--identical {
+  color: #f5a524;
+  background: rgba(245, 165, 36, 0.12);
+}
+.lvexist__tag--same-song {
+  color: var(--text-dim);
+  background: var(--panel-hover);
+}
+li.lvexist__more {
+  color: var(--text-faint);
+  background: none;
+}
+.lvexist__hint {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+/* Poznámka v další složce (mimo Songs): hra ji neprochází. */
+.lv__extnote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-faint);
+  padding: 0 2px;
+}
+/* Filtr žánru: text s našeptávačem (počet chartů vpravo). */
+.genrefield {
+  position: relative;
+}
+.genrefield .filterfield__input {
+  width: 100%;
+  padding-right: 28px;
+}
+.genrefield__clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.genrefield__clear:hover {
+  color: var(--text);
+  background: var(--panel-hover);
+}
+.genrefield__item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.genrefield__count {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}

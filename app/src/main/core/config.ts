@@ -205,6 +205,7 @@ function defaults(): AppConfig {
     reminderPosition: 'bottom-right',
     dupMoveDir: '', // poslední karanténní složka pro duplicity
     dupPreferInstruments: [],
+    extraFolders: [],
     setlistCompact: false,
     // Šablona složky chartu — výchozí hodnota je PŘESNĚ ten formát, který byl do
     // 0.9.6 natvrdo v `install()`, a auto je vypnuté → kdo si nic nenastaví, má

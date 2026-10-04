@@ -336,7 +336,7 @@ export function invalidateLibraryIndex(): void {
 }
 
 /** notes soubor písně (chart preferováno) + jeho mtime/velikost, nebo null. */
-async function notesStat(
+export async function notesStat(
   dir: string
 ): Promise<{ path: string; mtimeMs: number; size: number } | null> {
   for (const f of ['notes.chart', 'notes.mid']) {

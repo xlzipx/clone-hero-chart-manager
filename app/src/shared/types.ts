@@ -221,6 +221,24 @@ export function dateFilterRange(f: DateFilter, now = Date.now()): { from?: numbe
   }
 }
 
+/** Kopírovaná / přesouvaná píseň, která už v cílové složce je. */
+export interface ExistingMatch {
+  rel: string
+  /** Název kopírované složky. */
+  name: string
+  /** Název složky v cíli, se kterou se shoduje. */
+  match: string
+  /** identical = stejný soubor s notami, same-song = stejný interpret a název, jiný chart. */
+  kind: 'identical' | 'same-song'
+}
+
+/** Další složka s charty mimo Songs. `id` je předpona cest v ní (`::id/…`). */
+export interface ExtraFolderInfo {
+  id: string
+  path: string
+  name: string
+}
+
 export interface CatalogQuery {
   /** Fulltext přes title+artist+album (každé slovo musí sedět někde). */
   text?: string
@@ -318,6 +336,8 @@ export interface AppConfig {
   dupMoveDir: string
   /** Duplicity, různé verze: upřednostnit verzi s těmito nástroji (guitar/bass/…). */
   dupPreferInstruments: string[]
+  /** Další složky s charty mimo Songs (archiv na jiném disku…), absolutní cesty. */
+  extraFolders: string[]
   /** Setlisty: kompaktní seznam bez obalů. */
   setlistCompact: boolean
   /**
@@ -547,6 +567,12 @@ export interface RendererApi {
   libUnpackSng(relItem: string): Promise<string>
   /** Rozbité písně ve složce a všech podsložkách; `name` = cesta relativně k `rel`. */
   libFindBroken(rel: string): Promise<LibEntry[]>
+  /** Další složky s charty (cesty v nich mají předponu `::id`). */
+  libExtraFolders(): Promise<ExtraFolderInfo[]>
+  libAddExtraFolder(absPath: string): Promise<ExtraFolderInfo>
+  libRemoveExtraFolder(id: string): Promise<void>
+  /** Které z písní už v cílové složce jsou (před kopírováním / přesunem). */
+  libFindExisting(srcRels: string[], destRel: string): Promise<ExistingMatch[]>
   /** „Fix it": rozbitou složku do koše, nově staženou na její místo. */
   libReplaceBroken(brokenRel: string, installAbs: string): Promise<string>
   /** Přesune položky knihovny do složky MIMO knihovnu (karanténa duplicit — funguje i tam, kde koš ne, např. Wine). */
@@ -613,6 +639,8 @@ export interface RendererApi {
   /** Otevře file picker pro `.exe`. */
   chooseExeFile(): Promise<string | null>
   /** Odběr změn stavu hry (poll 3s) — vrací která hra běží, nebo null. */
+  /** Okno appky je aktivní (v popředí a viditelné) / v pozadí. */
+  onWindowActive(cb: (active: boolean) => void): () => void
   onGameStatus(cb: (game: 'clone-hero' | 'yarg' | null) => void): () => void
   hideOverlay(): void
   /** Přepne maximalizaci hlavního okna. */
@@ -670,6 +698,8 @@ export interface RendererApi {
   onCatalogStatus(cb: (s: CatalogStatus) => void): () => void
   /** Dotaz do lokálního katalogu (jen když je `ready`; jinak vyhodí chybu). */
   catalogQuery(q: CatalogQuery): Promise<SearchResponse>
+  /** Žánry z lokálního katalogu (obě DB), nejčastější první — našeptávač filtru. */
+  catalogGenres(): Promise<{ label: string; count: number }[]>
   /** Nastaví normalizované klíče vlastněných písní pro katalogový „Hide owned". */
   catalogSetOwned(keys: string[]): Promise<void>
   /** 30s zvuková ukázka spárovaná podle interpreta + názvu (iTunes → Deezer). */

@@ -537,9 +537,14 @@ export function queryCatalog(q: CatalogQuery): SearchResponse {
     }
   }
 
-  if (q.genreLabels?.length) {
-    where.push(`genre IN (${q.genreLabels.map(() => '?').join(',')})`)
-    args.push(...q.genreLabels)
+  // Žánr = část textu (bez ohledu na velikost písmen). Encore má žánry jako
+  // volný text ze song.ini (tisíce variant: „Funk", „Funk Rock", „Synth Funk"…),
+  // RhythmVerse pevný číselník („R&B/Soul/Funk"). Přesná shoda by většinu
+  // Encore chartů nenašla, takže „funk" najde všechny žánry s tímhle slovem.
+  const genres = (q.genreLabels ?? []).map((g) => g.trim()).filter(Boolean)
+  if (genres.length) {
+    where.push(`(${genres.map(() => `genre LIKE ? ESCAPE '\\'`).join(' OR ')})`)
+    args.push(...genres.map((g) => `%${g.replace(/[\\%_]/g, (c) => `\\${c}`)}%`))
   }
   if (q.year?.length) {
     const nums = q.year.map((y) => parseInt(y, 10)).filter(Number.isFinite)
@@ -745,4 +750,20 @@ export function queryCatalog(q: CatalogQuery): SearchResponse {
     page,
     records
   }
+}
+
+/**
+ * Žánry, které se v katalogu skutečně vyskytují (obě databáze), nejčastější
+ * první — pro našeptávač filtru žánru. Varianty lišící se jen velikostí
+ * písmen / mezerami se sloučí pod nejčastější zápis.
+ */
+export function catalogGenres(limit = 400): { label: string; count: number }[] {
+  if (!db) return []
+  const rows = db
+    .prepare(
+      `SELECT trim(genre) AS g, COUNT(*) AS n FROM charts
+       WHERE trim(genre) <> '' GROUP BY lower(trim(genre)) ORDER BY n DESC LIMIT ?`
+    )
+    .all(limit) as { g: string; n: number }[]
+  return rows.map((r) => ({ label: r.g, count: r.n }))
 }

@@ -83,6 +83,133 @@ function FilterSelect({
   )
 }
 
+/**
+ * Žánr jako text s našeptávačem (issue #15). Hledá se podle ČÁSTI názvu napříč
+ * oběma databázemi: „funk" najde Funk, Funk Rock, R&B/Soul/Funk… Našeptávač
+ * nabízí žánry, které v katalogu opravdu jsou, nejčastější první. Vyhledávání
+ * se spustí s krátkou prodlevou po psaní (ne na každé písmeno), hned po výběru
+ * z našeptávače, Enteru nebo opuštění pole.
+ */
+function GenreField({
+  value,
+  onChange
+}: {
+  value: string
+  onChange: (v: string) => void
+}): JSX.Element {
+  const [text, setText] = useState(value)
+  const [open, setOpen] = useState(false)
+  const [all, setAll] = useState<{ label: string; count: number }[]>([])
+  const [hi, setHi] = useState(-1)
+  const ref = useRef<HTMLDivElement>(null)
+  const timer = useRef(0)
+
+  // Zvenku změněný filtr (Clear filters) → přepsat pole. Jen když se opravdu
+  // liší, jinak by oříznutá hodnota smazala rozepsanou mezeru („hard ").
+  useEffect(() => {
+    setText((t) => (t.trim() === value ? t : value))
+  }, [value])
+  useEffect(() => {
+    void window.api
+      .catalogGenres()
+      .then(setAll)
+      .catch(() => setAll([]))
+  }, [])
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent): void => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  const commit = (v: string): void => {
+    window.clearTimeout(timer.current)
+    const t = v.trim()
+    if (t !== value) onChange(t)
+  }
+  const q = text.trim().toLowerCase()
+  const list = (q ? all.filter((g) => g.label.toLowerCase().includes(q)) : all).slice(0, 12)
+
+  return (
+    <label className="filterfield">
+      <span className="filterfield__label">Genre</span>
+      <div className={`dd dd--filter genrefield ${open && list.length ? 'dd--open' : ''}`} ref={ref}>
+        <input
+          className="filterfield__input"
+          value={text}
+          placeholder="e.g. Rock"
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            const v = e.target.value
+            setText(v)
+            setOpen(true)
+            setHi(-1)
+            window.clearTimeout(timer.current)
+            timer.current = window.setTimeout(() => commit(v), 450)
+          }}
+          onBlur={() => commit(text)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              setOpen(true)
+              setHi((h) => Math.min(h + 1, list.length - 1))
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              setHi((h) => Math.max(h - 1, -1))
+            } else if (e.key === 'Enter') {
+              const pick = hi >= 0 ? list[hi]?.label : text
+              setText(pick ?? text)
+              commit(pick ?? text)
+              setOpen(false)
+            } else if (e.key === 'Escape' && open) {
+              e.stopPropagation()
+              setOpen(false)
+            }
+          }}
+        />
+        {text ? (
+          <button
+            type="button"
+            className="genrefield__clear"
+            aria-label="Clear genre"
+            onClick={() => {
+              setText('')
+              commit('')
+            }}
+          >
+            <Icon name="close" size={11} />
+          </button>
+        ) : null}
+        {open && list.length ? (
+          <ul className="dd__menu dd__menu--scroll" role="listbox">
+            {list.map((g, i) => (
+              <li key={g.label}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={i === hi}
+                  className={`dd__item genrefield__item ${i === hi ? 'dd__item--sel' : ''}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setText(g.label)
+                    commit(g.label)
+                    setOpen(false)
+                  }}
+                >
+                  <span>{g.label}</span>
+                  <span className="genrefield__count">{g.count.toLocaleString('en-US')}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </label>
+  )
+}
+
 /** Předvolby filtru „Added / modified" (jako časový filtr v Googlu). */
 const DATE_PRESETS: FilterOption[] = [
   { id: '1d', label: 'Past 24 hours' },
@@ -218,38 +345,6 @@ export function FilterPanel(): JSX.Element {
           je nemá smysl vizuálně oddělovat. Když je Encore ještě bez katalogu
           (encoreOnly), browse pole ustoupí banneru a zůstane jen refine část. */}
       <div className="filterpanel__grid">
-        {encoreOnly ? null : (
-          <>
-            <FilterSelect
-              label="Genre"
-              placeholder="Any genre"
-              value={one('genre')}
-              options={options?.genre ?? []}
-              onChange={set('genre')}
-            />
-            <FilterSelect
-              label="Release year"
-              placeholder="Any year"
-              value={one('year')}
-              options={options?.year ?? []}
-              onChange={set('year')}
-            />
-            <FilterSelect
-              label="Decade"
-              placeholder="Any decade"
-              value={one('decade')}
-              options={options?.decade ?? []}
-              onChange={set('decade')}
-            />
-            <FilterSelect
-              label="Song length"
-              placeholder="Any length"
-              value={one('songLength')}
-              options={options?.songLength ?? []}
-              onChange={set('songLength')}
-            />
-          </>
-        )}
         <FilterSelect
           label="Added / modified"
           placeholder="Any time"
@@ -285,8 +380,35 @@ export function FilterPanel(): JSX.Element {
             </div>
           </div>
         ) : null}
+        {encoreOnly ? null : (
+          <>
+            <FilterSelect
+              label="Decade"
+              placeholder="Any decade"
+              value={one('decade')}
+              options={options?.decade ?? []}
+              onChange={set('decade')}
+            />
+            <FilterSelect
+              label="Release year"
+              placeholder="Any year"
+              value={one('year')}
+              options={options?.year ?? []}
+              onChange={set('year')}
+            />
+            <FilterSelect
+              label="Song length"
+              placeholder="Any length"
+              value={one('songLength')}
+              options={options?.songLength ?? []}
+              onChange={set('songLength')}
+            />
+          </>
+        )}
+        {/* Textová pole (žánr, charter, interpret) pohromadě vedle sebe. */}
+        {encoreOnly ? null : <GenreField value={one('genre')} onChange={set('genre')} />}
         <FilterText label="Charter" value={charter} placeholder="e.g. Chezy" onChange={setCharter} />
-        <FilterText label="Artist" value={artist} placeholder="e.g. Linkin Park" onChange={setArtist} />
+        <FilterText label="Artist" value={artist} placeholder="e.g. Foo Fighters" onChange={setArtist} />
         {/* Redukce (Expert-only vs E/M/H/X) VEDLE Charter/Artist ve stejné
             řadě, ať panel neroste na výšku. Přepínače vypadají jako odznaky
             u řádku výsledků; klik na aktivní ho vypne. Trochu širší (dva

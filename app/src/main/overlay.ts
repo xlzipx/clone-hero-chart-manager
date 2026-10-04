@@ -217,6 +217,13 @@ export function createOverlay(): BrowserWindow {
   }
   win.on('maximize', sendMax)
   win.on('unmaximize', sendMax)
+  // Aktivní okno ano/ne → renderer v pozadí pozastaví dekorativní animace.
+  const sendActive = (): void => {
+    if (!win.isDestroyed()) win.webContents.send('window:active', win.isFocused() && win.isVisible() && !win.isMinimized())
+  }
+  for (const ev of ['focus', 'blur', 'show', 'hide', 'minimize', 'restore'] as const) win.on(ev as 'focus', sendActive)
+  // Výchozí stav i po načtení / reloadu stránky (okno mohlo startovat v pozadí).
+  win.webContents.on('did-finish-load', sendActive)
 
   win.on('closed', () => {
     mainWindow = null

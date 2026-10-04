@@ -3,9 +3,10 @@
 
 import { nativeImage, shell } from 'electron'
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'fs'
-import { readdir, rm } from 'fs/promises'
+import { cp, readdir, rm } from 'fs/promises'
 import { basename, dirname, extname, join, relative, resolve, sep } from 'path'
-import { getConfig } from './config'
+import { getConfig, setConfig } from './config'
+import { EXT_PREFIX, extraFolders, folderId, foldPath, isRootAbs, resolveRel, songsRoot, toRel, type ExtraFolder } from './roots'
 import { portableName } from '../../shared/foldertemplate'
 import { readAlbumArt, readSongInfo, readSongMeta, writeSongMeta } from './songmeta'
 import {
@@ -15,13 +16,17 @@ import {
   getPlaylistTracks,
   invalidateLibraryIndex,
   listPlaylists,
+  notesStat,
   removeSongsFromPlaylist,
-  renamePlaylist
+  renamePlaylist,
+  songHashCached
 } from './playlists'
+import { songKey } from '../../shared/songid'
 import { invalidateOwnedIndex } from './library'
 import { findDuplicates } from './duplicates'
 import { extractSng, isSngFile } from './sngextract'
 import type {
+  ExistingMatch,
   DupGroup,
   LibSongInfo,
   PlayerTrack,
@@ -53,17 +58,13 @@ async function removePath(abs: string): Promise<void> {
 }
 
 function rootDir(): string {
-  return resolve(getConfig().songsDir)
+  return songsRoot()
 }
 
-/** Bezpečně převede relativní cestu na absolutní uvnitř songsDir. */
+/** Bezpečně převede relativní cestu na absolutní uvnitř Songs nebo další
+ *  složky (předpona `::id`, viz roots.ts). */
 function safeAbs(rel: string): string {
-  const base = rootDir()
-  const abs = resolve(base, rel || '.')
-  if (abs !== base && !abs.startsWith(base + sep)) {
-    throw new Error('Path is outside the Songs library')
-  }
-  return abs
+  return resolveRel(rel).abs
 }
 
 function sanitizeName(name: string): string {
@@ -121,6 +122,7 @@ export function libList(rel: string): { path: string; entries: LibEntry[] } {
   // je čtecí operace a nemá zakládat adresáře podle libovolného vstupu.
   if (!existsSync(abs)) {
     if (abs === rootDir()) mkdirSync(abs, { recursive: true })
+    else if (isRootAbs(abs)) throw new Error('Folder not found. Is the drive connected?')
     else return { path: rel, entries: [] }
   }
   let names: string[] = []
@@ -220,7 +222,6 @@ export async function libListSongsUnder(rel: string): Promise<PlayerTrack[]> {
   const absRoot = safeAbs(rel)
   const folders: string[] = []
   await collectSongFolders(absRoot, folders)
-  const root = rootDir()
   const tracks = await Promise.all(
     folders.map(async (abs) => {
       let title = basename(abs)
@@ -234,7 +235,7 @@ export async function libListSongsUnder(rel: string): Promise<PlayerTrack[]> {
       } catch {
         /* neplatná píseň → aspoň název složky */
       }
-      return { rel: relative(root, abs), title, artist }
+      return { rel: toRel(abs), title, artist }
     })
   )
   tracks.sort(
@@ -251,6 +252,7 @@ export function libCreateFolder(rel: string, name: string): void {
 
 export function libRename(relItem: string, newName: string): void {
   const src = safeAbs(relItem)
+  if (isRootAbs(src)) throw new Error('Cannot rename a library root folder')
   // Cíl skládáme z rodiče relItem + nový (sanitizovaný) název a CELÝ ho ověříme
   // přes safeAbs (jinak by rodičovská část nebyla kontrolovaná na traversal).
   const parentRel = relItem.split(/[\\/]/).slice(0, -1).join('/')
@@ -263,7 +265,7 @@ export function libRename(relItem: string, newName: string): void {
 
 export async function libTrash(relItem: string): Promise<void> {
   const abs = safeAbs(relItem)
-  if (abs === rootDir()) throw new Error('Cannot delete the Songs root')
+  if (isRootAbs(abs)) throw new Error('Cannot delete a library root folder')
   await removePath(abs)
   invalidateLibraryIndex()
   invalidateOwnedIndex()
@@ -378,11 +380,12 @@ export async function libUnpackSng(relItem: string): Promise<string> {
   await removePath(src)
   invalidateLibraryIndex()
   invalidateOwnedIndex()
-  return relative(rootDir(), out).split(sep).join('/')
+  return toRel(out)
 }
 
-export function libMove(srcRelItem: string, destRelDir: string): void {
+export async function libMove(srcRelItem: string, destRelDir: string): Promise<void> {
   const src = safeAbs(srcRelItem)
+  if (isRootAbs(src)) throw new Error('Cannot move a library root folder')
   const destDir = safeAbs(destRelDir)
   const dest = uniqueDest(destDir, basename(src))
   if (resolve(dest).startsWith(resolve(src) + sep)) {
@@ -394,8 +397,10 @@ export function libMove(srcRelItem: string, destRelDir: string): void {
     // Fallback kopie+koš JEN u skutečného cross-device (EXDEV). Přechodné chyby
     // (EBUSY/EPERM — píseň otevřená ve hře) musí selhat čistě, ne polovičatě.
     if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
-    cpSync(src, dest, { recursive: true })
-    void removePath(src)
+    // Jiný disk (typicky archiv na externím disku): asynchronně, ať okno
+    // během kopírování velkých složek nezamrzne.
+    await cp(src, dest, { recursive: true })
+    await removePath(src)
   }
   invalidateLibraryIndex()
   invalidateOwnedIndex()
@@ -450,14 +455,15 @@ export function libMoveOut(relItems: string[], destAbsDir: string): void {
   invalidateOwnedIndex()
 }
 
-export function libCopy(srcRelItem: string, destRelDir: string): void {
+export async function libCopy(srcRelItem: string, destRelDir: string): Promise<void> {
   const src = safeAbs(srcRelItem)
   const destDir = safeAbs(destRelDir)
   const dest = uniqueDest(destDir, basename(src))
   if (resolve(dest).startsWith(resolve(src) + sep)) {
     throw new Error('Cannot copy a folder into itself')
   }
-  cpSync(src, dest, { recursive: true })
+  // Asynchronně — kopie z pomalého externího disku by jinak zamrazila okno.
+  await cp(src, dest, { recursive: true })
   invalidateLibraryIndex()
   invalidateOwnedIndex()
 }
@@ -567,6 +573,10 @@ export function libAddToPlaylist(
   name: string,
   relItems: string[]
 ): Promise<PlaylistAddResult> {
+  // Clone Hero hledá písně setlistu jen ve složce Songs.
+  if (relItems.some((r) => r.startsWith(EXT_PREFIX))) {
+    return Promise.reject(new Error('Setlists can only contain songs from your Songs folder. Copy the songs there first.'))
+  }
   return addSongsToPlaylist(
     name,
     relItems.map((r) => safeAbs(r))
@@ -593,4 +603,97 @@ export function libRemoveFromPlaylist(name: string, hashes: string[]): Promise<v
 /** `scope` = relativní podsložky Songs; prázdné/neuvedené = celá knihovna. */
 export function libFindDuplicates(scope?: string[]): Promise<DupGroup[]> {
   return findDuplicates(scope)
+}
+
+// ── Další složky (archivy chartů mimo Songs, issue #8) ─────────────────────
+export function libExtraFolders(): ExtraFolder[] {
+  return extraFolders()
+}
+
+/** Přidá složku do seznamu. Nesmí to být Songs, nic uvnitř Songs ani složka,
+ *  která Songs obsahuje (stejné charty by se ukazovaly dvakrát). */
+export function libAddExtraFolder(absPath: string): ExtraFolder {
+  const abs = resolve(absPath)
+  if (!existsSync(abs) || !statSync(abs).isDirectory()) throw new Error('Folder not found')
+  const lc = foldPath
+  const songs = lc(songsRoot())
+  const a = lc(abs)
+  if (a === songs) throw new Error('This is already your Songs folder')
+  if (a.startsWith(songs + sep)) throw new Error('This folder is inside your Songs folder, open it under Songs instead')
+  if (songs.startsWith(a.endsWith(sep) ? a : a + sep)) throw new Error('This folder contains your Songs folder, pick a different one')
+  const cur = getConfig().extraFolders ?? []
+  if (cur.some((p) => folderId(p) === folderId(abs))) throw new Error('This folder is already in the list')
+  setConfig({ extraFolders: [...cur, abs] })
+  return extraFolders().find((f) => f.id === folderId(abs))!
+}
+
+/** Odebere složku ze seznamu (soubory zůstanou, jen se přestane zobrazovat). */
+export function libRemoveExtraFolder(id: string): void {
+  setConfig({ extraFolders: (getConfig().extraFolders ?? []).filter((p) => folderId(p) !== id) })
+}
+
+// ── Ochrana proti duplicitám při kopírování / přesunu ──────────────────────
+/**
+ * Které z kopírovaných / přesouvaných písní už v cílové složce jsou (jen přímo
+ * v ní, ne v podsložkách). `identical` = stejný soubor s notami (MD5, stejně
+ * jako hledání duplicit), `same-song` = stejný interpret + název, jiný chart.
+ * Hash se počítá jen u kandidátů (stejná velikost not nebo stejný název), ať
+ * je kontrola rychlá i u složky s tisíci písněmi.
+ */
+export async function libFindExisting(srcRels: string[], destRelDir: string): Promise<ExistingMatch[]> {
+  const dest = safeAbs(destRelDir)
+  if (!existsSync(dest)) return []
+  const keyOf = async (abs: string): Promise<string> => {
+    const meta = await readSongMeta(abs).catch(() => null)
+    const name = basename(abs)
+    const d = name.indexOf(' - ')
+    const artist = meta?.artist || (d > 0 ? name.slice(0, d) : '')
+    const title = meta?.name || (d > 0 ? name.slice(d + 3) : name)
+    return songKey(stripTagsLite(artist), stripTagsLite(title))
+  }
+  const srcs: { rel: string; abs: string; name: string; key: string; size: number | null }[] = []
+  for (const rel of srcRels) {
+    const abs = safeAbs(rel)
+    if (dirname(abs) === dest || !inspectDir(abs).isSong) continue // stejná složka / není píseň
+    srcs.push({ rel, abs, name: basename(abs), key: await keyOf(abs), size: (await notesStat(abs))?.size ?? null })
+  }
+  if (!srcs.length) return []
+  const keys = new Set(srcs.map((s) => s.key))
+  const sizes = new Set(srcs.map((s) => s.size).filter((x): x is number => x !== null))
+  const byKey = new Map<string, string>()
+  const byHash = new Map<string, string>()
+  let names: string[] = []
+  try {
+    names = readdirSync(dest)
+  } catch {
+    return []
+  }
+  // Souběžně po dávkách — u cílové složky s tisíci písněmi by čtení jedna po
+  // druhé trvalo vteřiny.
+  const check = async (n: string): Promise<void> => {
+    const abs = join(dest, n)
+    try {
+      if (!statSync(abs).isDirectory() || !inspectDir(abs).isSong) return
+    } catch {
+      return
+    }
+    const [k, st] = await Promise.all([keyOf(abs), notesStat(abs)])
+    if (keys.has(k) && !byKey.has(k)) byKey.set(k, n)
+    if (keys.has(k) || (st && sizes.has(st.size))) {
+      const h = await songHashCached(abs)
+      if (h && !byHash.has(h)) byHash.set(h, n)
+    }
+  }
+  for (let i = 0; i < names.length; i += 48) await Promise.all(names.slice(i, i + 48).map(check))
+  const out: ExistingMatch[] = []
+  for (const s of srcs) {
+    const h = byHash.size ? await songHashCached(s.abs) : null
+    if (h && byHash.has(h)) out.push({ rel: s.rel, name: s.name, match: byHash.get(h)!, kind: 'identical' })
+    else if (byKey.has(s.key)) out.push({ rel: s.rel, name: s.name, match: byKey.get(s.key)!, kind: 'same-song' })
+  }
+  return out
+}
+
+function stripTagsLite(s: string): string {
+  return s.replace(/<[^>]*>/g, '').trim()
 }

@@ -154,6 +154,10 @@ clicks: a whole setlist from a playlist you already love. See
   the best copy in one click (optionally preferring versions with your
   instruments). Broken song folders are found across all subfolders and can be
   fixed in bulk with a fresh download.
+- **Other folders**: add any folder with charts outside `Songs` (an archive on
+  an external drive, for example) and browse it the same way, with album art,
+  previews and filters, then copy or move the songs you want into `Songs`.
+  Copying or moving warns you when a song is already in the destination.
 - **Edit metadata**: adjust a song's `song.ini` (title, artist, charter, …)
   in‑app; open any song to see its album art and per‑instrument difficulties.
 

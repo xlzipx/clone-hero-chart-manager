@@ -223,6 +223,9 @@ export function App(): JSX.Element {
   const downloadableCount = downloadableSelected.length
   const allChecked = checkableSongs.length > 0 && checkableSongs.every((s) => selectedSet.has(s.key))
   const toggleSelectAll = (): void => {
+    // Během načítání jsou vidět jen ztlumené staré výsledky — výběr by po
+    // příchodu nových stejně zmizel.
+    if (useStore.getState().loading) return
     if (allChecked) clearSelection()
     else setSelection(checkableSongs.map((s) => s.key))
   }
@@ -260,6 +263,10 @@ export function App(): JSX.Element {
       st.setSelection(list.slice(a, b + 1).map((s) => s.key)) // kotva zůstává
     } else if (ctrl) {
       st.toggleSelected(key)
+      st.setSelectedIndex(idx)
+    } else if (st.selectedKeys.length > 1) {
+      // Rozpracovaný vícenásobný výběr klik na řádek nezruší (issue #14) — jen
+      // přesune zvýraznění. Zrušit jde tlačítkem Clear nebo Escapem.
       st.setSelectedIndex(idx)
     } else if (st.selectedKeys.length === 1 && st.selectedKeys[0] === key) {
       // Druhý klik na tutéž (jedinou vybranou) → odznač.
@@ -382,6 +389,8 @@ export function App(): JSX.Element {
     const onDown = (e: MouseEvent): void => {
       const st = useStore.getState()
       if (st.selectedIndex < 0 && st.selectedKeys.length === 0) return
+      // Vícenásobný výběr klik mimo seznam nezruší (issue #14).
+      if (st.selectedKeys.length > 1) return
       const t = e.target as HTMLElement | null
       // NEodznačuj jen na prvcích, kde s výběrem dál pracuješ (řádky, batch
       // tlačítko, select-all, sort, modal, našeptávač). Prázdné plochy lišty /
@@ -458,6 +467,7 @@ export function App(): JSX.Element {
         // Ctrl+A = vybrat všechny stažitelné písně na stránce (jako políčko „vybrat vše").
         e.preventDefault()
         const st = useStore.getState()
+        if (st.loading) return // staré výsledky během načítání (viz toggleSelectAll)
         st.setSelection(visible.filter((s) => isAutoDownloadable(s) && !enqueuedKeys[s.key]).map((s) => s.key))
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
@@ -556,7 +566,7 @@ export function App(): JSX.Element {
           <div className="resultsbar__lead">
           {checkableSongs.length > 0 ? (
             <label className="chk chk--selectall" title="Select all downloadable songs">
-              <input type="checkbox" checked={allChecked} onChange={toggleSelectAll} />
+              <input type="checkbox" checked={allChecked} onChange={toggleSelectAll} disabled={loading} />
               <span className="chk__box">
                 <Icon name="check" size={12} />
               </span>

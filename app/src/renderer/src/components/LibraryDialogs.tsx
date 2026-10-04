@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { LibEntry, LibSongInfo } from '../../../shared/types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ExistingMatch, LibEntry, LibSongInfo } from '../../../shared/types'
 import { userMsg } from '../../../shared/errors'
 import { cleanSegment, renderFolderTemplate } from '../../../shared/foldertemplate'
 import { stripTags } from '../utils'
@@ -296,12 +296,15 @@ export function FolderPickerDialog({
   items,
   mode,
   startAt,
+  sourceDir,
   onClose,
   onDone
 }: {
   items: BulkItem[]
   mode: 'move' | 'copy'
   startAt: string
+  /** Kde položky leží (pro „už jsou tady"); výchozí = startAt. */
+  sourceDir?: string
   onClose: () => void
   onDone: (message: string) => void
 }): JSX.Element {
@@ -313,6 +316,7 @@ export function FolderPickerDialog({
   const [newName, setNewName] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
   const verb = mode === 'move' ? 'Move' : 'Copy'
+  const [askExisting, existingDialog] = useExistingCheck()
 
   const createFolder = async (): Promise<void> => {
     const name = cleanSegment(newName ?? '')
@@ -341,7 +345,7 @@ export function FolderPickerDialog({
   }, [at, reload])
 
   const segs = at.split(/[\\/]/).filter(Boolean)
-  const sourceParent = startAt
+  const sourceParent = sourceDir ?? startAt
   // Do sebe sama ani do vlastní podsložky přesouvat nejde.
   const intoItself = items.some((i) => at === i.rel || at.startsWith(i.rel + '/'))
   const sameFolder = mode === 'move' && at === sourceParent
@@ -349,8 +353,20 @@ export function FolderPickerDialog({
   const run = async (): Promise<void> => {
     setBusy(true)
     setError(null)
+    // Ochrana proti duplicitám: písně, které už v cíli jsou, nabídnout přeskočit.
+    const keep = await askExisting(items.map((i) => i.rel), at, verb)
+    if (!keep) {
+      setBusy(false)
+      return
+    }
+    const todo = items.filter((i) => keep.includes(i.rel))
+    if (!todo.length) {
+      setBusy(false)
+      onDone('Nothing to do, everything is already there')
+      return
+    }
     const failed: string[] = []
-    for (const it of items) {
+    for (const it of todo) {
       try {
         if (mode === 'move') await window.api.libMove(it.rel, at)
         else await window.api.libCopy(it.rel, at)
@@ -359,7 +375,7 @@ export function FolderPickerDialog({
       }
     }
     setBusy(false)
-    const ok = items.length - failed.length
+    const ok = todo.length - failed.length
     if (failed.length) {
       setError(`${verb === 'Move' ? 'Moved' : 'Copied'} ${ok}, ${failed.length} failed:\n${failed.slice(0, 5).join('\n')}`)
       onDone('')
@@ -463,6 +479,102 @@ export function FolderPickerDialog({
           </button>
         </div>
       </div>
+      {existingDialog}
     </div>
   )
+}
+
+/**
+ * Kontrola před kopírováním / přesunem: které písně už v cílové složce jsou.
+ * `ask(rels, dest, verb)` vrátí rel cesty, které se mají opravdu zpracovat,
+ * nebo null (zrušeno). Bez shody se nic neukáže a vrátí se všechno.
+ */
+export function useExistingCheck(): [
+  (rels: string[], destRel: string, verb: 'Copy' | 'Move') => Promise<string[] | null>,
+  JSX.Element | null
+] {
+  const [state, setState] = useState<{ matches: ExistingMatch[]; total: number; verb: 'Copy' | 'Move'; dest: string } | null>(null)
+  const resolver = useRef<((v: string[] | null) => void) | null>(null)
+  const rels = useRef<string[]>([])
+  const ask = async (list: string[], destRel: string, verb: 'Copy' | 'Move'): Promise<string[] | null> => {
+    let matches: ExistingMatch[] = []
+    try {
+      matches = await window.api.libFindExisting(list, destRel)
+    } catch {
+      /* kontrola je pomocná — když selže, kopírovat jako dřív */
+    }
+    if (!matches.length) return list
+    rels.current = list
+    const last = destRel.split(/[\\/]/).filter(Boolean).pop() ?? ''
+    return new Promise((resolve) => {
+      resolver.current = resolve
+      setState({ matches, total: list.length, verb, dest: !last ? 'Songs' : last.startsWith('::') ? 'this folder' : last })
+    })
+  }
+  const finish = (v: string[] | null): void => {
+    resolver.current?.(v)
+    resolver.current = null
+    setState(null)
+  }
+  if (!state) return [ask, null]
+  const identical = state.matches.filter((m) => m.kind === 'identical')
+  const skipAll = new Set(state.matches.map((m) => m.rel))
+  const skipIdent = new Set(identical.map((m) => m.rel))
+  const shown = state.matches.slice(0, 8)
+  const n = state.matches.length
+  const dialog = (
+    <div className="lib__dialog-overlay lvexist" onMouseDown={(e) => e.target === e.currentTarget && finish(null)}>
+      <div
+        className="lib__dialog lvdlg lvdlg--sm"
+        role="alertdialog"
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.stopPropagation()
+            finish(null)
+          }
+        }}
+      >
+        <p className="metadlg__head">
+          Already in “{state.dest}”
+          <span className="metadlg__sub">
+            {n} of {state.total} {state.total === 1 ? 'song' : 'songs'}
+          </span>
+        </p>
+        <ul className="lvexist__list">
+          {shown.map((m) => (
+            <li key={m.rel}>
+              <span className="lvexist__name">{m.name}</span>
+              <span className={`lvexist__tag lvexist__tag--${m.kind}`}>{m.kind === 'identical' ? 'Same chart' : 'Different chart'}</span>
+            </li>
+          ))}
+          {n > shown.length ? <li className="lvexist__more">and {n - shown.length} more</li> : null}
+        </ul>
+        <p className="lvexist__hint">
+          {identical.length === n
+            ? 'These charts are already there, exactly the same.'
+            : identical.length
+              ? 'Some are exact copies, others are the same song from a different charter.'
+              : 'The same songs are there, but from a different chart. You may want both.'}
+        </p>
+        <div className="lib__dialog-foot">
+          <button className="btn-secondary" autoFocus onClick={() => finish(null)}>
+            Cancel
+          </button>
+          <span className="lib__spacer" />
+          <button className="btn-secondary" onClick={() => finish(rels.current)}>
+            {state.verb} anyway
+          </button>
+          {identical.length && identical.length < n ? (
+            <button className="btn-secondary" onClick={() => finish(rels.current.filter((r) => !skipIdent.has(r)))}>
+              Skip exact copies ({identical.length})
+            </button>
+          ) : null}
+          <button className="btn-primary" onClick={() => finish(rels.current.filter((r) => !skipAll.has(r)))}>
+            {n === 1 ? 'Skip it' : `Skip these ${n}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+  return [ask, dialog]
 }

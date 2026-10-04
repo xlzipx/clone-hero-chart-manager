@@ -15,6 +15,7 @@ import type {
 import { getConfig, setConfig } from './core/config'
 import { isLinux, isMac } from './core/platform'
 import {
+  catalogGenres,
   getLoudness,
   queryCatalog,
   setLoudness,
@@ -61,6 +62,10 @@ import {
   libReplaceBroken,
   libUnpackSng,
   libFindBroken,
+  libExtraFolders,
+  libAddExtraFolder,
+  libRemoveExtraFolder,
+  libFindExisting,
   libWriteMeta
 } from './core/librarymgr'
 import { mergeBoth } from '../shared/songid'
@@ -156,6 +161,7 @@ export function registerIpc(): void {
 
   // ---- Lokální katalog metadat ----
   ipcMain.handle('catalog:status', () => getCatalogStatus())
+  ipcMain.handle('catalog:genres', () => catalogGenres())
   ipcMain.handle('catalog:query', (_e, q: CatalogQuery): SearchResponse => {
     // Použitelnost je PER-ZDROJ: Encore se staví první a jeho dotazy musí
     // projít, i když se RhythmVerse část ještě stahuje.
@@ -233,6 +239,10 @@ export function registerIpc(): void {
   ipcMain.handle('lib:trash', (_e, relItem: string) => libTrash(relItem))
   ipcMain.handle('lib:unpackSng', (_e, relItem: string) => libUnpackSng(relItem))
   ipcMain.handle('lib:findBroken', (_e, rel: string) => libFindBroken(rel))
+  ipcMain.handle('lib:extraFolders', () => libExtraFolders())
+  ipcMain.handle('lib:addExtraFolder', (_e, absPath: string) => libAddExtraFolder(absPath))
+  ipcMain.handle('lib:removeExtraFolder', (_e, id: string) => libRemoveExtraFolder(id))
+  ipcMain.handle('lib:findExisting', (_e, srcRels: string[], destRel: string) => libFindExisting(srcRels, destRel))
   ipcMain.handle('lib:replaceBroken', (_e, brokenRel: string, installAbs: string) =>
     libReplaceBroken(brokenRel, installAbs)
   )

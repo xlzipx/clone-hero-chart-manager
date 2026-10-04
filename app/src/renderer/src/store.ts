@@ -826,6 +826,9 @@ export const useStore = create<AppState>((set, get) => {
     if (s.hideOwned) return true
     if (needsDeepScan()) return true
     const f = s.filters
+    // Žánr je volný text přes obě databáze — umí ho jen lokální katalog (živé
+    // RhythmVerse API zná jen svých 29 pevných žánrů).
+    if (f.genre?.length) return true
     const rvOnly = !!(f.genre?.length || f.year?.length || f.decade?.length || f.songLength?.length)
     if (rvOnly && s.database !== 'rhythmverse') return true
     // Celé PROCHÁZENÍ (prázdný dotaz) lokálně: stránkování, instrument filtr
@@ -854,7 +857,16 @@ export const useStore = create<AppState>((set, get) => {
   const buildServerFilters = (): SearchFilters | undefined => {
     const s = get()
     const f: SearchFilters = {}
-    if (s.filters.genre?.length) f.genre = s.filters.genre
+    // Bez katalogu (první spuštění, katalog se ještě stahuje): text žánru přelož
+    // na žánry z číselníku RhythmVerse, které ho obsahují („funk" → R&B/Soul/Funk).
+    if (s.filters.genre?.length) {
+      const opts = s.filterOptions?.genre ?? []
+      const ids = s.filters.genre.flatMap((g) => {
+        const t = g.trim().toLowerCase()
+        return opts.filter((o) => o.id === g || o.label.toLowerCase().includes(t)).map((o) => o.id)
+      })
+      if (ids.length) f.genre = [...new Set(ids)]
+    }
     if (s.filters.year?.length) f.year = s.filters.year
     if (s.filters.decade?.length) f.decade = s.filters.decade
     if (s.filters.songLength?.length) f.songLength = s.filters.songLength
@@ -1115,12 +1127,8 @@ export const useStore = create<AppState>((set, get) => {
     try {
       const s = get()
       const f = s.filters
-      // Katalog ukládá zobrazované řetězce žánrů — RV id přelož přes číselník
-      // (bez načtených voleb nech id; Encore žánry jsou stejně volný text).
-      const opts = s.filterOptions
-      const genreLabels = f.genre?.map(
-        (id) => opts?.genre.find((o) => o.id === id)?.label ?? id
-      )
+      // Žánr je text (část názvu, hledá se přes LIKE v katalogu).
+      const genreLabels = f.genre?.filter((g) => g.trim())
       const res = await window.api.catalogQuery({
         text: s.query.trim() || undefined,
         database: s.database,

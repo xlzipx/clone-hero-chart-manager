@@ -10,6 +10,7 @@
 import { promises as fsp } from 'fs'
 import { basename, join, relative, resolve, sep } from 'path'
 import { getConfig } from './config'
+import { resolveRel, toRel } from './roots'
 import { readSongMeta, stripRichTags } from './songmeta'
 import { songHashCached } from './playlists'
 
@@ -72,10 +73,13 @@ export async function findDuplicates(scope?: string[]): Promise<DupGroup[]> {
 
   // BEZPEČNOST: rozsah chodí z rendereru přes IPC → nesmí utéct z knihovny
   // (`..`, absolutní cesta). Stejný princip jako guard v `install()`.
-  const baseAbs = resolve(songsDir)
-  const roots = (scope ?? [])
-    .map((r) => resolve(songsDir, r))
-    .filter((abs) => abs === baseAbs || abs.startsWith(baseAbs + sep))
+  const roots = (scope ?? []).flatMap((r) => {
+    try {
+      return [resolveRel(r).abs]
+    } catch {
+      return []
+    }
+  })
   const scanRoots = roots.length > 0 ? roots : [songsDir]
 
   const walk = async (dir: string, depth: number): Promise<void> => {
@@ -96,7 +100,7 @@ export async function findDuplicates(scope?: string[]): Promise<DupGroup[]> {
       if (title) {
         all.push({
           abs: dir,
-          rel: relative(songsDir, dir).split(sep).join('/'),
+          rel: toRel(dir),
           name: basename(dir),
           artist: (meta.artist || fallback.artist || '').trim(),
           title,

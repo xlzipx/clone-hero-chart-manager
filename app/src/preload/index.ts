@@ -9,6 +9,8 @@ import type {
   DownloadJob,
   DupGroup,
   FilterOptions,
+  ExistingMatch,
+  ExtraFolderInfo,
   LibEntry,
   LibListing,
   LibSongInfo,
@@ -68,6 +70,7 @@ const api = {
     ipcRenderer.on('catalog:status', handler)
     return () => ipcRenderer.removeListener('catalog:status', handler)
   },
+  catalogGenres: () => ipcRenderer.invoke('catalog:genres') as Promise<{ label: string; count: number }[]>,
   catalogQuery: (q: CatalogQuery) =>
     ipcRenderer.invoke('catalog:query', q) as Promise<SearchResponse>,
   catalogSetOwned: (keys: string[]) =>
@@ -102,6 +105,11 @@ const api = {
   libTrash: (relItem: string) => ipcRenderer.invoke('lib:trash', relItem) as Promise<void>,
   libUnpackSng: (relItem: string) => ipcRenderer.invoke('lib:unpackSng', relItem) as Promise<string>,
   libFindBroken: (rel: string) => ipcRenderer.invoke('lib:findBroken', rel) as Promise<LibEntry[]>,
+  libExtraFolders: () => ipcRenderer.invoke('lib:extraFolders') as Promise<ExtraFolderInfo[]>,
+  libAddExtraFolder: (absPath: string) => ipcRenderer.invoke('lib:addExtraFolder', absPath) as Promise<ExtraFolderInfo>,
+  libRemoveExtraFolder: (id: string) => ipcRenderer.invoke('lib:removeExtraFolder', id) as Promise<void>,
+  libFindExisting: (srcRels: string[], destRel: string) =>
+    ipcRenderer.invoke('lib:findExisting', srcRels, destRel) as Promise<ExistingMatch[]>,
   libReplaceBroken: (brokenRel: string, installAbs: string) =>
     ipcRenderer.invoke('lib:replaceBroken', brokenRel, installAbs) as Promise<string>,
   libMoveOut: (relItems: string[], destAbsDir: string) =>
@@ -213,6 +221,11 @@ const api = {
       autoDetected: boolean
     }>,
   chooseExeFile: () => ipcRenderer.invoke('dialog:chooseExe') as Promise<string | null>,
+  onWindowActive: (cb: (active: boolean) => void) => {
+    const handler = (_e: unknown, active: boolean): void => cb(active)
+    ipcRenderer.on('window:active', handler)
+    return () => ipcRenderer.removeListener('window:active', handler)
+  },
   onGameStatus: (cb: (game: 'clone-hero' | 'yarg' | null) => void) => {
     const handler = (_e: unknown, game: 'clone-hero' | 'yarg' | null): void => cb(game)
     ipcRenderer.on('game:status', handler)
