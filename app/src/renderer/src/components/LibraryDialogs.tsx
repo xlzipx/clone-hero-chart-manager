@@ -4,6 +4,7 @@ import { userMsg } from '../../../shared/errors'
 import { cleanSegment, renderFolderTemplate } from '../../../shared/foldertemplate'
 import { stripTags } from '../utils'
 import { Icon } from './Icon'
+import { useStore } from '../store'
 
 /** Položka knihovny vybraná pro hromadnou akci. */
 export interface BulkItem {
@@ -132,6 +133,7 @@ export function BulkRenameDialog({
     const failed: string[] = []
     let done = 0
     const temps = new Map<PreviewRow, string>()
+    useStore.getState().releaseFiles(todo.map((r) => relOf(r.item.name)))
     for (const [i, r] of viaTemp.entries()) {
       const tmp = `${r.item.name}.chm-rename-${Date.now()}-${i}`
       try {
@@ -366,6 +368,7 @@ export function FolderPickerDialog({
       return
     }
     const failed: string[] = []
+    if (mode === 'move') useStore.getState().releaseFiles(todo.map((i) => i.rel))
     for (const it of todo) {
       try {
         if (mode === 'move') await window.api.libMove(it.rel, at)

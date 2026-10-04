@@ -12079,11 +12079,34 @@ button.plrow__na:hover {
 .side-catalog {
   border-radius: 10px;
 }
-/* Okno v pozadí: nekonečné animace stojí (viz main.tsx). Jednorázové přechody
- * a animace průběhu se tím nemění — jen se nekreslí smyčky, na které nikdo nekouká. */
-.app-blurred *,
-.app-blurred *::before,
-.app-blurred *::after {
+/* Okno v pozadí: nekonečné animace stojí (viz main.tsx). Jen smyčky, na které
+ * nikdo nekouká — jednorázové vstupní animace (řádky, panely) pozastavit nejde,
+ * jinak by obsah, který dorazí v pozadí, zůstal neviditelný na prvním snímku.
+ * Při přidání nové nekonečné animace ji sem připsat. */
+.app-blurred .gamebtn__dot--on,
+.app-blurred .titlebar__brand::before,
+.app-blurred .brand-logo,
+.app-blurred .ch-logo,
+.app-blurred .jobchip__spin,
+.app-blurred .jobchip--busy,
+.app-blurred .qjob:not(.qjob--done):not(.qjob--error):not(.qjob--canceled):not(.qjob--canceling) .qjob__fill::after,
+.app-blurred .qjob--canceling .qjob__fill,
+.app-blurred .filterbar .dropzone:hover,
+.app-blurred .filterbar .dropzone--hover,
+.app-blurred .sk::after,
+.app-blurred .surprise-load__dice,
+.app-blurred .side-launch--running::before,
+.app-blurred .side-update-card__title::before,
+.app-blurred .side-update-card--live::before,
+.app-blurred .song__preview-spin,
+.app-blurred .plimport__spin,
+.app-blurred .player__spin,
+.app-blurred .player--playing .player__qrow--on .player__eq i,
+.app-blurred .lvart-none--loading,
+.app-blurred .fixbar__spin,
+.app-blurred .lv__tname--run .lv__tname-in,
+.app-blurred .side-catalog__fill,
+.app-blurred .catact__spin {
   animation-play-state: paused !important;
 }
 /* Další složky (mimo Songs): oprava stažením by nahradila složku v archivu
@@ -12198,4 +12221,117 @@ li.lvexist__more {
   color: var(--text-faint);
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Nastavení: kompaktní řádky výsledků ─────────────────────────────── */
+.compact-rows .results--table .song {
+  grid-template-columns: 22px 44px minmax(150px, 1fr) 340px 148px 30px;
+  padding: 8px 14px;
+  contain-intrinsic-size: auto 46px; /* obsah bez paddingu (řádek 60 px) */
+}
+.compact-rows .results--table .song__art,
+.compact-rows .results--table .song__art-empty {
+  width: 44px;
+  height: 44px;
+}
+.compact-rows .results--table .song {
+  padding: 7px 14px;
+}
+/* Název a interpret na jednom řádku, odznaky pod nimi → dva řádky místo tří. */
+.compact-rows .results--table .song__main {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: baseline;
+}
+.compact-rows .results--table .song__title {
+  font-size: 15px;
+}
+.compact-rows .results--table .song__artist {
+  margin-top: 0;
+}
+.compact-rows .results--table .song__meta {
+  grid-column: 1 / -1;
+  margin-top: 5px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.compact-rows .results--table .song__meta .badge {
+  height: 20px;
+}
+.compact-rows .results--table .instrument__label {
+  display: none;
+}
+.compact-rows .results--table .song .instrument {
+  gap: 6px;
+}
+.compact-rows .results--table .song__size {
+  display: none;
+}
+
+/* Kostra při načítání ve stejné výšce jako kompaktní řádek (nic neposkočí). */
+.compact-rows .results--table .sk--art {
+  width: 44px;
+  height: 44px;
+}
+.compact-rows .results--table .sk-main {
+  display: grid;
+  grid-template-columns: 45% 25%;
+  column-gap: 10px;
+  align-items: center;
+  gap: 0 10px;
+}
+.compact-rows .results--table .sk-meta {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+.compact-rows .results--table .sk--inst-label {
+  display: none;
+}
+.compact-rows .results--table .sk--title,
+.compact-rows .results--table .sk--sub {
+  width: 100%;
+}
+
+/* ── Nastavení: omezit animace ────────────────────────────────────────
+ * Přechody okamžitě, animace skočí rovnou na konec (fill-mode zůstává, takže
+ * prvky animované „do viditelna" jsou vidět). Točící se ukazatele načítání
+ * běží dál — bez nich by nebylo poznat, že se něco děje. */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  animation-duration: 1ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}
+.reduce-motion .jobchip__spin,
+.reduce-motion .song__preview-spin,
+.reduce-motion .plimport__spin,
+.reduce-motion .player__spin {
+  animation-duration: 0.7s !important;
+  animation-iteration-count: infinite !important;
+}
+.reduce-motion .fixbar__spin,
+.reduce-motion .catact__spin {
+  animation-duration: 0.8s !important;
+  animation-iteration-count: infinite !important;
+}
+
+/* Nastavení: posuvník hlasitosti ukázek. */
+.stvol {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.stvol__slider {
+  width: 160px;
+}
+.stvol__val {
+  min-width: 40px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
 }

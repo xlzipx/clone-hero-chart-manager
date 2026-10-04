@@ -13,7 +13,7 @@
 // pouští VÝHRADNĚ audio soubory zevnitř složky s knihovnou (viz `isAllowed`).
 
 import { protocol } from 'electron'
-import { createReadStream } from 'fs'
+import { createReadStream, type ReadStream } from 'fs'
 import { readdir, readFile, stat } from 'fs/promises'
 import { extname, join, resolve, sep } from 'path'
 import { Readable } from 'stream'
@@ -79,6 +79,27 @@ function songFolderAbs(rel: string): string {
   return resolveRel(rel).abs
 }
 
+/**
+ * Otevřené zvukové streamy (přehrávač / náhled). Stream, který přehrávač
+ * nedočetl (pauza, přeskočení), drží soubor otevřený — na Windows pak nejde
+ * smazat složku písně (EPERM / ENOTEMPTY). Před mazáním / přesunem je zavřeme.
+ */
+const openStreams = new Set<{ path: string; stream: ReadStream }>()
+function trackStream(path: string, stream: ReadStream): ReadStream {
+  const entry = { path: resolve(path), stream }
+  openStreams.add(entry)
+  stream.once('close', () => openStreams.delete(entry))
+  return stream
+}
+
+/** Zavře všechny zvukové streamy ze souborů pod danou složkou (nebo daný soubor). */
+export function closeAudioUnder(absPath: string): void {
+  const base = resolve(absPath)
+  for (const e of openStreams) {
+    if (e.path === base || e.path.startsWith(base.endsWith(sep) ? base : base + sep)) e.stream.destroy()
+  }
+}
+
 /** Zaregistruje handler. Volat až po `app.whenReady()`. */
 export function handleAudioProtocol(): void {
   protocol.handle(AUDIO_SCHEME, async (req) => {
@@ -108,7 +129,7 @@ export function handleAudioProtocol(): void {
       if (!(start >= 0 && start <= end && end < size)) {
         return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })
       }
-      const body = Readable.toWeb(createReadStream(absPath, { start, end })) as ReadableStream
+      const body = Readable.toWeb(trackStream(absPath, createReadStream(absPath, { start, end }))) as ReadableStream
       return new Response(body, {
         status: 206,
         headers: {
@@ -124,7 +145,7 @@ export function handleAudioProtocol(): void {
       })
     }
 
-    const body = Readable.toWeb(createReadStream(absPath)) as ReadableStream
+    const body = Readable.toWeb(trackStream(absPath, createReadStream(absPath))) as ReadableStream
     return new Response(body, {
       headers: {
         'Content-Type': type,

@@ -328,6 +328,12 @@ export interface AppConfig {
   hotkeys: HotkeyConfig
   /** Rotující tipy v horní liště (discoverability snadno přehlédnutelných funkcí). */
   showTips: boolean
+  /** Omezit animace a přechody (slabší stroje, citlivost na pohyb). */
+  reduceMotion: boolean
+  /** Nižší řádky výsledků hledání (menší obal, bez popisků nástrojů). */
+  compactRows: boolean
+  /** Hlasitost zvukových ukázek (0–1). */
+  previewVolume: number
   /** Zobrazit malý reminder pill přes hru, když CH běží. */
   showReminder: boolean
   /** Roh obrazovky, kde se reminder zobrazí. */

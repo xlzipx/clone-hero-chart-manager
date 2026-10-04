@@ -368,6 +368,7 @@ export function DuplicatesView({
     const rels = selectedHere
     if (!rels.length || busy) return
     setBusy(true)
+    useStore.getState().releaseFiles(rels)
     setConfirmTrash(false)
     let failed: string | null = null
     for (const rel of rels) {
@@ -389,6 +390,7 @@ export function DuplicatesView({
     const dir = await window.api.chooseDirectory(useStore.getState().config?.dupMoveDir || undefined)
     if (!dir) return
     setBusy(true)
+    useStore.getState().releaseFiles(rels)
     let failed: string | null = null
     try {
       await window.api.libMoveOut(rels, dir)

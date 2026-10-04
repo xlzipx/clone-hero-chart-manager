@@ -887,6 +887,7 @@ export function LibraryView(): JSX.Element {
   }
   const pasteItems = (c: NonNullable<Clip>, todo: string[]): Promise<void> =>
     run(async () => {
+      if (c.op === 'cut') useStore.getState().releaseFiles(todo)
       for (const item of todo) {
         if (c.op === 'cut') await window.api.libMove(item, cwd)
         else await window.api.libCopy(item, cwd)
@@ -920,9 +921,13 @@ export function LibraryView(): JSX.Element {
     if (d.type === 'rename' && d.base !== undefined) sideAffect.current = relIn(d.base, d.name)
     if (d.type === 'delete' && d.base !== undefined) sideAffect.current = relIn(d.base, d.names[0])
     if (d.type === 'new') await run(() => window.api.libCreateFolder(cwd, dialogValue.trim()))
-    else if (d.type === 'rename') await run(() => window.api.libRename(relIn(d.base, d.name), dialogValue.trim()))
+    else if (d.type === 'rename') {
+      useStore.getState().releaseFiles([relIn(d.base, d.name)])
+      await run(() => window.api.libRename(relIn(d.base, d.name), dialogValue.trim()))
+    }
     else if (d.type === 'delete')
       await run(async () => {
+        useStore.getState().releaseFiles(d.names.map((n) => relIn(d.base, n)))
         for (const n of d.names) await window.api.libTrash(relIn(d.base, n))
         setChecked(new Set())
         setFocus(null)

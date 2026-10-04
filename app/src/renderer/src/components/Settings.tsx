@@ -225,6 +225,37 @@ function Switch({
   )
 }
 
+/** Posuvník hlasitosti ukázek: mění se hned, uloží se po chvíli klidu. */
+function PreviewVolume({ value, onSave }: { value: number; onSave: (v: number) => void }): JSX.Element {
+  const [v, setV] = useState(value)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current)
+  }, [])
+  const change = (next: number): void => {
+    setV(next)
+    useStore.getState().applyPreviewVolume(next)
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => onSave(next), 300)
+  }
+  return (
+    <div className="stvol">
+      <input
+        className="player__volslider stvol__slider"
+        type="range"
+        min={0}
+        max={1}
+        step={0.05}
+        value={v}
+        onChange={(e) => change(Number(e.target.value))}
+        style={{ '--v': `${v * 100}%` } as React.CSSProperties}
+        aria-label="Preview volume"
+      />
+      <span className="stvol__val">{Math.round(v * 100)}%</span>
+    </div>
+  )
+}
+
 /** Jeden řádek nastavení: vlevo název + popis, vpravo ovládání. */
 function Row({
   title,
@@ -731,6 +762,15 @@ export function Settings(): JSX.Element | null {
               </Row>
               <Row title="Tips in the title bar" desc="Short rotating hints next to the title, like how to preview a song.">
                 <Switch label="Tips in the title bar" checked={config.showTips !== false} onChange={(v) => set({ showTips: v })} />
+              </Row>
+              <Row title="Compact rows" desc="Shorter search result rows, so more songs fit on the screen.">
+                <Switch label="Compact rows" checked={!!config.compactRows} onChange={(v) => set({ compactRows: v })} />
+              </Row>
+              <Row title="Reduce motion" desc="Turns off animations and transitions. Can help on slower computers.">
+                <Switch label="Reduce motion" checked={!!config.reduceMotion} onChange={(v) => set({ reduceMotion: v })} />
+              </Row>
+              <Row title="Preview volume" desc="How loud song previews play.">
+                <PreviewVolume value={config.previewVolume ?? 0.5} onSave={(v) => set({ previewVolume: v })} />
               </Row>
             </Card>
           ) : null}

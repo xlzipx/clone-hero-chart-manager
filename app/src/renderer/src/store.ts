@@ -165,6 +165,9 @@ interface AppState {
 
   // Multi-select (hromadné stažení) — klíče vybraných písní + čekající dávka.
   selectedKeys: string[]
+  /** Písně k vybraným klíčům — výběr přežije přechod na jinou stránku, kde
+   *  už píseň v `results` není (hromadné stažení ji potřebuje celou). */
+  selectedSongs: Record<string, SongResult>
   pendingBatch: SongResult[] | null
   // Hromadný lokální drop (víc souborů / složka) — čeká na výběr cílové složky.
   pendingLocalBatch: string[] | null
@@ -251,6 +254,9 @@ interface AppState {
   /** Zapne/vypne vyrovnávání hlasitosti mezi skladbami (EBU R128, konstantní gain). */
   playerToggleNormalize: () => void
   playerClose: () => void
+  /** Před smazáním / přesunem / přejmenováním: zastaví přehrávač a náhled,
+   *  pokud hrají píseň z některé z daných složek (jinak drží soubor otevřený). */
+  releaseFiles: (rels: string[]) => void
 
   setQuery: (q: string) => void
   /** Ukáže všechny charty daného interpreta (klik na jméno ve výsledcích). */
@@ -334,6 +340,8 @@ interface AppState {
   cancelAllJobs: () => Promise<void>
   loadConfig: () => Promise<void>
   saveConfig: (patch: Partial<AppConfig>) => Promise<void>
+  /** Hlasitost ukázek hned (i rozehrané), bez uložení — ukládá Nastavení. */
+  applyPreviewVolume: (v: number) => void
 }
 
 /** Známé suffixy a tagy v názvech souborů z kolovacích chartingových komunit. */
@@ -404,6 +412,37 @@ let ownedReloadTimer: ReturnType<typeof setTimeout> | null = null
  * (Stejný vzor jako typeahead v SearchBar.)
  */
 let searchSeq = 0
+
+/**
+ * Podpis hledání bez čísla stránky. Výběr přežije jen přechod na jinou stránku
+ * téhož hledání; jiný dotaz / filtr / řazení dá jiné výsledky → výběr se zruší.
+ */
+let selectionSig = ''
+function searchSig(s: AppState): string {
+  return JSON.stringify([
+    s.query.trim(), s.database, s.system, s.filters, s.artistFilter, s.charterFilter.trim(),
+    s.albumFilter, s.reductions, s.directOnly, s.hideOwned, s.dateFilter, s.instrumentFilters,
+    s.diffMin, s.diffMax, s.sort, s.sortDir, s.records
+  ])
+}
+/** Patch pro nově načtené výsledky: stejné hledání → výběr nech, jinak zruš. */
+function keepSelection(sig: string): Partial<AppState> {
+  const keep = sig === selectionSig
+  selectionSig = sig
+  return keep ? {} : { selectedKeys: [] }
+}
+/** Výběr + k němu písně (z aktuálních výsledků, jinak z dřívějška). */
+function withSongs(s: AppState, keys: string[]): Partial<AppState> {
+  const pool = new Map<string, SongResult>()
+  for (const x of s.results) pool.set(x.key, x)
+  for (const x of s.deepSongs) pool.set(x.key, x)
+  const songs: Record<string, SongResult> = {}
+  for (const k of keys) {
+    const song = pool.get(k) ?? s.selectedSongs[k]
+    if (song) songs[k] = song
+  }
+  return { selectedKeys: keys, selectedSongs: songs }
+}
 
 /** Debounce přehledání při psaní do charter/album filtru (katalogový režim). */
 let refineTimer: ReturnType<typeof setTimeout> | null = null
@@ -1008,6 +1047,7 @@ export const useStore = create<AppState>((set, get) => {
       return
     }
     const myReq = ++searchSeq
+    selectionSig = searchSig(get())
     set({
       deep: true,
       deepSongs: [],
@@ -1123,6 +1163,7 @@ export const useStore = create<AppState>((set, get) => {
   const catalogSearch = async (page: number): Promise<void> => {
     get().stopPreview()
     const myReq = ++searchSeq
+    const sig = searchSig(get())
     set({ loading: true, error: null, ...(get().surprise ? { results: [], surprise: false } : {}) })
     try {
       const s = get()
@@ -1161,7 +1202,7 @@ export const useStore = create<AppState>((set, get) => {
         page,
         loading: false,
         selectedIndex: -1,
-        selectedKeys: [],
+        ...keepSelection(sig),
         deep: false,
         deepSongs: [],
         deepLoading: false,
@@ -1194,7 +1235,7 @@ export const useStore = create<AppState>((set, get) => {
       el.preload = 'auto'
       // Každou stopu na stejnou hlasitost: stopy dohromady tvoří původní mix,
       // takže rovnoměrné ztlumení zachová poměry a jen ztiší celek.
-      el.volume = PREVIEW_VOLUME
+      el.volume = get().config?.previewVolume ?? PREVIEW_VOLUME
       el.src = t.url
       return el
     })
@@ -1505,6 +1546,7 @@ export const useStore = create<AppState>((set, get) => {
   foldersLoading: false,
   lastSubfolder: '',
   selectedKeys: [],
+  selectedSongs: {},
   pendingBatch: null,
   pendingLocalBatch: null,
   openRowMenu: null,
@@ -1686,6 +1728,16 @@ export const useStore = create<AppState>((set, get) => {
     if (!on) setNormGain(1, true)
     else void applyNormForCurrent(playerSeq)
   },
+  releaseFiles: (rels) => {
+    const under = (r: string | undefined): boolean =>
+      !!r && rels.some((x) => r === x || r.startsWith(`${x}/`))
+    const p = get().player
+    const cur = p.active ? p.queue[p.order[p.pos] ?? p.pos] : undefined
+    if (cur && under(cur.rel)) get().playerClose()
+    // Náhledy z knihovny mají klíč „lib:<rel>", „libd:<rel>", „dpv:<rel>"…
+    const key = get().previewKey
+    if (key && under(key.slice(key.indexOf(':') + 1))) get().stopPreview()
+  },
   playerClose: () => {
     playerSeq++
     stopPlayerAudio()
@@ -1753,7 +1805,7 @@ export const useStore = create<AppState>((set, get) => {
     const ensureAudio = (): HTMLAudioElement => {
       if (!previewAudio) {
         previewAudio = new Audio()
-        previewAudio.volume = PREVIEW_VOLUME
+        previewAudio.volume = get().config?.previewVolume ?? PREVIEW_VOLUME
         previewAudio.addEventListener('ended', () => {
           // Doběhla-li stále aktivní ukázka, vrať tlačítko do „play".
           if (get().previewState === 'playing') set({ previewState: 'idle' })
@@ -2199,6 +2251,7 @@ export const useStore = create<AppState>((set, get) => {
   doSearch: async (page = 1) => {
     get().stopPreview() // nová sada výsledků → ať nehraje ukázka „naslepo"
     const { query, system, database, records } = get()
+    const sig = searchSig(get())
     const browsing = browseActive()
     // Prázdný dotaz normálně nic nehledá. Výjimky: Chorus Encore umí „browse all"
     // (prázdný dotaz vrátí celou databázi) a aktivní advanced filtry (RhythmVerse
@@ -2295,7 +2348,7 @@ export const useStore = create<AppState>((set, get) => {
         page,
         loading: false,
         selectedIndex: -1,
-        selectedKeys: [], // nový výsledek → zruš předchozí výběr
+        ...keepSelection(sig), // jiné hledání → zruš výběr; jen jiná stránka → nech
         deep: false,
         deepSongs: [],
         deepLoading: false,
@@ -2367,12 +2420,10 @@ export const useStore = create<AppState>((set, get) => {
 
   // ---- Multi-select ----
   toggleSelected: (key) =>
-    set((s) => ({
-      selectedKeys: s.selectedKeys.includes(key)
-        ? s.selectedKeys.filter((k) => k !== key)
-        : [...s.selectedKeys, key]
-    })),
-  setSelection: (keys) => set({ selectedKeys: keys }),
+    set((s) =>
+      withSongs(s, s.selectedKeys.includes(key) ? s.selectedKeys.filter((k) => k !== key) : [...s.selectedKeys, key])
+    ),
+  setSelection: (keys) => set((s) => withSongs(s, keys)),
   clearSelection: () => set({ selectedKeys: [] }),
 
   openBatchDownload: async (songs) => {
@@ -2658,6 +2709,10 @@ export const useStore = create<AppState>((set, get) => {
     })
   },
 
+  applyPreviewVolume: (v) => {
+    if (previewAudio) previewAudio.volume = v
+    for (const el of localEls) el.volume = v
+  },
   saveConfig: async (patch) => {
     const prevRecords = get().records
     const config = await window.api.setConfig(patch)

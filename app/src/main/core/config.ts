@@ -201,6 +201,9 @@ function defaults(): AppConfig {
       toggleOverlay: isMac ? 'Command+I' : 'Control+I'
     },
     showTips: true, // rotující tipy v liště (uživatel může vypnout)
+    reduceMotion: false,
+    compactRows: false,
+    previewVolume: 0.5,
     showReminder: false, // opt-in
     reminderPosition: 'bottom-right',
     dupMoveDir: '', // poslední karanténní složka pro duplicity

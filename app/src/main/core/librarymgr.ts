@@ -6,6 +6,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSyn
 import { cp, readdir, rm } from 'fs/promises'
 import { basename, dirname, extname, join, relative, resolve, sep } from 'path'
 import { getConfig, setConfig } from './config'
+import { closeAudioUnder } from './localaudio'
 import { EXT_PREFIX, extraFolders, folderId, foldPath, isRootAbs, resolveRel, songsRoot, toRel, type ExtraFolder } from './roots'
 import { portableName } from '../../shared/foldertemplate'
 import { readAlbumArt, readSongInfo, readSongMeta, writeSongMeta } from './songmeta'
@@ -53,8 +54,22 @@ export interface LibEntry {
  * obnovit), nebo rovnou natrvalo. Všechna mazání v knihovně jdou tudy.
  */
 async function removePath(abs: string): Promise<void> {
-  if (getConfig().deleteMode === 'permanent') await rm(abs, { recursive: true, force: true })
-  else await shell.trashItem(abs)
+  // Otevřený zvukový soubor (přehrávač / náhled) by smazání složky zablokoval.
+  closeAudioUnder(abs)
+  if (getConfig().deleteMode === 'permanent') {
+    // Windows uvolní právě zavřené soubory s malým zpožděním → pár pokusů.
+    await rm(abs, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+    return
+  }
+  for (let i = 0; ; i++) {
+    try {
+      await shell.trashItem(abs)
+      return
+    } catch (err) {
+      if (i >= 4) throw err
+      await new Promise((r) => setTimeout(r, 150))
+    }
+  }
 }
 
 function rootDir(): string {
@@ -253,6 +268,7 @@ export function libCreateFolder(rel: string, name: string): void {
 export function libRename(relItem: string, newName: string): void {
   const src = safeAbs(relItem)
   if (isRootAbs(src)) throw new Error('Cannot rename a library root folder')
+  closeAudioUnder(src)
   // Cíl skládáme z rodiče relItem + nový (sanitizovaný) název a CELÝ ho ověříme
   // přes safeAbs (jinak by rodičovská část nebyla kontrolovaná na traversal).
   const parentRel = relItem.split(/[\\/]/).slice(0, -1).join('/')
@@ -386,6 +402,7 @@ export async function libUnpackSng(relItem: string): Promise<string> {
 export async function libMove(srcRelItem: string, destRelDir: string): Promise<void> {
   const src = safeAbs(srcRelItem)
   if (isRootAbs(src)) throw new Error('Cannot move a library root folder')
+  closeAudioUnder(src)
   const destDir = safeAbs(destRelDir)
   const dest = uniqueDest(destDir, basename(src))
   if (resolve(dest).startsWith(resolve(src) + sep)) {
@@ -432,6 +449,7 @@ export function libMoveOut(relItems: string[], destAbsDir: string): void {
   for (const rel of relItems) {
     const src = safeAbs(rel)
     if (src === base) throw new Error('Cannot move the Songs root')
+    closeAudioUnder(src)
     const dest = uniqueDest(destDir, basename(src))
     try {
       renameSync(src, dest)

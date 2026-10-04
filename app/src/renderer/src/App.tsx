@@ -41,6 +41,12 @@ function openSongExternal(song: SongResult): void {
   if (url) void window.api.openExternal(url)
 }
 
+/** Rozsah (Shift) nahradí výběr na této stránce, výběr z jiných stránek nechá. */
+function keepOtherPages(selected: string[], page: { key: string }[], range: string[]): string[] {
+  const here = new Set(page.map((s) => s.key))
+  return [...new Set([...selected.filter((k) => !here.has(k)), ...range])]
+}
+
 export function App(): JSX.Element {
   const results = useStore((s) => s.results)
   const loading = useStore((s) => s.loading)
@@ -200,19 +206,38 @@ export function App(): JSX.Element {
   const clearSelection = useStore((s) => s.clearSelection)
   const openBatchDownload = useStore((s) => s.openBatchDownload)
 
+  const selectedSongs = useStore((s) => s.selectedSongs)
+  // Volby vzhledu z Nastavení → třídy na <html> (styly v styles.css).
+  const reduceMotion = useStore((s) => s.config?.reduceMotion ?? false)
+  const compactRows = useStore((s) => s.config?.compactRows ?? false)
+  useEffect(() => {
+    document.documentElement.classList.toggle('reduce-motion', reduceMotion)
+    document.documentElement.classList.toggle('compact-rows', compactRows)
+  }, [reduceMotion, compactRows])
   const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys])
   // Zaškrtnutelné = auto-stažitelné a ještě nezařazené do fronty.
   const checkableSongs = useMemo(
     () => visible.filter((s) => isAutoDownloadable(s) && !enqueuedKeys[s.key]),
     [visible, enqueuedKeys]
   )
-  // Skutečně stažitelné vybrané položky (průnik výběru s aktuálně viditelnými) —
-  // aby počet i akce seděly i po změně filtru nástroje.
-  const visibleSelected = useMemo(
-    () => visible.filter((s) => selectedSet.has(s.key)),
-    [visible, selectedSet]
-  )
+  // Vybrané písně napříč stránkami. Píseň z načtených výsledků se počítá, jen
+  // když ji neskrývá klientský filtr (počet i akce sedí i po změně filtru
+  // nástroje); píseň z jiné stránky serveru se vezme z uloženého výběru.
+  const visibleSelected = useMemo(() => {
+    const shown = new Map(filteredAll.map((s) => [s.key, s]))
+    const loaded = new Set(source.map((s) => s.key))
+    const out: typeof results = []
+    for (const k of selectedKeys) {
+      const song = shown.get(k) ?? (loaded.has(k) ? undefined : selectedSongs[k])
+      if (song) out.push(song)
+    }
+    return out
+  }, [filteredAll, source, selectedKeys, selectedSongs])
   const selectedCount = visibleSelected.length
+  const onOtherPages = useMemo(() => {
+    const here = new Set(visible.map((s) => s.key))
+    return visibleSelected.filter((s) => !here.has(s.key)).length
+  }, [visible, visibleSelected])
   // Z vybraných reálně jen ty, které lze hromadně stáhnout (ne oficiální DLC,
   // ne MEGA/Mediafire, ne už ve frontě). Klik do řádku umí označit i nestažitelné,
   // takže počet i akce v liště se musí řídit tímhle, ne surovým `selectedCount`.
@@ -226,8 +251,10 @@ export function App(): JSX.Element {
     // Během načítání jsou vidět jen ztlumené staré výsledky — výběr by po
     // příchodu nových stejně zmizel.
     if (useStore.getState().loading) return
-    if (allChecked) clearSelection()
-    else setSelection(checkableSongs.map((s) => s.key))
+    // Jen tato stránka — výběr z ostatních stránek zůstává.
+    const page = new Set(checkableSongs.map((s) => s.key))
+    if (allChecked) setSelection(selectedKeys.filter((k) => !page.has(k)))
+    else setSelection([...new Set([...selectedKeys, ...page])])
   }
   const downloadSelected = (): void => {
     if (downloadableSelected.length > 0) void openBatchDownload(downloadableSelected)
@@ -260,7 +287,7 @@ export function App(): JSX.Element {
     if (shift && st.selectedIndex >= 0) {
       const a = Math.min(st.selectedIndex, idx)
       const b = Math.max(st.selectedIndex, idx)
-      st.setSelection(list.slice(a, b + 1).map((s) => s.key)) // kotva zůstává
+      st.setSelection(keepOtherPages(st.selectedKeys, list, list.slice(a, b + 1).map((s) => s.key))) // kotva zůstává
     } else if (ctrl) {
       st.toggleSelected(key)
       st.setSelectedIndex(idx)
@@ -468,7 +495,8 @@ export function App(): JSX.Element {
         e.preventDefault()
         const st = useStore.getState()
         if (st.loading) return // staré výsledky během načítání (viz toggleSelectAll)
-        st.setSelection(visible.filter((s) => isAutoDownloadable(s) && !enqueuedKeys[s.key]).map((s) => s.key))
+        const pageKeys = visible.filter((s) => isAutoDownloadable(s) && !enqueuedKeys[s.key]).map((s) => s.key)
+        st.setSelection([...new Set([...st.selectedKeys, ...pageKeys])])
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
         const next =
@@ -477,7 +505,8 @@ export function App(): JSX.Element {
         if (e.shiftKey) {
           if (keyAnchor.current === null) keyAnchor.current = Math.max(selectedIndex, 0)
           const [lo, hi] = keyAnchor.current < next ? [keyAnchor.current, next] : [next, keyAnchor.current]
-          useStore.getState().setSelection(visible.slice(lo, hi + 1).map((s) => s.key))
+          const st = useStore.getState()
+          st.setSelection(keepOtherPages(st.selectedKeys, visible, visible.slice(lo, hi + 1).map((s) => s.key)))
         } else keyAnchor.current = null
         setSelectedIndex(next)
       } else if (e.key === 'Enter') {
@@ -646,7 +675,10 @@ export function App(): JSX.Element {
             {/* Hromadná lišta má smysl až od 2 vybraných; u jedné stačí Download na řádku. */}
             {selectedCount > 1 ? (
               <div className="batchbar">
-                <span className="batchbar__count">
+                <span
+                  className="batchbar__count"
+                  title={onOtherPages > 0 ? `${onOtherPages} of them on other pages` : undefined}
+                >
                   {selectedCount} selected
                   {downloadableCount < selectedCount ? (
                     <span className="batchbar__note">
