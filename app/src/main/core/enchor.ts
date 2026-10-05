@@ -81,6 +81,8 @@ interface EnchorChart {
     instruments?: string[]
     /** Reálně nacharované obtížnosti per nástroj: difficulty = easy/medium/hard/expert. */
     noteCounts?: { instrument?: string; difficulty?: string; count?: number }[]
+    /** Má chart vokály (do `instruments` se nepočítají). */
+    hasVocals?: boolean
   }
 }
 
@@ -118,6 +120,24 @@ function encoreLevels(nd: EnchorChart['notesData']): string | null {
   }
   // '' = data jsou, ale bez obtížností nástrojů (jen vokály) — viz rhythmverse.ts.
   return ['e', 'm', 'h', 'x'].filter((l) => found.has(l)).join('')
+}
+
+/**
+ * Obtížnosti ze song.ini (diff_*) jen u nástrojů, které chart reálně má
+ * (`notesData.instruments`, vokály přes `hasVocals`). Chartery často nechají
+ * výchozí diff_* = 1 u všech nástrojů, i když nacharovali jen kytaru — pak by
+ * výsledek ukazoval bicí, basu i klávesy, které ve hře nejsou.
+ */
+function maskByNotes(d: InstrumentDifficulties, nd: EnchorChart['notesData']): InstrumentDifficulties {
+  const inst = nd?.instruments
+  if (!Array.isArray(inst) || inst.length === 0) return d // data chybí → nechat song.ini
+  const has = new Set(inst)
+  const out: InstrumentDifficulties = { ...d }
+  for (const k of ['guitar', 'bass', 'drums', 'keys', 'guitarghl', 'bassghl'] as const) {
+    if (!has.has(k)) delete out[k]
+  }
+  if (nd?.hasVocals === false) delete out.vocals
+  return out
 }
 
 function diff(v: unknown): number | undefined {
@@ -161,7 +181,7 @@ function normalize(c: EnchorChart): SongResult {
     genre: c.genre ?? '',
     lengthSeconds: lenMs != null ? Math.round(lenMs / 1000) : null,
     albumArtUrl: artMd5 ? `${FILES}/${artMd5}.jpg` : null,
-    difficulties: mapDifficulties(c),
+    difficulties: maskByNotes(mapDifficulties(c), c.notesData),
     // Expert-only vs E/M/H/X z notesData.noteCounts (viz encoreExpertOnly).
     expertOnly: encoreExpertOnly(c.notesData),
     levels: encoreLevels(c.notesData),

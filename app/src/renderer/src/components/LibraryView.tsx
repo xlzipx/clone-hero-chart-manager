@@ -49,7 +49,7 @@ type SortKey =
   | 'dmax'
   | `d:${InstId}`
 
-const SORTS: { id: SortKey; label: string; group: 'Song' | 'Difficulty' | 'File' }[] = [
+const SORTS: { id: SortKey; label: string; group: 'Song' | 'Intensity' | 'File' }[] = [
   { id: 'name', label: 'Folder name', group: 'File' },
   { id: 'modified', label: 'Date modified', group: 'File' },
   { id: 'created', label: 'Date added', group: 'File' },
@@ -60,8 +60,8 @@ const SORTS: { id: SortKey; label: string; group: 'Song' | 'Difficulty' | 'File'
   { id: 'year', label: 'Year', group: 'Song' },
   { id: 'length', label: 'Length', group: 'Song' },
   { id: 'charter', label: 'Charter', group: 'Song' },
-  ...INSTRUMENTS.map((i) => ({ id: `d:${i.id}` as SortKey, label: `${i.label} difficulty`, group: 'Difficulty' as const })),
-  { id: 'dmax', label: 'Hardest instrument', group: 'Difficulty' }
+  ...INSTRUMENTS.map((i) => ({ id: `d:${i.id}` as SortKey, label: `${i.label} intensity`, group: 'Intensity' as const })),
+  { id: 'dmax', label: 'Most intense instrument', group: 'Intensity' }
 ]
 // Čísla (rok, délka, obtížnost, data) se řadí od nejvyšší hodnoty, texty od A.
 const DESC_FIRST = new Set<SortKey>(['year', 'length', 'songs', 'modified', 'created', 'dmax', ...INSTRUMENTS.map((i) => `d:${i.id}` as SortKey)])
@@ -1385,7 +1385,7 @@ export function LibraryView(): JSX.Element {
                   setSortDir(DESC_FIRST.has(k) ? -1 : 1)
                 }}
               >
-                {(['File', 'Song', 'Difficulty'] as const).map((g) => (
+                {(['File', 'Song', 'Intensity'] as const).map((g) => (
                   <optgroup key={g} label={g}>
                     {SORTS.filter((s) => s.group === g).map((s) => (
                       <option key={s.id} value={s.id}>
@@ -1421,7 +1421,7 @@ export function LibraryView(): JSX.Element {
               {activeFilterCount ? <span className="lv__fcount">{activeFilterCount}</span> : null}
             </button>
             <div className="lv__seg" role="group" aria-label="View">
-              <button type="button" className={view === 'cards' ? 'on' : ''} onClick={() => changeView('cards')} title="Cards: album art, difficulties, preview">
+              <button type="button" className={view === 'cards' ? 'on' : ''} onClick={() => changeView('cards')} title="Cards: album art, difficulty, intensity, preview">
                 <Icon name="cards" size={15} />
               </button>
               <button type="button" className={view === 'list' ? 'on' : ''} onClick={() => changeView('list')} title="List: compact">
@@ -1458,11 +1458,11 @@ export function LibraryView(): JSX.Element {
               <span className="lv__fhint">Only songs with every selected instrument charted.</span>
             </div>
             <div className="lv__fgroup">
-              <span className="lv__flabel">Difficulty (tier)</span>
+              <span className="lv__flabel">Intensity</span>
               <div className="lv__range">
                 <select
                   className="lib__sortsel"
-                  aria-label="Minimum tier"
+                  aria-label="Minimum intensity"
                   value={filters.min}
                   onChange={(e) => {
                     const v = Number(e.target.value)
@@ -1471,14 +1471,14 @@ export function LibraryView(): JSX.Element {
                 >
                   {[0, 1, 2, 3, 4, 5, 6].map((n) => (
                     <option key={n} value={n}>
-                      Tier {n}
+                      {n}
                     </option>
                   ))}
                 </select>
                 <span>to</span>
                 <select
                   className="lib__sortsel"
-                  aria-label="Maximum tier"
+                  aria-label="Maximum intensity"
                   value={filters.max}
                   onChange={(e) => {
                     const v = Number(e.target.value)
@@ -1487,7 +1487,7 @@ export function LibraryView(): JSX.Element {
                 >
                   {[0, 1, 2, 3, 4, 5, 6].map((n) => (
                     <option key={n} value={n}>
-                      Tier {n}
+                      {n}
                     </option>
                   ))}
                 </select>

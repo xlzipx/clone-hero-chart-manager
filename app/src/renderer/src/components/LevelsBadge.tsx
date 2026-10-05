@@ -8,14 +8,14 @@ export const LEVELS: { id: Level; label: string }[] = [
   { id: 'x', label: 'Expert' }
 ]
 
-/** Odznak obsažených obtížností: neutrální pilulka s žebříčkem Easy → Expert
- *  (rozsvícené dílky = obsažené úrovně, barvy zelená → červená) a popiskem
- *  slovy. Sdílený mezi vyhledáváním a My Library, ať znamená všude totéž. */
+/** Odznak obsažených obtížností: neutrální pilulka „Difficulty" a čtyři
+ *  čtverečky E M H X — obsažená úroveň vybarvená (zelená → červená), chybějící
+ *  jen naznačená. Písmena čtou jako výčet úrovní, ne jako stupnici (stejně
+ *  vysoké rozsvícené dílky vypadaly jako ukazatel „na maximum").
+ *  Sdílený mezi vyhledáváním a My Library, ať znamená všude totéž. */
 export function LevelsBadge({ levels }: { levels: string | null | undefined }): JSX.Element | null {
   if (!levels) return null
   const names = LEVELS.filter((l) => levels.includes(l.id)).map((l) => l.label)
-  const text =
-    levels === 'emhx' ? 'Easy to Expert' : levels === 'x' ? 'Expert only' : names.join(' + ')
   const title =
     levels === 'emhx'
       ? 'Charted on every difficulty: Easy, Medium, Hard and Expert'
@@ -23,14 +23,15 @@ export function LevelsBadge({ levels }: { levels: string | null | undefined }): 
         ? 'Charted on Expert only, no easier difficulties'
         : `Charted on ${names.join(', ')} only`
   return (
-    // Barva = nejlehčí obsažená úroveň (od čeho jde chart hrát).
-    <span className={`badge badge--levels badge--levels-${levels[0]}`} title={title}>
-      <span className="lvlseg" aria-hidden="true">
+    <span className="badge badge--levels" title={title} aria-label={`Difficulty: ${names.join(', ')}`}>
+      Difficulty
+      <span className="lvlsq" aria-hidden="true">
         {LEVELS.map((l) => (
-          <i key={l.id} className={levels.includes(l.id) ? `lvlseg--${l.id}` : undefined} />
+          <b key={l.id} className={levels.includes(l.id) ? `lvlsq--${l.id}` : undefined}>
+            {l.id.toUpperCase()}
+          </b>
         ))}
       </span>
-      {text}
     </span>
   )
 }

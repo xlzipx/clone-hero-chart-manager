@@ -87,13 +87,13 @@ export function FilterBar(): JSX.Element {
 
       <div className="fgroup fgroup--difficulty">
         <div className="fgroup__label">
-          Difficulty
+          Intensity
           <span
             className="info"
             title={
               anyInstrument
-                ? 'Difficulty tier 0 (easiest) to 6 (hardest). With no instrument selected, shows songs where ANY instrument falls within this range. Select instruments to target them specifically.'
-                : 'Filters the selected instruments by their difficulty tier (0 = easiest, 6 = hardest). Only songs whose selected instruments fall within this MIN–MAX range are shown.'
+                ? 'How demanding a chart is, from 0 (lightest) to 6 (most intense). With no instrument selected, shows songs where ANY instrument falls within this range. Select instruments to target them specifically.'
+                : 'Filters the selected instruments by intensity (0 = lightest, 6 = most intense). Only songs whose selected instruments fall within this MIN–MAX range are shown.'
             }
           >
             <Icon name="info" size={13} />
@@ -105,7 +105,7 @@ export function FilterBar(): JSX.Element {
             <Dropdown
               value={diffMin}
               options={LEVELS}
-              ariaLabel="Minimum difficulty"
+              ariaLabel="Minimum intensity"
               onChange={(v) => setDiffRange(v, diffMax)}
             />
           </span>
@@ -114,7 +114,7 @@ export function FilterBar(): JSX.Element {
             <Dropdown
               value={diffMax}
               options={LEVELS}
-              ariaLabel="Maximum difficulty"
+              ariaLabel="Maximum intensity"
               onChange={(v) => setDiffRange(diffMin, v)}
             />
           </span>
@@ -122,7 +122,7 @@ export function FilterBar(): JSX.Element {
       </div>
 
       <div className="fgroup fgroup--exact">
-        <div className="fgroup__label">Exact&nbsp;&nbsp;Difficulty</div>
+        <div className="fgroup__label">Exact&nbsp;&nbsp;Intensity</div>
         <div className="fgroup__row fgroup__row--dots">
           <DifficultyDots disabled={false} />
         </div>

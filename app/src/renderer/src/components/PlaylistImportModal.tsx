@@ -66,8 +66,8 @@ export function chartLabel(c: SongResult): string {
  */
 function instrumentHint(label: string, value: number | undefined): string {
   if (value === undefined) return `${label}: not charted`
-  if (value <= 0) return `${label}: charted, no difficulty rating`
-  return `${label}: difficulty ${value} of ${MAX_DIFFICULTY}`
+  if (value <= 0) return `${label}: charted, no intensity rating`
+  return `${label}: intensity ${value} of ${MAX_DIFFICULTY}`
 }
 
 /**

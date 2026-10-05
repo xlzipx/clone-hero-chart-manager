@@ -51,9 +51,10 @@ const FAIL_RETRY_MS = 5 * 60 * 1000
  * notesData. Na mismatch se u hotového katalogu vynulují kurzory → příští sync
  * projede vše a doplní pole IN PLACE, aniž by shodil `full_done` (dotazy jedou
  * dál na stávajících datech). Historie: 1 = původní, 2 = Encore expert_only,
- * 3 = obsažené obtížnosti (sloupec levels).
+ * 3 = obsažené obtížnosti (sloupec levels), 4 = Encore obtížnosti nástrojů
+ * jen u nástrojů s notami.
  */
-export const DATA_VERSION = '3'
+export const DATA_VERSION = '4'
 /** Kolikrát zopakovat JEDNU stránku po síťové chybě/timeoutu, než se zdroj vzdá. */
 const PAGE_RETRIES = 2
 

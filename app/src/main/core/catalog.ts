@@ -303,14 +303,24 @@ export async function upgradeCatalogFromSeed(
     }
   }
   let current: string | null
+  let fullPassPending = false
   try {
     const old = new Database(dbPath, { readonly: true, fileMustExist: true })
     current = versionOf(old)
+    // Rozběhnuté přenačítání celého katalogu (kurzor 0 u hotového katalogu) —
+    // typicky po střídání verzí appky. Snímek je rychlejší než ho dokončit.
+    try {
+      const meta = (k: string): string | undefined =>
+        (old.prepare('SELECT value FROM meta WHERE key = ?').get(k) as { value: string } | undefined)?.value
+      fullPassPending = ['rv', 'en'].some((src) => meta(`full_done:${src}`) === '1' && meta(`cursor:${src}`) === '0')
+    } catch {
+      /* bez meta = nic rozběhnutého */
+    }
     old.close()
   } catch {
     return false // nečitelná DB → řeší ji initCatalog (smaže a nahradí seedem)
   }
-  if (current === dataVersion) return false
+  if (current === dataVersion && !fullPassPending) return false
 
   const tmp = dbPath + '.seed'
   try {

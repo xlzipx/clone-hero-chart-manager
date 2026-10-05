@@ -28,7 +28,7 @@ export function DifficultyDots({ disabled }: { disabled?: boolean }): JSX.Elemen
           type="button"
           disabled={disabled}
           className={`ddot ${n <= filled ? 'ddot--on' : ''}`}
-          title={`Exact difficulty ${n}`}
+          title={`Exact intensity ${n}`}
           onMouseEnter={() => !disabled && setHover(n)}
           onClick={() => {
             if (disabled) return

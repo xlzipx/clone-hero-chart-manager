@@ -7,7 +7,7 @@ import { cp, readdir, rm, stat } from 'fs/promises'
 import { basename, dirname, extname, join, relative, resolve, sep } from 'path'
 import { getConfig, setConfig } from './config'
 import { closeAudioUnder } from './localaudio'
-import { songLevelsCached } from './chartlevels'
+import { maskDifficulties, songContentCached, songLevelsCached } from './chartlevels'
 import { EXT_PREFIX, extraFolders, folderId, foldPath, isRootAbs, resolveRel, songsRoot, toRel, type ExtraFolder } from './roots'
 import { portableName } from '../../shared/foldertemplate'
 import { readAlbumArt, readSongInfo, readSongMeta, writeSongMeta } from './songmeta'
@@ -599,7 +599,7 @@ export async function libSongInfo(rels: string[]): Promise<LibSongInfo[]> {
     await Promise.all(
       rels.slice(i, i + 32).map(async (rel, j) => {
         try {
-          const info = await readSongInfo(safeAbs(rel))
+          const info = await readSongInfoChecked(safeAbs(rel))
           if (info) got[i + j] = { rel, ...info }
         } catch {
           /* přeskoč neplatné */
@@ -670,10 +670,19 @@ export async function libAlbumCovers(rels: string[]): Promise<Record<string, str
   return out
 }
 
+/** song.ini + obtížnosti jen u nástrojů, které mají v chartu noty (song.ini
+ *  je občas uvádí i u nenacharovaných — typicky diff_* = 1 u všech). */
+async function readSongInfoChecked(abs: string): Promise<Awaited<ReturnType<typeof readSongInfo>>> {
+  const info = await readSongInfo(abs)
+  if (!info) return info
+  const content = await songContentCached(abs).catch(() => null)
+  return content ? { ...info, difficulties: maskDifficulties(info.difficulties, content.insts) } : info
+}
+
 /** Detail otevřené písně: metadata + obal alba (data URI). */
 export async function libSongDetail(rel: string): Promise<SongDetail> {
   const abs = safeAbs(rel)
-  const info = await readSongInfo(abs)
+  const info = await readSongInfoChecked(abs)
   const albumArt = await readAlbumArt(abs)
   return { info: info ? { rel, ...info } : null, albumArt }
 }

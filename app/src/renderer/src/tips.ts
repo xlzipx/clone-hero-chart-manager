@@ -13,7 +13,7 @@ export const TIPS: string[] = [
   'Import playlist in the sidebar takes a public Spotify link and finds charts for the whole playlist at once.',
   'Set the database to Both to search RhythmVerse and Chorus Encore at the same time.',
   'Chorus Encore charts download directly as .sng files, no Google Drive or MEGA step.',
-  'Open Filters to narrow by genre, year, decade, length, charter, artist or difficulty.',
+  'Open Filters to narrow by genre, year, decade, length, charter, artist, difficulty or intensity.',
   'Charter and artist filters search the full catalog of both databases.',
   'In Sort by, pick Added for the newest charts or Downloads for the most popular.',
   'Rock Band CON charts are converted to Clone Hero automatically when you download them.',

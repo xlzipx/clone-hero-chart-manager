@@ -59,6 +59,14 @@ body {
   -webkit-font-smoothing: antialiased;
   user-select: none;
 }
+/* Tlačítka a pole písmo nedědí (prohlížeč jim dá výchozí Arial) — sjednotit
+   s písmem aplikace. Třídy, které písmo nastavují samy, mají přednost. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
 #root {
   height: 100vh;
   padding: 0;
@@ -12394,44 +12402,54 @@ li.lvexist__more {
   --lv-h: #ff8a4c;
   --lv-x: #f05252;
 }
-/* Neutrální pilulka (jako délka písně), barvu nese jen žebříček — nesplete se
-   s barevnými odznaky formátu (RB3 → CH) ani databáze. */
+/* Neutrální pilulka (jako délka písně), barvu nesou jen čtverečky úrovní —
+   nesplete se s barevnými odznaky formátu (RB3 → CH) ani databáze. */
 .badge--levels {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #d6d8de;
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.05);
+  /* Bez rámečku: jen tlumený popisek a čtverečky úrovní (ty nesou informaci). */
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8a8e99;
+  border: none;
+  background: none;
 }
-.lvlseg {
-  display: inline-flex;
-  gap: 2px;
+/* V řádku výsledků / karty má .song__meta .badge vyšší prioritu — přebít. */
+.song__meta .badge.badge--levels,
+.lvsum__meta .badge.badge--levels {
+  gap: 6px;
+  padding: 0 2px;
+  font-weight: 600;
+  color: #8a8e99;
+  border: none;
+  background: none;
 }
-.lvlseg i {
-  display: block;
-  width: 5px;
-  height: 10px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.13);
-}
-.lvlseg i.lvlseg--e { background: var(--lv-e); }
-.lvlseg i.lvlseg--m { background: var(--lv-m); }
-.lvlseg i.lvlseg--h { background: var(--lv-h); }
-.lvlseg i.lvlseg--x { background: var(--lv-x); }
 /* Zapnutý přepínač ve filtrech v barvě své úrovně (Expert only = červená). */
 .reduc__opt--lv-e.is-on, .lv__chip--lv-e.lv__chip--on { color: var(--lv-e); border-color: color-mix(in srgb, var(--lv-e) 55%, transparent); background: color-mix(in srgb, var(--lv-e) 13%, transparent); }
 .reduc__opt--lv-m.is-on, .lv__chip--lv-m.lv__chip--on { color: var(--lv-m); border-color: color-mix(in srgb, var(--lv-m) 55%, transparent); background: color-mix(in srgb, var(--lv-m) 13%, transparent); }
 .reduc__opt--lv-h.is-on, .lv__chip--lv-h.lv__chip--on { color: var(--lv-h); border-color: color-mix(in srgb, var(--lv-h) 55%, transparent); background: color-mix(in srgb, var(--lv-h) 13%, transparent); }
 .reduc__opt--lv-x.is-on, .lv__chip--lv-x.lv__chip--on { color: var(--lv-x); border-color: color-mix(in srgb, var(--lv-x) 55%, transparent); background: color-mix(in srgb, var(--lv-x) 13%, transparent); }
-/* Text a okraj pilulky v barvě nejlehčí obsažené úrovně (od čeho jde chart
-   hrát): Easy to Expert zelená, Hard + Expert oranžová, Expert only červená. */
-.badge--levels-e { --lvc: var(--lv-e); }
-.badge--levels-m { --lvc: var(--lv-m); }
-.badge--levels-h { --lvc: var(--lv-h); }
-.badge--levels-x { --lvc: var(--lv-x); }
-.badge--levels[class*='badge--levels-'] {
-  color: var(--lvc);
-  border-color: color-mix(in srgb, var(--lvc) 50%, transparent);
-  background: color-mix(in srgb, var(--lvc) 11%, transparent);
+/* Čtverečky E M H X: obsažená úroveň vybarvená, chybějící jen obrys. */
+.lvlsq {
+  display: inline-flex;
+  gap: 2px;
 }
+.lvlsq b {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 14px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.lvlsq b.lvlsq--e { background: var(--lv-e); border-color: var(--lv-e); color: #0e2a18; }
+.lvlsq b.lvlsq--m { background: var(--lv-m); border-color: var(--lv-m); color: #3a2c05; }
+.lvlsq b.lvlsq--h { background: var(--lv-h); border-color: var(--lv-h); color: #3d1a06; }
+.lvlsq b.lvlsq--x { background: var(--lv-x); border-color: var(--lv-x); color: #3d0c0c; }
