@@ -3,10 +3,11 @@
 
 import { nativeImage, shell } from 'electron'
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'fs'
-import { cp, readdir, rm } from 'fs/promises'
+import { cp, readdir, rm, stat } from 'fs/promises'
 import { basename, dirname, extname, join, relative, resolve, sep } from 'path'
 import { getConfig, setConfig } from './config'
 import { closeAudioUnder } from './localaudio'
+import { songLevelsCached } from './chartlevels'
 import { EXT_PREFIX, extraFolders, folderId, foldPath, isRootAbs, resolveRel, songsRoot, toRel, type ExtraFolder } from './roots'
 import { portableName } from '../../shared/foldertemplate'
 import { readAlbumArt, readSongInfo, readSongMeta, writeSongMeta } from './songmeta'
@@ -131,7 +132,7 @@ function isJunkEntry(name: string): boolean {
   return JUNK_NAMES.has(lower) || lower.startsWith('._')
 }
 
-export function libList(rel: string): { path: string; entries: LibEntry[] } {
+export async function libList(rel: string): Promise<{ path: string; entries: LibEntry[] }> {
   const abs = safeAbs(rel)
   // Kořen vytvoříme (první spuštění), ale neexistující PODcesty ne — listování
   // je čtecí operace a nemá zakládat adresáře podle libovolného vstupu.
@@ -142,23 +143,40 @@ export function libList(rel: string): { path: string; entries: LibEntry[] } {
   }
   let names: string[] = []
   try {
-    names = readdirSync(abs)
+    names = await readdir(abs)
   } catch {
     /* ignore */
   }
+  // Asynchronně a po skupinách: synchronní stat + výpis tisíců podsložek
+  // (složka s tisíci písní) blokoval hlavní proces i na stovky ms a okno
+  // mezitím nereagovalo.
+  const todo = names.filter((n) => !isJunkEntry(n)) // .DS_Store, Thumbs.db, ._* … nezobrazovat
   const entries: LibEntry[] = []
-  for (const name of names) {
-    if (isJunkEntry(name)) continue // .DS_Store, Thumbs.db, ._* … nezobrazovat
-    const full = join(abs, name)
-    let st
-    try {
-      st = statSync(full)
-    } catch {
-      continue
-    }
-    const common = { size: st.size, mtimeMs: st.mtimeMs, birthtimeMs: st.birthtimeMs }
-    if (st.isDirectory()) entries.push({ name, type: 'dir', ...inspectDir(full), ...common })
-    else if (st.isFile()) entries.push({ name, type: 'file', isSong: false, ...common })
+  for (let i = 0; i < todo.length; i += 64) {
+    const got = await Promise.all(
+      todo.slice(i, i + 64).map(async (name): Promise<LibEntry | null> => {
+        const full = join(abs, name)
+        let st
+        try {
+          st = await stat(full)
+        } catch {
+          return null
+        }
+        const common = { size: st.size, mtimeMs: st.mtimeMs, birthtimeMs: st.birthtimeMs }
+        if (st.isDirectory()) {
+          let sub: string[] = []
+          try {
+            sub = await readdir(full)
+          } catch {
+            /* nečitelná složka = obyčejná složka */
+          }
+          return { name, type: 'dir', ...problemFromNames(sub), ...common }
+        }
+        if (st.isFile()) return { name, type: 'file', isSong: false, ...common }
+        return null
+      })
+    )
+    for (const e of got) if (e) entries.push(e)
   }
   entries.sort((a, b) =>
     a.type === b.type ? a.name.localeCompare(b.name, 'cs') : a.type === 'dir' ? -1 : 1
@@ -380,6 +398,77 @@ export async function libFindBroken(rel: string): Promise<LibEntryFull[]> {
   return out
 }
 
+/** Všechny (zdravé) písně ve složce a všech podsložkách; `name` = cesta
+ *  relativně k `rel`. Pro filtr podle interpreta / alba přes celou větev. */
+export async function libFindSongs(rel: string): Promise<LibEntryFull[]> {
+  const base = safeAbs(rel)
+  const out: LibEntryFull[] = []
+  const walk = async (abs: string, depth: number): Promise<void> => {
+    if (depth > 12) return
+    let ents
+    try {
+      ents = await readdir(abs, { withFileTypes: true })
+    } catch {
+      return
+    }
+    await Promise.all(
+      ents
+        .filter((e) => e.isDirectory() && !isJunkEntry(e.name))
+        .map(async (d) => {
+          const full = join(abs, d.name)
+          let names: string[] = []
+          try {
+            names = await readdir(full)
+          } catch {
+            return
+          }
+          const info = problemFromNames(names)
+          if (info.isSong && !info.problem) {
+            try {
+              // Asynchronně: synchronní stat tisíců složek blokoval hlavní proces
+              // (a s ním i doručování kláves a snímků do okna).
+              const st = await stat(full)
+              out.push({
+                name: relative(base, full).split(sep).join('/'),
+                type: 'dir',
+                isSong: true,
+                size: st.size,
+                mtimeMs: st.mtimeMs,
+                birthtimeMs: st.birthtimeMs
+              })
+            } catch {
+              /* mezitím smazáno */
+            }
+            return
+          }
+          await walk(full, depth + 1)
+        })
+    )
+  }
+  await walk(base, 0)
+  out.sort((a, b) => a.name.localeCompare(b.name, 'cs'))
+  return out
+}
+
+/** Které obtížnosti písně obsahují („emhx", viz chartlevels.ts). Písně bez
+ *  souboru s notami (nebo nečitelné) ve výsledku chybí. */
+export async function libSongLevels(rels: string[]): Promise<Record<string, string>> {
+  const out: Record<string, string> = {}
+  for (let i = 0; i < rels.length; i += 16) {
+    await Promise.all(
+      rels.slice(i, i + 16).map(async (rel) => {
+        try {
+          const lv = await songLevelsCached(safeAbs(rel))
+          if (lv !== null) out[rel] = lv
+        } catch {
+          /* neplatná cesta → bez údaje */
+        }
+      })
+    )
+  }
+  return out
+}
+
 /**
  * Rozbalí .sng z knihovny do normální složky písně vedle něj (stejně jako při
  * stahování) a .sng pošle do koše. Vrací relativní cestu nové složky.
@@ -503,16 +592,22 @@ export function libWriteMeta(relItem: string, fields: SongMeta): Promise<void> {
 }
 /** Detailní info pro dávku písní (bohaté řádky). Vrátí jen ty, co mají song.ini. */
 export async function libSongInfo(rels: string[]): Promise<LibSongInfo[]> {
-  const out: LibSongInfo[] = []
-  for (const rel of rels) {
-    try {
-      const info = await readSongInfo(safeAbs(rel))
-      if (info) out.push({ rel, ...info })
-    } catch {
-      /* přeskoč neplatné */
-    }
+  // Souběžně po skupinách: čtení song.ini jedno po druhém bylo u tisíců písní
+  // (filtr přes celou knihovnu) zhruba 4× pomalejší. Pořadí výsledku drží `rels`.
+  const got: (LibSongInfo | null)[] = new Array(rels.length).fill(null)
+  for (let i = 0; i < rels.length; i += 32) {
+    await Promise.all(
+      rels.slice(i, i + 32).map(async (rel, j) => {
+        try {
+          const info = await readSongInfo(safeAbs(rel))
+          if (info) got[i + j] = { rel, ...info }
+        } catch {
+          /* přeskoč neplatné */
+        }
+      })
+    )
   }
-  return out
+  return got.filter((x): x is LibSongInfo => x !== null)
 }
 // Miniatury obalů pro karty v Library. Klíč = cesta + mtime obalu, takže
 // změněný obal se přegeneruje a nezměněný se čte z paměti.

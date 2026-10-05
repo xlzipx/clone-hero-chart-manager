@@ -33,6 +33,7 @@ import {
 } from './utils'
 import type { SongResult } from '../../shared/types'
 import { isTypingTarget } from './rangeToggle'
+import { levelsMatch } from './components/LevelsBadge'
 
 /** Manuální host (MEGA/Mediafire/shortener) nejde spolehlivě auto-stáhnout —
  *  místo zařazení do fronty (kde by jen spadlo) otevřeme stránku v prohlížeči. */
@@ -68,6 +69,7 @@ export function App(): JSX.Element {
   const albumFilter = useStore((s) => s.albumFilter)
   const artistFilter = useStore((s) => s.artistFilter)
   const reductions = useStore((s) => s.reductions)
+  const levelFilter = useStore((s) => s.levelFilter)
   const directOnly = useStore((s) => s.directOnly)
   const setDirectOnly = useStore((s) => s.setDirectOnly)
   const advFilters = useStore((s) => s.filters)
@@ -128,10 +130,10 @@ export function App(): JSX.Element {
         const t = song.updatedMs
         if (!t || (dr.from !== undefined && t < dr.from) || (dr.to !== undefined && t > dr.to)) return false
       }
-      // Redukce: expert = jen Expert-only, full = jen E/M/H/X. Neznámé (null,
-      // typicky nesynchronizovaný chart) při aktivním filtru vypadne.
-      if (reductions === 'expert' && song.expertOnly !== true) return false
-      if (reductions === 'full' && song.expertOnly !== false) return false
+      // Obsažené obtížnosti (Expert only / Easy … Expert). Neznámé úrovně při
+      // aktivním filtru vypadnou; „Expert only" bez úrovní padá na expertOnly.
+      if (reductions === 'expert' && !(song.levels != null ? song.levels === 'x' : song.expertOnly === true)) return false
+      if (!levelsMatch(song.levels, levelFilter, false)) return false
       // „Direct downloads only" — skryj official DLC a ruční hostitele (MEGA…);
       // stejné pravidlo jako tlačítko Download vs „Get on …" v řádku.
       if (directOnly && !isAutoDownloadable(song)) return false
@@ -165,6 +167,7 @@ export function App(): JSX.Element {
     albumFilter,
     artistFilter,
     reductions,
+    levelFilter,
     directOnly,
     hideOwned,
     ownedKeys,
@@ -557,6 +560,7 @@ export function App(): JSX.Element {
     !!albumFilter.trim() ||
     !!artistFilter ||
     reductions !== 'any' ||
+    levelFilter.length > 0 ||
     directOnly ||
     hideOwned ||
     instrumentFilters.length > 0 ||

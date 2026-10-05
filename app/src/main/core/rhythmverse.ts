@@ -99,6 +99,26 @@ function computeExpertOnly(diffs: unknown): boolean | null {
   return !anyReduction
 }
 
+/**
+ * Obsažené obtížnosti (podmnožina „emhx") z `file.difficulties`: per nástroj
+ * příznaky e/m/h/x (+ „all" = všechny). Vokály a pro/real nástroje se
+ * nepočítají (Clone Hero je nehraje po obtížnostech) — stejně jako u písní
+ * v My Library. null = data chybí, '' = data jsou, ale bez obtížností nástrojů.
+ */
+function computeLevels(diffs: unknown): string | null {
+  if (!diffs || typeof diffs !== 'object') return null
+  const found = new Set<string>()
+  for (const [inst, v] of Object.entries(diffs as Record<string, Record<string, number>>)) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) continue
+    if (/vocal|^pro|real|band/i.test(inst)) continue
+    if (v.all === 1) ['e', 'm', 'h', 'x'].forEach((l) => found.add(l))
+    for (const l of ['e', 'm', 'h', 'x']) if (v[l] === 1) found.add(l)
+  }
+  // '' = data jsou, ale žádný nástroj nemá obtížnosti (třeba jen vokály) — na
+  // rozdíl od null (neznámé) to „Expert only" nezahrne.
+  return ['e', 'm', 'h', 'x'].filter((l) => found.has(l)).join('')
+}
+
 function absolutize(url: string | null | undefined): string | null {
   if (!url) return null
   if (/^https?:\/\//i.test(url)) return url
@@ -154,6 +174,7 @@ function normalizeSong(song: { data: Record<string, unknown>; file: Record<strin
     albumArtUrl: pickArt(d, f),
     difficulties: mapDifficulties(f, d),
     expertOnly: computeExpertOnly(f.difficulties),
+    levels: computeLevels(f.difficulties),
     charter: pickCharter(f),
     source: (f.gamesource as string) || (f.source as string) || null,
     gameFormat,

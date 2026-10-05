@@ -41,11 +41,19 @@ function buildPreview(
   find: string,
   replace: string
 ): PreviewRow[] {
+  // Položka může ležet v podsložce (filtr přes celou větev: „Složka/Píseň").
+  // Přejmenovává se jen poslední část, kolize se hlídají v rámci její složky.
+  const split = (name: string): { dir: string; leaf: string } => {
+    const cut = name.lastIndexOf('/')
+    return { dir: cut >= 0 ? name.slice(0, cut + 1) : '', leaf: name.slice(cut + 1) }
+  }
   const selected = new Set(items.map((i) => i.name.toLowerCase()))
   // Obsazené názvy = sourozenci, kteří se nepřejmenovávají, + nově přidělené.
+  // `siblings` jsou jen z aktuální složky; v podsložkách kolizi ohlásí main.
   const taken = new Set(siblings.filter((n) => !selected.has(n.toLowerCase())).map((n) => n.toLowerCase()))
   return items.map((item) => {
-    let next = item.name
+    const { dir, leaf } = split(item.name)
+    let next = leaf
     let status: RowStatus = 'ok'
     let note = 'rename'
     if (mode === 'tpl') {
@@ -68,21 +76,21 @@ function buildPreview(
         note = 'color tags removed'
       }
     } else {
-      if (!find) return { item, next: item.name, status: 'same', note: 'unchanged' }
-      next = cleanSegment(item.name.split(find).join(replace))
-      if (!next) return { item, next: item.name, status: 'skip', note: 'name would be empty, skipped' }
+      if (!find) return { item, next: leaf, status: 'same', note: 'unchanged' }
+      next = cleanSegment(leaf.split(find).join(replace))
+      if (!next) return { item, next: leaf, status: 'skip', note: 'name would be empty, skipped' }
     }
-    if (next === item.name) return { item, next, status: 'same', note: 'unchanged' }
+    if (next === leaf) return { item, next, status: 'same', note: 'unchanged' }
     // Kolize → „ (2)" před příponu, jako to dělá kopírování v knihovně.
     const { stem, ext } = splitExt(next)
     let candidate = next
     let i = 2
-    while (taken.has(candidate.toLowerCase())) candidate = `${stem} (${i++})${ext}`
+    while (taken.has((dir + candidate).toLowerCase())) candidate = `${stem} (${i++})${ext}`
     if (candidate !== next) {
       status = 'fix'
       note = `name taken, added (${i - 1})`
     }
-    taken.add(candidate.toLowerCase())
+    taken.add((dir + candidate).toLowerCase())
     return { item, next: candidate, status, note }
   })
 }
@@ -124,21 +132,23 @@ export function BulkRenameDialog({
   const apply = async (): Promise<void> => {
     setBusy(true)
     setError(null)
+    const dirOf = (name: string): string => name.slice(0, name.lastIndexOf('/') + 1)
     const sources = new Set(todo.map((r) => r.item.name.toLowerCase()))
+    const target = (r: PreviewRow): string => (dirOf(r.item.name) + r.next).toLowerCase()
     // Cíl, který je zároveň zdrojem jiné (nebo té samé, jen jiná velikost písmen)
     // položky, se musí přejmenovat přes dočasný název, jinak by narazil na
     // „already exists".
-    const viaTemp = todo.filter((r) => sources.has(r.next.toLowerCase()))
-    const direct = todo.filter((r) => !sources.has(r.next.toLowerCase()))
+    const viaTemp = todo.filter((r) => sources.has(target(r)))
+    const direct = todo.filter((r) => !sources.has(target(r)))
     const failed: string[] = []
     let done = 0
     const temps = new Map<PreviewRow, string>()
     useStore.getState().releaseFiles(todo.map((r) => relOf(r.item.name)))
     for (const [i, r] of viaTemp.entries()) {
-      const tmp = `${r.item.name}.chm-rename-${Date.now()}-${i}`
+      const tmp = `${r.item.name.slice(dirOf(r.item.name).length)}.chm-rename-${Date.now()}-${i}`
       try {
         await window.api.libRename(relOf(r.item.name), tmp)
-        temps.set(r, tmp)
+        temps.set(r, dirOf(r.item.name) + tmp)
       } catch (e) {
         failed.push(`${r.item.name}: ${userMsg(e)}`)
       }

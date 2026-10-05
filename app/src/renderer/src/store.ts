@@ -27,6 +27,7 @@ import {
   isAutoDownloadable
 } from './utils'
 import { analyzeMix } from './loudness'
+import type { Level } from './components/LevelsBadge'
 
 export type { SortKey } from '../../shared/types'
 
@@ -131,8 +132,10 @@ interface AppState {
   /** „Added/modified" — kdy chart v databázi přibyl nebo byl upraven. */
   dateFilter: DateFilter
   setDateFilter: (f: DateFilter) => void
-  // Filtr redukcí: 'any' = bez omezení, 'expert' = jen Expert-only, 'full' = jen E/M/H/X
-  reductions: 'any' | 'expert' | 'full'
+  // „Expert only": 'any' = bez omezení, 'expert' = jen charty bez nižších obtížností
+  reductions: 'any' | 'expert'
+  /** Obsažené obtížnosti: chart musí mít všechny vybrané (Easy … Expert). */
+  levelFilter: Level[]
   // Jen přímo stažitelné (skryje official DLC a MEGA/Mediafire) — týká se hlavně RhythmVerse
   directOnly: boolean
   // „Už mám v knihovně" — normalizované klíče písní + přepínač skrytí
@@ -270,7 +273,8 @@ interface AppState {
   setCharterFilter: (v: string) => void
   setArtistFilter: (v: string) => void
   setAlbumFilter: (v: string) => void
-  setReductions: (v: 'any' | 'expert' | 'full') => void
+  setReductions: (v: 'any' | 'expert') => void
+  setLevelFilter: (v: Level[]) => void
   setDirectOnly: (v: boolean) => void
   setHideOwned: (v: boolean) => void
   loadOwnedKeys: () => Promise<void>
@@ -421,7 +425,7 @@ let selectionSig = ''
 function searchSig(s: AppState): string {
   return JSON.stringify([
     s.query.trim(), s.database, s.system, s.filters, s.artistFilter, s.charterFilter.trim(),
-    s.albumFilter, s.reductions, s.directOnly, s.hideOwned, s.dateFilter, s.instrumentFilters,
+    s.albumFilter, s.reductions, s.levelFilter, s.directOnly, s.hideOwned, s.dateFilter, s.instrumentFilters,
     s.diffMin, s.diffMax, s.sort, s.sortDir, s.records
   ])
 }
@@ -860,7 +864,7 @@ export const useStore = create<AppState>((set, get) => {
     const s = get()
     if (!catalogUsableForDb()) return false
     if (s.charterFilter.trim() || s.albumFilter.trim() || s.artistFilter) return true
-    if (s.reductions !== 'any') return true
+    if (s.reductions !== 'any' || s.levelFilter.length) return true
     if (s.directOnly) return true
     if (s.hideOwned) return true
     if (needsDeepScan()) return true
@@ -1182,6 +1186,7 @@ export const useStore = create<AppState>((set, get) => {
         charter: s.charterFilter.trim() || undefined,
         album: s.albumFilter || undefined,
         reductions: s.reductions === 'any' ? undefined : s.reductions,
+        levels: s.levelFilter.length ? s.levelFilter : undefined,
         directOnly: s.directOnly || undefined,
         excludeOwned: s.hideOwned || undefined,
         updatedFrom: dateFilterRange(s.dateFilter)?.from,
@@ -1529,6 +1534,7 @@ export const useStore = create<AppState>((set, get) => {
   artistFilter: '',
   dateFilter: { preset: 'any', from: '', to: '' },
   reductions: 'any',
+  levelFilter: [],
   directOnly: false,
   ownedKeys: new Set<string>(),
   hideOwned: false,
@@ -2030,7 +2036,12 @@ export const useStore = create<AppState>((set, get) => {
     void get().doSearch(1)
   },
   setReductions: (v) => {
-    set({ reductions: v, selectedIndex: -1 })
+    // „Expert only" a výběr úrovní se vylučují (jen Expert ⇒ žádné nižší).
+    set({ reductions: v, levelFilter: v === 'expert' ? [] : get().levelFilter, selectedIndex: -1 })
+    void get().doSearch(1)
+  },
+  setLevelFilter: (v) => {
+    set({ levelFilter: v, reductions: v.length ? 'any' : get().reductions, selectedIndex: -1 })
     void get().doSearch(1)
   },
   setDirectOnly: (v) => {
@@ -2177,6 +2188,7 @@ export const useStore = create<AppState>((set, get) => {
       artistFilter: '',
       dateFilter: { preset: 'any', from: '', to: '' },
       reductions: 'any',
+      levelFilter: [],
       directOnly: false,
       hideOwned: false,
       filters: {},
@@ -2538,6 +2550,7 @@ export const useStore = create<AppState>((set, get) => {
       albumArtUrl: null,
       difficulties: {},
       expertOnly: null,
+      levels: null,
       charter: null,
       source: 'Local file',
       gameFormat: null,

@@ -12,6 +12,7 @@ import { Icon } from './Icon'
 import { InstrumentDifficulty } from './InstrumentDifficulty'
 import { RichText } from './RichText'
 import { RowMenu } from './RowMenu'
+import { LevelsBadge } from './LevelsBadge'
 
 /** Malý komponentový wrapper pro album art — fallback na ikonu při onError. */
 function AlbumArt({ url }: { url: string | null }): JSX.Element {
@@ -326,10 +327,11 @@ function SongRowBase({
               <span className="badge badge--native">{formatLabel(song.gameFormat)}</span>
             )
           )}
-          {song.expertOnly === true ? (
-            <span className="badge badge--expert">Expert only</span>
-          ) : song.expertOnly === false ? (
-            <span className="badge badge--alldiffs">E/M/H/X</span>
+          {song.levels != null ? (
+            <LevelsBadge levels={song.levels} />
+          ) : song.expertOnly === true ? (
+            // Řádek katalogu ještě bez přesných úrovní (před přenačtením).
+            <LevelsBadge levels="x" />
           ) : null}
           {owned ? (
             <button

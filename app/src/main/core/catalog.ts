@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS charts (
   d_keys INTEGER, d_proguitar INTEGER, d_probass INTEGER, d_prokeys INTEGER,
   d_guitarghl INTEGER, d_bassghl INTEGER, d_band INTEGER,
   expert_only INTEGER,
+  levels TEXT,
   charter TEXT,
   charter_plain TEXT COLLATE NOCASE,
   merge_key TEXT NOT NULL DEFAULT '',
@@ -140,6 +141,9 @@ function migrate(d: Database.Database): void {
   if (!cols.includes('norm_key')) {
     d.exec(`ALTER TABLE charts ADD COLUMN norm_key TEXT NOT NULL DEFAULT ''`)
   }
+  // Obsažené obtížnosti („emhx"). U starých řádků NULL, doplní je re-fetch
+  // (DATA_VERSION 3 v catalogsync.ts) — dotazy mezitím padají zpět na expert_only.
+  if (!cols.includes('levels')) d.exec(`ALTER TABLE charts ADD COLUMN levels TEXT`)
   // Indexy až TADY (ne ve SCHEMA) — na staré DB by odkazovaly na sloupec,
   // který vznikne teprve migrací o řádek výš. Pro čerstvou DB jsou no-op.
   // (merge_key, src) pokrývá NOT EXISTS sondu dedupu „Both"; `modified` bez
@@ -269,6 +273,77 @@ export async function ensureCatalogSeed(dbPath: string, seedGzPath: string): Pro
   }
 }
 
+/**
+ * Po aktualizaci appky, která změnila formát dat katalogu (DATA_VERSION),
+ * nahradí stávající katalog přibaleným snímkem — místo ~10 min stahování
+ * celého katalogu z API znovu. Snímek se použije jen když je přesně v
+ * požadované verzi dat. Naměřená hlasitost písní (normalizace v přehrávači)
+ * se do nového katalogu přenese. Volat PŘED initCatalog. Vrací true, když
+ * výměna proběhla; jinak se katalog doplní běžným re-fetchem (backfill).
+ */
+export async function upgradeCatalogFromSeed(
+  dbPath: string,
+  seedGzPath: string,
+  dataVersion: string
+): Promise<boolean> {
+  const { existsSync, createReadStream, createWriteStream } = await import('fs')
+  const { rename, rm } = await import('fs/promises')
+  const { createGunzip } = await import('zlib')
+  const { pipeline } = await import('stream/promises')
+  if (!existsSync(dbPath) || !existsSync(seedGzPath)) return false
+
+  const versionOf = (d: Database.Database): string | null => {
+    try {
+      const r = d.prepare(`SELECT value FROM meta WHERE key = 'data_version'`).get() as
+        | { value: string }
+        | undefined
+      return r?.value ?? null
+    } catch {
+      return null
+    }
+  }
+  let current: string | null
+  try {
+    const old = new Database(dbPath, { readonly: true, fileMustExist: true })
+    current = versionOf(old)
+    old.close()
+  } catch {
+    return false // nečitelná DB → řeší ji initCatalog (smaže a nahradí seedem)
+  }
+  if (current === dataVersion) return false
+
+  const tmp = dbPath + '.seed'
+  try {
+    await pipeline(createReadStream(seedGzPath), createGunzip(), createWriteStream(tmp))
+    const s = new Database(tmp)
+    try {
+      if (versionOf(s) !== dataVersion) {
+        s.close()
+        await rm(tmp, { force: true })
+        return false // snímek je starší formát → doplní se z API
+      }
+      // Přenést naměřenou hlasitost (uživatelská data, ne katalog).
+      s.prepare('ATTACH DATABASE ? AS old').run(dbPath)
+      try {
+        s.exec('INSERT OR REPLACE INTO loudness (rel, lufs, peak, sig) SELECT rel, lufs, peak, sig FROM old.loudness')
+      } catch {
+        /* starší katalog bez tabulky loudness */
+      }
+      s.exec('DETACH DATABASE old')
+    } finally {
+      if (s.open) s.close()
+    }
+    for (const suf of ['', '-wal', '-shm']) await rm(dbPath + suf, { force: true })
+    await rename(tmp, dbPath)
+    console.log(`[catalog] replaced with bundled snapshot (data ${current ?? '-'} → ${dataVersion})`)
+    return true
+  } catch (err) {
+    await rm(tmp, { force: true }).catch(() => {})
+    console.warn('[catalog] snapshot upgrade failed, will backfill from API:', err)
+    return false
+  }
+}
+
 function need(): Database.Database {
   if (!db) throw new Error('Catalog DB is not initialized')
   return db
@@ -315,10 +390,10 @@ const INSERT_SQL = `INSERT OR REPLACE INTO charts (
   length_s, art,
   d_guitar, d_bass, d_drums, d_vocals, d_keys, d_proguitar, d_probass,
   d_prokeys, d_guitarghl, d_bassghl, d_band,
-  expert_only, charter, charter_plain, merge_key, norm_key, host, gameformat, gameformats,
+  expert_only, levels, charter, charter_plain, merge_key, norm_key, host, gameformat, gameformats,
   needs_conversion, official, download_url, download_page_url, external_url,
   drive_folder_url, size_bytes, downloads, modified
-) VALUES (${new Array(40).fill('?').join(', ')})`
+) VALUES (${new Array(41).fill('?').join(', ')})`
 
 function toRow(it: CatalogItem): unknown[] {
   const s = it.song
@@ -337,6 +412,7 @@ function toRow(it: CatalogItem): unknown[] {
     s.albumArtUrl,
     ...DIFF_KEYS.map((k) => s.difficulties[k] ?? null),
     s.expertOnly === null ? null : s.expertOnly ? 1 : 0,
+    s.levels ?? null,
     s.charter,
     s.charter ? stripRichTags(s.charter) : null,
     mergeKey(s),
@@ -414,6 +490,7 @@ interface ChartRow {
   d_bassghl: number | null
   d_band: number | null
   expert_only: number | null
+  levels: string | null
   charter: string | null
   host: string | null
   gameformat: string | null
@@ -461,6 +538,7 @@ function rowToSong(r: ChartRow): SongResult {
     albumArtUrl: r.art,
     difficulties: diffs,
     expertOnly: r.expert_only === null ? null : r.expert_only === 1,
+    levels: r.levels ?? null,
     charter: r.charter,
     source: r.host,
     gameFormat: r.gameformat,
@@ -602,10 +680,15 @@ export function queryCatalog(q: CatalogQuery): SearchResponse {
     args.push(q.album as string, album)
   }
 
-  // Redukce (Expert-only vs E/M/H/X). expert_only: 1 = jen Expert, 0 = má
-  // E/M/H, NULL = neznámé (to při filtru vypadne — nemá smysl ukazovat).
-  if (q.reductions === 'expert') where.push(`expert_only = 1`)
-  else if (q.reductions === 'full') where.push(`expert_only = 0`)
+  // Obsažené obtížnosti. `levels` = „emhx" podmnožina; NULL = neznámé (to při
+  // filtru vypadne). „Expert only" u řádků bez `levels` (ještě nepřenačtené po
+  // přidání sloupce) padá zpět na starší expert_only.
+  if (q.reductions === 'expert') where.push(`(levels = 'x' OR (levels IS NULL AND expert_only = 1))`)
+  for (const l of q.levels ?? []) {
+    if (!['e', 'm', 'h', 'x'].includes(l)) continue
+    where.push(`instr(levels, ?) > 0`)
+    args.push(l)
+  }
 
   // „Hide owned" napříč celým katalogem — vyřaď řádky, jejichž normalizovaný
   // klíč artist|title je v owned_keys (naplní renderer přes setOwnedKeys).

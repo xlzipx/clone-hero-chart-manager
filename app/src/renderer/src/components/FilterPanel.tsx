@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FilterOption } from '../../../shared/types'
 import { useStore } from '../store'
 import { Icon } from './Icon'
+import { LEVELS } from './LevelsBadge'
 
 /**
  * Jednovýběrový select (id + label) laděný jako obecný `.dd`, s prázdnou volbou.
@@ -268,6 +269,8 @@ export function FilterPanel(): JSX.Element {
   const setCharter = useStore((s) => s.setCharterFilter)
   const setArtist = useStore((s) => s.setArtistFilter)
   const setReductions = useStore((s) => s.setReductions)
+  const levelFilter = useStore((s) => s.levelFilter)
+  const setLevelFilter = useStore((s) => s.setLevelFilter)
   const catalog = useStore((s) => s.catalogStatus)
   const dateFilter = useStore((s) => s.dateFilter)
   const setDateFilter = useStore((s) => s.setDateFilter)
@@ -358,7 +361,7 @@ export function FilterPanel(): JSX.Element {
           }
         />
         {dateFilter.preset === 'custom' ? (
-          <div className="filterfield filterfield--wide">
+          <div className="filterfield filterfield--levels">
             <span className="filterfield__label">From – to</span>
             <div className="daterange">
               <input
@@ -413,24 +416,34 @@ export function FilterPanel(): JSX.Element {
             řadě, ať panel neroste na výšku. Přepínače vypadají jako odznaky
             u řádku výsledků; klik na aktivní ho vypne. Trochu širší (dva
             přepínače v jedné buňce), ať se „Expert only" nemačká. */}
-        <div className="filterfield filterfield--wide">
-          <span className="filterfield__label">Difficulty levels</span>
+        <div className="filterfield filterfield--levels">
+          <span className="filterfield__label">Includes difficulties</span>
           <div className="reduc">
+            {LEVELS.map((l) => {
+              const on = levelFilter.includes(l.id)
+              return (
+                <button
+                  key={l.id}
+                  type="button"
+                  className={`reduc__opt reduc__opt--lv-${l.id} ${on ? 'is-on' : ''}`}
+                  aria-pressed={on}
+                  title={`Only charts that include ${l.label}`}
+                  onClick={() => setLevelFilter(on ? levelFilter.filter((x) => x !== l.id) : [...levelFilter, l.id])}
+                >
+                  {l.label}
+                </button>
+              )
+            })}
+            {/* Jiný druh filtru (vylučuje nižší úrovně) → oddělený čárou. */}
+            <span className="reduc__sep" aria-hidden="true" />
             <button
               type="button"
-              className={`reduc__opt reduc__opt--expert ${reductions === 'expert' ? 'is-on' : ''}`}
+              className={`reduc__opt reduc__opt--lv-x ${reductions === 'expert' ? 'is-on' : ''}`}
               aria-pressed={reductions === 'expert'}
+              title="Only charts with no easier difficulty than Expert"
               onClick={() => setReductions(reductions === 'expert' ? 'any' : 'expert')}
             >
-              Expert only
-            </button>
-            <button
-              type="button"
-              className={`reduc__opt reduc__opt--full ${reductions === 'full' ? 'is-on' : ''}`}
-              aria-pressed={reductions === 'full'}
-              onClick={() => setReductions(reductions === 'full' ? 'any' : 'full')}
-            >
-              E/M/H/X
+              Expert only (no other difficulties)
             </button>
           </div>
         </div>

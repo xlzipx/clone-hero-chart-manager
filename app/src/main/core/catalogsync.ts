@@ -50,9 +50,10 @@ const FAIL_RETRY_MS = 5 * 60 * 1000
  * uložených řádků (nová/opravená pole) — např. přidání expert_only u Encore z
  * notesData. Na mismatch se u hotového katalogu vynulují kurzory → příští sync
  * projede vše a doplní pole IN PLACE, aniž by shodil `full_done` (dotazy jedou
- * dál na stávajících datech). Historie: 1 = původní, 2 = Encore expert_only.
+ * dál na stávajících datech). Historie: 1 = původní, 2 = Encore expert_only,
+ * 3 = obsažené obtížnosti (sloupec levels).
  */
-const DATA_VERSION = '2'
+export const DATA_VERSION = '3'
 /** Kolikrát zopakovat JEDNU stránku po síťové chybě/timeoutu, než se zdroj vzdá. */
 const PAGE_RETRIES = 2
 

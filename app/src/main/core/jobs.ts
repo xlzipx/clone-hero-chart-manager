@@ -63,6 +63,7 @@ function deriveLocalSong(path: string): SongResult {
     albumArtUrl: null,
     difficulties: {},
     expertOnly: null,
+    levels: null,
     charter: null,
     source: 'Local file',
     gameFormat: null,

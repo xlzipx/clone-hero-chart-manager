@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ExtraFolderInfo, InstrumentDifficulties, LibEntry, LibListing, LibProblem, LibSongInfo, SongDetail } from '../../../shared/types'
 import { userMsg } from '../../../shared/errors'
 import { IS_MAC } from '../platform'
@@ -15,6 +15,8 @@ import { SetlistsView } from './SetlistsView'
 import { SongMetaDialog } from './SongMetaDialog'
 import { BulkRenameDialog, FolderPickerDialog, useExistingCheck, type BulkItem } from './LibraryDialogs'
 import { isTypingTarget } from '../rangeToggle'
+import { LEVELS, LevelsBadge, type Level } from './LevelsBadge'
+import { artistWords } from '../../../shared/songid'
 
 /** broken = složka s audiem, ale bez souboru s notami (Clone Hero ji nenačte). */
 type Kind = 'folder' | 'song' | 'broken' | 'file'
@@ -69,10 +71,18 @@ interface Filters {
   min: number
   max: number
   charter: string
+  /** Interpret / album (jako ve vyhledávání). Hledá v celé větvi pod složkou. */
+  artist: string
+  album: string
+  /** Obsažené obtížnosti: píseň musí mít všechny vybrané. */
+  levels: Level[]
+  /** Jen charty bez nižších obtížností (jen Expert). */
+  expertOnly: boolean
   /** Jen složky, kterým chybí soubor s notami. */
   broken: boolean
 }
-const NO_FILTERS: Filters = { inst: [], min: 0, max: 6, charter: '', broken: false }
+const NO_FILTERS: Filters = { inst: [], min: 0, max: 6, charter: '', artist: '', album: '', levels: [], expertOnly: false, broken: false }
+
 
 type Dialog =
   | { type: 'new' }
@@ -123,6 +133,19 @@ const folderCountsCache = new Map<string, Record<string, number>>()
 const brokenCache = new Map<string, LibEntry[]>()
 /** Metadata písní podle složky — přepínání mezi složkami bez probliknutí. */
 const infosCache = new Map<string, Record<string, LibSongInfo>>()
+/** Obsažené obtížnosti písní (rel → „emhx"), přes celou dobu běhu. */
+const levelsCache = new Map<string, string>()
+/** Metadata všech už načtených písní (rel → info). Filtr přes celou větev pak
+ *  dočítá jen to, co ještě nezná, místo celé knihovny při každém zapnutí. */
+const allInfos = new Map<string, LibSongInfo>()
+/** Po změně souborů zvenku (tlačítko Obnovit) zapomeň vše načtené. */
+function forgetSongData(): void {
+  allInfos.clear()
+  levelsCache.clear()
+  songsDeepCache.clear()
+}
+/** Všechny písně větve (filtr interpreta / alba), klíč = složka. */
+const songsDeepCache = new Map<string, LibEntry[]>()
 
 /** Metadata volného .sng odhadnutá z názvu souboru („Artist - Title.sng"). */
 function sngInfo(rel: string, name: string): LibSongInfo {
@@ -189,6 +212,9 @@ export function LibraryView(): JSX.Element {
   const [q, setQ] = useState(lastQ)
   const [filters, setFilters] = useState<Filters>(lastFilters)
   const [filtersOpen, setFiltersOpen] = useState(lastFiltersOpen)
+  const [levels, setLevels] = useState<Record<string, string>>(() => Object.fromEntries(levelsCache))
+  const [levelsLoading, setLevelsLoading] = useState(false)
+  const [songsDeep, setSongsDeep] = useState<{ path: string; entries: LibEntry[] } | null>(null)
 
   const [focus, setFocus] = useState<string | null>(null)
   const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -301,9 +327,30 @@ export function LibraryView(): JSX.Element {
 
   // Zbytek metadat po dávkách (první dávku načte už `load`, ať karty neprobliknou
   // holými názvy). Bez nich by nešlo řadit ani filtrovat podle obtížnosti.
+  // Obsažené obtížnosti se čtou ze souborů s notami (main si je pamatuje podle
+  // změny souboru), proto až po metadatech, ať karty nečekají.
+  const loadLevels = async (rels: string[], my: number): Promise<void> => {
+    const todo = rels.filter((r) => !/\.sng$/i.test(r) && !levelsCache.has(r))
+    if (!todo.length) return
+    setLevelsLoading(true)
+    try {
+      for (let i = 0; i < todo.length; i += 200) {
+        const got = await window.api.libSongLevels(todo.slice(i, i + 200))
+        if (my !== loadSeq.current) return
+        for (const [r, v] of Object.entries(got)) levelsCache.set(r, v)
+        setLevels((prev) => ({ ...prev, ...got }))
+      }
+    } catch {
+      /* bez údaje = bez odznaku */
+    } finally {
+      if (my === loadSeq.current) setLevelsLoading(false)
+    }
+  }
+
   const loadInfos = async (rels: string[], from: number, my: number): Promise<void> => {
     if (from >= rels.length) {
       setInfoLoading(false)
+      void loadLevels(rels, my)
       return
     }
     setInfoLoading(true)
@@ -317,6 +364,7 @@ export function LibraryView(): JSX.Element {
       const got = buf
       buf = []
       lastFlush = performance.now()
+      for (const g of got) allInfos.set(g.rel, g)
       setInfos((prev) => {
         const next = { ...prev }
         for (const g of got) next[g.rel] = g
@@ -331,6 +379,7 @@ export function LibraryView(): JSX.Element {
     }
     flush()
     if (my === loadSeq.current) setInfoLoading(false)
+    void loadLevels(rels, my)
   }
 
   // Rozbité písně pod složkou, včetně všech podsložek (filtr „Broken songs“).
@@ -397,7 +446,10 @@ export function LibraryView(): JSX.Element {
       await thumbsP
       if (my !== loadSeq.current) return
       const nextInfos: Record<string, LibSongInfo> = { ...(cached ?? {}), ...sngBase(res.path, res.entries) }
-      for (const g of first) nextInfos[g.rel] = g
+      for (const g of first) {
+        nextInfos[g.rel] = g
+        allInfos.set(g.rel, g)
+      }
       infosPath.current = res.path
       setInfos(nextInfos)
       lastCwd = res.path
@@ -524,9 +576,68 @@ export function LibraryView(): JSX.Element {
 
   // ── Položky: druh, filtr, řazení ─────────────────────────────────
   const deep = brokenDeep && brokenDeep.path === cwd ? brokenDeep.entries : null
+  // Výpočet seznamu podle filtrů běží „odloženě" (React useDeferredValue): klik
+  // na filtr i psaní reagují hned a seznam (u celé knihovny tisíce položek) se
+  // dopočítá po nich, přerušitelně.
+  const fd = useDeferredValue(filters)
+  const qDeferred = useDeferredValue(q)
+  // Filtry podle údajů o písni hledají v celé větvi pod složkou (jako „Broken
+  // songs"), jinak by v kořeni se samými složkami nenašly nic.
+  const levelFilter = fd.expertOnly || fd.levels.length > 0
+  const metaFilter =
+    fd.inst.length > 0 ||
+    fd.min > 0 ||
+    fd.max < 6 ||
+    !!fd.charter.trim() ||
+    !!fd.artist.trim() ||
+    !!fd.album.trim() ||
+    levelFilter
+  const songsDeepHere = metaFilter && songsDeep && songsDeep.path === cwd ? songsDeep.entries : null
+  useEffect(() => {
+    if (!metaFilter) return
+    const my = loadSeq.current
+    const path = cwd
+    const hit = songsDeepCache.get(path)
+    if (hit) setSongsDeep({ path, entries: hit })
+    void window.api
+      .libFindSongs(path)
+      .then((list) => {
+        songsDeepCache.set(path, list)
+        if (my !== loadSeq.current) return
+        setSongsDeep({ path, entries: list })
+        const rels = list.map((e) => (path ? `${path}/${e.name}` : e.name))
+        const known: Record<string, LibSongInfo> = {}
+        const missing: string[] = []
+        for (const r of rels) {
+          const k = allInfos.get(r)
+          if (k) known[r] = k
+          else missing.push(r)
+        }
+        setInfos((prev) => ({ ...known, ...prev }))
+        void loadInfos(missing, 0, my)
+        void loadLevels(rels, my)
+      })
+      .catch(() => undefined)
+    // Znovu i po obnovení složky (`entries`), ať sedí po přesunu / smazání.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metaFilter, cwd, entries])
   const items: Item[] = useMemo(() => {
+    if (songsDeepHere && !fd.broken) {
+      return songsDeepHere.map((e) => {
+        const cut = e.name.lastIndexOf('/')
+        return {
+          e,
+          name: e.name,
+          label: cut >= 0 ? e.name.slice(cut + 1) : e.name,
+          dir: cut >= 0 ? e.name.slice(0, cut) : undefined,
+          rel: cwd ? `${cwd}/${e.name}` : e.name,
+          kind: 'song' as Kind,
+          isSng: false
+        }
+      })
+    }
     // Filtr „Broken songs“ ukazuje rozbité písně z celé větve, ne jen z této složky.
-    if (filters.broken && deep) {
+    if (fd.broken && deep) {
       return deep.map((e) => {
         const cut = e.name.lastIndexOf('/')
         return {
@@ -547,13 +658,15 @@ export function LibraryView(): JSX.Element {
         e.type === 'dir' ? (e.problem ? 'broken' : e.isSong ? 'song' : 'folder') : isSng ? 'song' : 'file'
       return { e, name: e.name, label: e.name, rel, kind, isSng }
     })
-  }, [entries, cwd, filters.broken, deep])
+  }, [entries, cwd, fd.broken, deep, songsDeepHere])
 
-  const metaFilter = filters.inst.length > 0 || filters.min > 0 || filters.max < 6 || !!filters.charter.trim()
   const activeFilterCount =
     filters.inst.length +
     (filters.min > 0 || filters.max < 6 ? 1 : 0) +
     (filters.charter.trim() ? 1 : 0) +
+    (filters.artist.trim() ? 1 : 0) +
+    (filters.album.trim() ? 1 : 0) +
+    (levelFilter ? 1 : 0) +
     (filters.broken ? 1 : 0)
   // Všechny rozbité písně této větve (pro „Fix all").
   const brokenTargets = (): { rel: string; name: string }[] =>
@@ -564,8 +677,12 @@ export function LibraryView(): JSX.Element {
   const brokenCount = deep ? deep.length : items.filter((i) => i.kind === 'broken').length
 
   const visible: Item[] = useMemo(() => {
-    const needle = q.trim().toLowerCase()
+    const filters = fd
+    const needle = qDeferred.trim().toLowerCase()
     const ch = filters.charter.trim().toLowerCase()
+    // Jako artistMatches, jen se slova filtru normalizují jednou, ne u každé písně.
+    const arWords = filters.artist.trim() ? artistWords(filters.artist) : ''
+    const al = filters.album.trim().toLowerCase()
     const inRange = (v: number | undefined): boolean => v !== undefined && v >= filters.min && v <= filters.max
     const list = items.filter((it) => {
       const info = infos[it.rel]
@@ -578,6 +695,13 @@ export function LibraryView(): JSX.Element {
       // Filtry podle metadat mají smysl jen u písní.
       if (it.kind !== 'song' || !info) return false
       if (ch && !stripTags(info.charter).toLowerCase().includes(ch)) return false
+      if (arWords && !artistWords(stripTags(info.artist)).includes(arWords)) return false
+      if (al && !stripTags(info.album).toLowerCase().includes(al)) return false
+      if (levelFilter) {
+        const lv = levels[it.rel]
+        if (lv === undefined) return false // ještě nepřečteno / bez souboru s notami
+        if (filters.expertOnly ? lv !== 'x' : !filters.levels.every((l) => lv.includes(l))) return false
+      }
       const d = info.difficulties
       if (filters.inst.length) return filters.inst.every((id) => inRange(d[id]))
       if (filters.min > 0 || filters.max < 6) return INSTRUMENTS.some((i) => inRange(d[i.id]))
@@ -635,7 +759,7 @@ export function LibraryView(): JSX.Element {
       return NAME_COLLATOR.compare(a.it.name, b.it.name)
     })
     return keyed.map((k) => k.it)
-  }, [items, infos, q, filters, metaFilter, sortKey, sortDir, folderCounts])
+  }, [items, infos, levels, levelFilter, qDeferred, fd, metaFilter, sortKey, sortDir, folderCounts])
 
   // Zaškrtnuté položky, které filtr schoval, z výběru vyřaď — hromadná akce se
   // nesmí dotknout něčeho, co uživatel právě nevidí.
@@ -849,8 +973,15 @@ export function LibraryView(): JSX.Element {
     setFocus(name)
     setAnchor(name)
   }
-  const h = useRef({ rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem, selectOnly })
-  h.current = { rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem, selectOnly }
+  // Klik na interpreta / album v kartě: ukáže jeho písně v aktuální složce
+  // (včetně podsložek, jako ostatní filtry).
+  const filterBy = (artist: string, album?: string): void => {
+    setFilters((f) => ({ ...f, artist: stripTags(artist).trim(), album: album ? stripTags(album).trim() : '' }))
+    setQ('')
+    setFiltersOpen(true)
+  }
+  const h = useRef({ rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem, selectOnly, filterBy })
+  h.current = { rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem, selectOnly, filterBy }
   const handlers = useMemo<RowHandlers>(
     () => ({
       click: (n, e) => h.current.rowClick(n, e),
@@ -859,7 +990,8 @@ export function LibraryView(): JSX.Element {
       select: (n) => h.current.selectOnly(n),
       check: (n) => h.current.toggleCheck(n),
       observe: (el) => h.current.observe(el),
-      fix: (it) => h.current.fixItem(it)
+      fix: (it) => h.current.fixItem(it),
+      filterBy: (artist, album) => h.current.filterBy(artist, album)
     }),
     []
   )
@@ -1212,7 +1344,7 @@ export function LibraryView(): JSX.Element {
               <button className="lib__btn lib__btn--icon" onClick={() => window.api.libOpen(cwd)} title={IS_MAC ? 'Open in Finder' : 'Open in Explorer'}>
                 <Icon name="external" size={15} />
               </button>
-              <button className="lib__btn lib__btn--icon" onClick={() => { void load(cwd, true); loadTree() }} title="Refresh">
+              <button className="lib__btn lib__btn--icon" onClick={() => { forgetSongData(); void load(cwd, true); loadTree() }} title="Refresh">
                 <Icon name="refresh" size={15} />
               </button>
             </div>
@@ -1367,16 +1499,56 @@ export function LibraryView(): JSX.Element {
               </span>
             </div>
             <div className="lv__fgroup">
-              <span className="lv__flabel">Charter</span>
-              <input
-                className="lv__finput"
-                placeholder="Charter name"
-                value={filters.charter}
-                onChange={(e) => setFilters((f) => ({ ...f, charter: e.target.value }))}
-              />
+              <span className="lv__flabel">Includes difficulties</span>
+              <div className="lv__chips">
+                {(() => {
+                  const levelChip = (l: (typeof LEVELS)[number]): JSX.Element => {
+                    const on = !filters.expertOnly && filters.levels.includes(l.id)
+                    return (
+                      <button
+                        key={l.id}
+                        type="button"
+                        className={`lv__chip lv__chip--lv-${l.id} ${on ? 'lv__chip--on' : ''}`}
+                        aria-pressed={on}
+                        onClick={() =>
+                          setFilters((f) => ({
+                            ...f,
+                            expertOnly: false,
+                            levels: on ? f.levels.filter((x) => x !== l.id) : [...f.levels, l.id]
+                          }))
+                        }
+                      >
+                        {l.label}
+                      </button>
+                    )
+                  }
+                  return (
+                    <>
+                      {LEVELS.slice(0, 3).map(levelChip)}
+                      {/* Expert + čára + Expert only drží pohromadě, ať čára při
+                          zalomení nezůstane sama na kraji řádku. */}
+                      <span className="lv__chipgroup">
+                        {levelChip(LEVELS[3])}
+                        <span className="lv__chipsep" aria-hidden="true" />
+                        <button
+                          type="button"
+                          className={`lv__chip lv__chip--lv-x ${filters.expertOnly ? 'lv__chip--on' : ''}`}
+                          aria-pressed={filters.expertOnly}
+                          title="Only charts with no easier difficulty than Expert"
+                          onClick={() => setFilters((f) => ({ ...f, expertOnly: !f.expertOnly, levels: [] }))}
+                        >
+                          Expert only
+                        </button>
+                      </span>
+                    </>
+                  )
+                })()}
+              </div>
               <span className="lv__fhint">
-                {visible.filter((i) => i.kind === 'song').length} of {songCount} songs match
-                {infoLoading ? ' (still reading song details…)' : ''}
+                {filters.expertOnly
+                  ? 'Only charts with no easier difficulty than Expert.'
+                  : 'Songs that include every selected difficulty.'}
+                {levelFilter && levelsLoading ? ' (still reading charts…)' : ''}
               </span>
             </div>
             <div className="lv__fgroup">
@@ -1394,6 +1566,41 @@ export function LibraryView(): JSX.Element {
               <button className="lv__link lv__fclear" type="button" disabled={!activeFilterCount} onClick={() => setFilters(NO_FILTERS)}>
                 Clear filters
               </button>
+            </div>
+            {/* Textová pole vedle sebe na vlastním řádku. */}
+            <div className="lv__ftext">
+              <div className="lv__fgroup">
+                <span className="lv__flabel">Artist</span>
+                <input
+                  className="lv__finput"
+                  placeholder="e.g. Linkin Park"
+                  value={filters.artist}
+                  onChange={(e) => setFilters((f) => ({ ...f, artist: e.target.value }))}
+                />
+              </div>
+              <div className="lv__fgroup">
+                <span className="lv__flabel">Album</span>
+                <input
+                  className="lv__finput"
+                  placeholder="e.g. Meteora"
+                  value={filters.album}
+                  onChange={(e) => setFilters((f) => ({ ...f, album: e.target.value }))}
+                />
+              </div>
+              <div className="lv__fgroup">
+                <span className="lv__flabel">Charter</span>
+                <input
+                  className="lv__finput"
+                  placeholder="Charter name"
+                  value={filters.charter}
+                  onChange={(e) => setFilters((f) => ({ ...f, charter: e.target.value }))}
+                />
+                <span className="lv__fhint">
+                  {visible.filter((i) => i.kind === 'song').length} of {songCount} songs match
+                  {metaFilter ? ', including subfolders' : ''}
+                  {infoLoading ? ' (still reading song details…)' : ''}
+                </span>
+              </div>
             </div>
           </div>
           </div>
@@ -1561,6 +1768,7 @@ export function LibraryView(): JSX.Element {
                 it={it}
                 view={view}
                 info={infos[it.rel]}
+                levels={levels[it.rel]}
                 thumb={thumbs[it.rel]}
                 count={it.kind === 'folder' ? folderCounts[it.name] : undefined}
                 checked={checked.has(it.name)}
@@ -1680,6 +1888,7 @@ export function LibraryView(): JSX.Element {
           <DetailPanel
             it={focusItem}
             info={infos[focusItem.rel]}
+            levels={levels[focusItem.rel]}
             detail={detail}
             count={focusItem.kind === 'folder' ? folderCounts[focusItem.name] : undefined}
             onOpen={() => void load(focusItem.rel)}
@@ -1913,7 +2122,10 @@ export function LibraryView(): JSX.Element {
           rel={metaFor.rel}
           title={metaFor.title}
           onClose={() => setMetaFor(null)}
-          onSaved={() => void load(cwd, true)}
+          onSaved={() => {
+            allInfos.delete(metaFor.rel)
+            void load(cwd, true)
+          }}
         />
       ) : null}
       {existingDialog}
@@ -1975,12 +2187,14 @@ interface RowHandlers {
   check: (name: string) => void
   observe: (el: HTMLElement | null) => void
   fix: (it: Item) => void
+  filterBy: (artist: string, album?: string) => void
 }
 
 const LibRow = memo(function LibRow({
   it,
   view,
   info,
+  levels,
   thumb,
   count,
   checked,
@@ -1991,6 +2205,7 @@ const LibRow = memo(function LibRow({
   it: Item
   view: 'cards' | 'list'
   info: LibSongInfo | undefined
+  levels: string | undefined
   thumb: string | null | undefined
   count: number | undefined
   checked: boolean
@@ -2154,12 +2369,45 @@ const LibRow = memo(function LibRow({
           <RichText text={title} />
         </div>
         <div className="song__artist">
-          {info?.artist ? <RichText text={info.artist} /> : <span className="lvdim">{it.name}</span>}
-          {info?.album ? <span className="song__album"> · {stripTags(info.album)}</span> : null}
+          {info?.artist ? (
+            <button
+              type="button"
+              className="song__artistlink"
+              title={`Show songs by ${stripTags(info.artist)} in this folder`}
+              onClick={(e) => {
+                e.stopPropagation()
+                h.filterBy(info.artist)
+              }}
+              onDoubleClick={(e) => e.stopPropagation()}
+            >
+              <RichText text={info.artist} />
+            </button>
+          ) : (
+            <span className="lvdim">{it.dir ? `${it.dir}/${it.label}` : it.name}</span>
+          )}
+          {info?.album ? (
+            <span className="song__album">
+              {' · '}
+              <button
+                type="button"
+                className="song__artistlink"
+                title={info.artist ? `Show songs from ${stripTags(info.album)} by ${stripTags(info.artist)} in this folder` : undefined}
+                disabled={!info.artist}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  h.filterBy(info.artist, info.album)
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+              >
+                {stripTags(info.album)}
+              </button>
+            </span>
+          ) : null}
           {info?.year ? <span className="song__year"> · {info.year}</span> : null}
         </div>
         <div className="song__meta">
           {info?.lengthSeconds ? <span className="badge badge--len">{formatLength(info.lengthSeconds)}</span> : null}
+          <LevelsBadge levels={levels} />
           {it.isSng ? <span className="badge badge--native">.sng</span> : null}
           {info?.charter ? (
             <span className="song__charter">
@@ -2182,6 +2430,7 @@ const LibRow = memo(function LibRow({
 function DetailPanel({
   it,
   info,
+  levels,
   detail,
   count,
   onOpen,
@@ -2198,6 +2447,7 @@ function DetailPanel({
 }: {
   it: Item
   info: LibSongInfo | undefined
+  levels: string | undefined
   detail: SongDetail | null
   count: number | undefined
   onOpen: () => void
@@ -2275,7 +2525,7 @@ function DetailPanel({
         )}
         {!it.isSng ? <LocalPreview previewKey={`libd:${it.rel}`} rel={it.rel} size={22} /> : null}
       </div>
-      <SongSummary info={d ?? undefined} fallback={it.name} />
+      <SongSummary info={d ?? undefined} levels={levels} fallback={it.name} />
       <div className="lv__dlabel">Song</div>
       <PanelActions
         {...manage}
@@ -2493,10 +2743,12 @@ function CoverStack({ items, infos }: { items: Item[]; infos: Record<string, Lib
 /** Údaje o písni v pravém panelu, stejně u jedné písně i u stohu výběru. */
 function SongSummary({
   info,
+  levels,
   fallback,
   count
 }: {
   info: LibSongInfo | undefined
+  levels?: string
   fallback: string
   count?: string
 }): JSX.Element {
@@ -2515,10 +2767,11 @@ function SongSummary({
         </div>
       ) : null}
       {sub ? <div className="lv__dsub">{sub}</div> : null}
-      {info?.charter || info?.lengthSeconds ? (
+      {info?.charter || info?.lengthSeconds || levels ? (
         <div className="lvsum__meta">
-          {info.lengthSeconds ? <span className="badge badge--len">{formatLength(info.lengthSeconds)}</span> : null}
-          {info.charter ? (
+          {info?.lengthSeconds ? <span className="badge badge--len">{formatLength(info.lengthSeconds)}</span> : null}
+          <LevelsBadge levels={levels} />
+          {info?.charter ? (
             <span className="song__charter">
               <Icon name="charter" size={12} /> <RichText text={info.charter} />
             </span>

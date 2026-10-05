@@ -38,6 +38,11 @@ export interface SongResult {
    * - null  = neznámé (zdroj to nehlásí, např. Chorus Encore)
    */
   expertOnly: boolean | null
+  /**
+   * Obsažené obtížnosti nástrojů (bez vokálů): podmnožina „emhx" (Easy /
+   * Medium / Hard / Expert), stejně jako u písní v My Library. null = neznámé.
+   */
+  levels: string | null
   charter: string | null
   /** Hostitel souboru (např. Google Drive, Mediafire). */
   source: string | null
@@ -260,8 +265,10 @@ export interface CatalogQuery {
   instruments?: string[]
   diffMin?: number
   diffMax?: number
-  /** Filtr redukcí: 'expert' = jen Expert-only charty, 'full' = jen E/M/H/X. */
-  reductions?: 'expert' | 'full'
+  /** Jen charty bez nižších obtížností (obsahují jen Expert). */
+  reductions?: 'expert'
+  /** Obsažené obtížnosti: chart musí mít všechny ('e' | 'm' | 'h' | 'x'). */
+  levels?: string[]
   /** Jen přímo stažitelné (bez official DLC a MEGA/Mediafire/zkracovačů). */
   directOnly?: boolean
   /** Skrýt písně, které už uživatel má v knihovně (dle setOwnedKeys). */
@@ -573,6 +580,10 @@ export interface RendererApi {
   libUnpackSng(relItem: string): Promise<string>
   /** Rozbité písně ve složce a všech podsložkách; `name` = cesta relativně k `rel`. */
   libFindBroken(rel: string): Promise<LibEntry[]>
+  /** Všechny písně ve složce a podsložkách; `name` = cesta relativně k `rel`. */
+  libFindSongs(rel: string): Promise<LibEntry[]>
+  /** Obsažené obtížnosti písní: rel → podmnožina „emhx" (Easy/Medium/Hard/Expert). */
+  libSongLevels(rels: string[]): Promise<Record<string, string>>
   /** Další složky s charty (cesty v nich mají předponu `::id`). */
   libExtraFolders(): Promise<ExtraFolderInfo[]>
   libAddExtraFolder(absPath: string): Promise<ExtraFolderInfo>

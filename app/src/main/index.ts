@@ -12,8 +12,8 @@ import { createTray, destroyTray } from './tray'
 import { initAutoUpdate } from './core/autoupdate'
 import { isMac, isWin } from './core/platform'
 import { handleAudioProtocol, registerAudioScheme } from './core/localaudio'
-import { closeCatalog, ensureCatalogSeed, initCatalog } from './core/catalog'
-import { scheduleCatalogSync, stopCatalogSync } from './core/catalogsync'
+import { closeCatalog, ensureCatalogSeed, initCatalog, upgradeCatalogFromSeed } from './core/catalog'
+import { DATA_VERSION as CATALOG_DATA_VERSION, scheduleCatalogSync, stopCatalogSync } from './core/catalogsync'
 
 /**
  * Windows: při tažení za okraj se rám okna zvětší okamžitě, ale obsah dobíhá a
@@ -73,6 +73,9 @@ if (!app.requestSingleInstanceLock()) {
         ? join(process.resourcesPath, 'catalog-seed.db.gz')
         : join(app.getAppPath(), 'build', 'catalog-seed.db.gz')
       await ensureCatalogSeed(dbPath, seedGz)
+      // Update se změnou formátu dat → vyměnit katalog za přibalený snímek
+      // (sekundy) místo stahování celého katalogu z API znovu (~10 min).
+      await upgradeCatalogFromSeed(dbPath, seedGz, CATALOG_DATA_VERSION)
       try {
         initCatalog(dbPath)
       } catch (err) {

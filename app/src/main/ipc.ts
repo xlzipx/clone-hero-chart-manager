@@ -62,6 +62,8 @@ import {
   libReplaceBroken,
   libUnpackSng,
   libFindBroken,
+  libFindSongs,
+  libSongLevels,
   libExtraFolders,
   libAddExtraFolder,
   libRemoveExtraFolder,
@@ -239,6 +241,8 @@ export function registerIpc(): void {
   ipcMain.handle('lib:trash', (_e, relItem: string) => libTrash(relItem))
   ipcMain.handle('lib:unpackSng', (_e, relItem: string) => libUnpackSng(relItem))
   ipcMain.handle('lib:findBroken', (_e, rel: string) => libFindBroken(rel))
+  ipcMain.handle('lib:findSongs', (_e, rel: string) => libFindSongs(rel))
+  ipcMain.handle('lib:songLevels', (_e, rels: string[]) => libSongLevels(rels))
   ipcMain.handle('lib:extraFolders', () => libExtraFolders())
   ipcMain.handle('lib:addExtraFolder', (_e, absPath: string) => libAddExtraFolder(absPath))
   ipcMain.handle('lib:removeExtraFolder', (_e, id: string) => libRemoveExtraFolder(id))

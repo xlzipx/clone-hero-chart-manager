@@ -50,6 +50,7 @@ export function SearchBar(): JSX.Element {
   const artistFilter = useStore((s) => s.artistFilter)
   const hideOwned = useStore((s) => s.hideOwned)
   const reductions = useStore((s) => s.reductions)
+  const levelFilter = useStore((s) => s.levelFilter)
   const directOnly = useStore((s) => s.directOnly)
   const instrumentFilters = useStore((s) => s.instrumentFilters)
   const diffMin = useStore((s) => s.diffMin)
@@ -176,6 +177,7 @@ export function SearchBar(): JSX.Element {
     !!artistFilter.trim() ||
     hideOwned ||
     reductions !== 'any' ||
+    levelFilter.length > 0 ||
     directOnly ||
     instrumentFilters.length > 0 ||
     diffMin > 0 ||

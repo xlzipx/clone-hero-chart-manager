@@ -102,6 +102,24 @@ function encoreExpertOnly(nd: EnchorChart['notesData']): boolean | null {
   return !anyReduction
 }
 
+/** Obsažené obtížnosti (podmnožina „emhx") z `notesData.noteCounts` — jen
+ *  obtížnosti s aspoň jednou notou, bez vokálů (viz computeLevels v
+ *  rhythmverse.ts). null = data chybí. */
+function encoreLevels(nd: EnchorChart['notesData']): string | null {
+  const counts = nd?.noteCounts
+  if (!Array.isArray(counts) || counts.length === 0) return null
+  const map: Record<string, string> = { easy: 'e', medium: 'm', hard: 'h', expert: 'x' }
+  const found = new Set<string>()
+  for (const e of counts) {
+    if (!e || /vocal|harm/i.test(e.instrument ?? '')) continue
+    if (typeof e.count === 'number' && e.count <= 0) continue
+    const l = map[e.difficulty ?? '']
+    if (l) found.add(l)
+  }
+  // '' = data jsou, ale bez obtížností nástrojů (jen vokály) — viz rhythmverse.ts.
+  return ['e', 'm', 'h', 'x'].filter((l) => found.has(l)).join('')
+}
+
 function diff(v: unknown): number | undefined {
   if (typeof v !== 'number' || v < 0) return undefined
   return Math.min(v, 6)
@@ -146,6 +164,7 @@ function normalize(c: EnchorChart): SongResult {
     difficulties: mapDifficulties(c),
     // Expert-only vs E/M/H/X z notesData.noteCounts (viz encoreExpertOnly).
     expertOnly: encoreExpertOnly(c.notesData),
+    levels: encoreLevels(c.notesData),
     // Charter jde do UI SYROVĚ (vč. <color=…> tagů) — renderer je vykreslí
     // barevně jako hra (RichText). Stripovat jen tam, kde je třeba čistý text.
     charter: c.charter ?? null,
