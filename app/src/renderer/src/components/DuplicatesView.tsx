@@ -466,10 +466,10 @@ export function DuplicatesView({
     ) : null
 
   return (
-    <div className="ltool" style={{ '--sc': '#4a90e2' } as React.CSSProperties}>
+    <div className="ltool" style={{ '--sc': 'var(--g-vocals)' } as React.CSSProperties}>
       <ToolHead
         icon="copy"
-        color="#4a90e2"
+        color="var(--g-vocals)"
         title="Duplicates & broken songs"
         sub="Find charts you have more than once and song folders Clone Hero can't load."
       >

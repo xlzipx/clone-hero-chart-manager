@@ -67,8 +67,38 @@ function toAccelerator(e: React.KeyboardEvent): { accel: string | null; reason?:
   return { accel: [...mods, main].join('+') }
 }
 
+/** Popisky kláves v keycapech (uložená hodnota zůstává Electron accelerator). */
+const KEY_LABELS: Record<string, string> = { Control: 'Ctrl', Super: 'Win', Meta: 'Win', Return: 'Enter' }
+function keyParts(accel: string): string[] {
+  if (!accel) return []
+  if (IS_MAC) return displayAccel(accel).split('+')
+  return accel.split('+').map((p) => KEY_LABELS[p] ?? p)
+}
+function heldMods(e: React.KeyboardEvent): string[] {
+  const m: string[] = []
+  if (e.ctrlKey) m.push('Control')
+  if (e.altKey) m.push('Alt')
+  if (e.shiftKey) m.push('Shift')
+  if (e.metaKey) m.push(IS_MAC ? 'Command' : 'Super')
+  return m
+}
+
+function Keys({ parts }: { parts: string[] }): JSX.Element {
+  return (
+    <span className="hkrec__keys">
+      {parts.map((p, i) => (
+        <span key={i} className="hkrec__keywrap">
+          {i ? <span className="hkrec__plus">+</span> : null}
+          <kbd className="hkrec__key">{p}</kbd>
+        </span>
+      ))}
+    </span>
+  )
+}
+
 export function HotkeyInput({ value, onChange }: Props): JSX.Element {
   const [capturing, setCapturing] = useState(false)
+  const [held, setHeld] = useState<string[]>([])
   const [warn, setWarn] = useState('')
   const pausedRef = useRef(false)
 
@@ -84,50 +114,92 @@ export function HotkeyInput({ value, onChange }: Props): JSX.Element {
 
   return (
     <div className="hotkey-wrap">
-      <input
-        className={`hotkey-input ${invalid ? 'hotkey-input--invalid' : ''}`}
-        readOnly
-        value={capturing ? 'Press a key or combo…' : displayAccel(value)}
-        placeholder="Click and press a key/combo"
-        onFocus={() => {
-          setCapturing(true)
-          setWarn('')
-          pausedRef.current = true
-          window.api.pauseHotkeys() // ať F10/F9 nezasáhnou během zachytávání
-        }}
-        onBlur={() => {
-          setCapturing(false)
-          pausedRef.current = false
-          window.api.resumeHotkeys()
-        }}
-        onKeyDown={(e) => {
-          e.preventDefault()
-          if (e.key === 'Escape') {
-            // Escape = zrušit zachytávání (neměnit hodnotu)
-            e.stopPropagation() // nesmí propadnout na window handler (zavřel by celá Nastavení)
-            ;(e.currentTarget as HTMLInputElement).blur()
-            return
-          }
-          if (e.key === 'Backspace' || e.key === 'Delete') {
-            onChange('')
+      <div className={`hkrec ${capturing ? 'hkrec--rec' : ''} ${invalid ? 'hkrec--invalid' : ''}`}>
+        <button
+          type="button"
+          className="hkrec__field"
+          aria-label={value ? `Shortcut ${displayAccel(value)}. Click to change` : 'No shortcut. Click to record one'}
+          onFocus={() => {
+            setCapturing(true)
+            setHeld([])
             setWarn('')
-            return
-          }
-          const { accel, reason } = toAccelerator(e)
-          if (accel) {
-            onChange(accel)
-            setWarn('')
-            ;(e.currentTarget as HTMLInputElement).blur()
-          } else if (reason) {
-            setWarn(reason)
-          }
-        }}
-      />
+            pausedRef.current = true
+            window.api.pauseHotkeys() // ať F10/F9 nezasáhnou během zachytávání
+          }}
+          onBlur={() => {
+            setCapturing(false)
+            setHeld([])
+            pausedRef.current = false
+            window.api.resumeHotkeys()
+          }}
+          onKeyUp={(e) => setHeld(heldMods(e))}
+          onKeyDown={(e) => {
+            e.preventDefault()
+            if (e.key === 'Escape') {
+              // Escape = zrušit zachytávání (neměnit hodnotu)
+              e.stopPropagation() // nesmí propadnout na window handler (zavřel by celá Nastavení)
+              ;(e.currentTarget as HTMLButtonElement).blur()
+              return
+            }
+            if (e.key === 'Backspace' || e.key === 'Delete') {
+              onChange('')
+              setWarn('')
+              ;(e.currentTarget as HTMLButtonElement).blur()
+              return
+            }
+            setHeld(heldMods(e))
+            const { accel, reason } = toAccelerator(e)
+            if (accel) {
+              onChange(accel)
+              setWarn('')
+              ;(e.currentTarget as HTMLButtonElement).blur()
+            } else if (reason) {
+              setWarn(reason)
+            }
+          }}
+        >
+          {capturing ? (
+            <>
+              <span className="hkrec__dot" aria-hidden="true" />
+              {held.length ? (
+                <Keys parts={[...keyParts(held.join('+')), '…']} />
+              ) : (
+                <span className="hkrec__hint">Press a key or combo</span>
+              )}
+              <span className="hkrec__aside">Esc to cancel</span>
+            </>
+          ) : value ? (
+            <>
+              <Keys parts={keyParts(value)} />
+              <span className="hkrec__aside">Click to change</span>
+            </>
+          ) : (
+            <>
+              <span className="hkrec__hint">Not set</span>
+              <span className="hkrec__aside">Click to record</span>
+            </>
+          )}
+        </button>
+        {value && !capturing ? (
+          <button
+            type="button"
+            className="hkrec__clear"
+            title="Remove shortcut"
+            aria-label="Remove shortcut"
+            onClick={() => {
+              onChange('')
+              setWarn('')
+            }}
+          >
+            ×
+          </button>
+        ) : null}
+      </div>
       {warn ? <p className="hotkey-warn">⚠ {warn}</p> : null}
       {invalid && !warn ? (
         <p className="hotkey-warn">
           ⚠ Current hotkey contains characters that Electron can't register globally. Click and
-          press a new key or Backspace to clear.
+          press a new key, or remove it.
         </p>
       ) : null}
     </div>

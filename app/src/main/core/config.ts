@@ -251,6 +251,25 @@ export function getConfig(): AppConfig {
   return result
 }
 
+/**
+ * „Reset all settings": vše na výchozí hodnoty KROMĚ knihovny a cest (složka
+ * Songs, další složky s charty, cesty ke hrám) a velikosti/pozice okna — bez
+ * nich by uživatel po resetu přišel o knihovnu.
+ */
+export function resetConfig(): AppConfig {
+  const cur = getConfig()
+  const def = defaults()
+  return setConfig({
+    ...def,
+    songsDir: cur.songsDir,
+    extraFolders: cur.extraFolders,
+    chExePath: cur.chExePath,
+    yargExePath: cur.yargExePath,
+    windowState: cur.windowState,
+    hotkeys: def.hotkeys
+  })
+}
+
 export function setConfig(patch: Partial<AppConfig>): AppConfig {
   const current = getConfig()
   const next: AppConfig = {

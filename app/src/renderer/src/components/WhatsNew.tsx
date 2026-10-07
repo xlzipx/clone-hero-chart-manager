@@ -20,7 +20,7 @@ function inline(text: string, key: number): JSX.Element {
  * Vykreslí podmnožinu Markdownu z GitHub release notes:
  * `## nadpis`, odrážky `-`/`*`, `> poznámka`, tučné `**text**`, prázdné řádky.
  */
-function renderNotes(body: string): JSX.Element[] {
+export function renderNotes(body: string): JSX.Element[] {
   const lines = body.replace(/\r/g, '').split('\n')
   const out: JSX.Element[] = []
   let list: string[] = []
@@ -69,7 +69,7 @@ function renderNotes(body: string): JSX.Element[] {
 }
 
 /** ISO datum → „Jul 6, 2026" (nebo prázdné, když se nepodaří naparsovat). */
-function fmtDate(iso?: string): string {
+export function fmtDate(iso?: string): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''

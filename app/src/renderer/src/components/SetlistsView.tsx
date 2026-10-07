@@ -246,8 +246,8 @@ export function SetlistsView({ onReveal }: { onReveal: (rel: string) => void }):
   )
 
   return (
-    <div className="ltool" style={{ '--sc': '#d23bd2' } as React.CSSProperties}>
-      <ToolHead icon="note" color="#d23bd2" title="Setlists" sub="Clone Hero setlists from your Songs folder. Play them, rename them or tidy what's inside.">
+    <div className="ltool" style={{ '--sc': 'var(--g-vocals)' } as React.CSSProperties}>
+      <ToolHead icon="note" color="var(--g-vocals)" title="Setlists" sub="Clone Hero setlists from your Songs folder. Play them, rename them or tidy what's inside.">
         {notice ? (
           <span className="stv__notice">
             <Icon name="check" size={12} /> {notice}

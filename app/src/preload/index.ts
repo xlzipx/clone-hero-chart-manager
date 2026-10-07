@@ -222,6 +222,8 @@ const api = {
       path: string | null
       autoDetected: boolean
     }>,
+  /** Znovu automaticky najít hru (bez ohledu na ruční cestu); null = nenalezeno. */
+  redetectGame: (game: 'clone-hero' | 'yarg') => ipcRenderer.invoke('game:redetect', game) as Promise<string | null>,
   chooseExeFile: () => ipcRenderer.invoke('dialog:chooseExe') as Promise<string | null>,
   onWindowActive: (cb: (active: boolean) => void) => {
     const handler = (_e: unknown, active: boolean): void => cb(active)
@@ -281,6 +283,7 @@ const api = {
   catalogRefreshAll: () => ipcRenderer.invoke('catalog:refreshAll') as Promise<void>,
   settingsExport: () => ipcRenderer.invoke('settings:export') as Promise<boolean>,
   settingsImport: () => ipcRenderer.invoke('settings:import') as Promise<AppConfig | null>,
+  settingsReset: () => ipcRenderer.invoke('settings:reset') as Promise<AppConfig | null>,
   openDataFolder: () => ipcRenderer.invoke('app:openDataFolder') as Promise<void>,
   cacheSize: () => ipcRenderer.invoke('cache:size') as Promise<number>,
   cacheClear: () => ipcRenderer.invoke('cache:clear') as Promise<number>,

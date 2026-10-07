@@ -24,7 +24,8 @@ import {
   RV_PAGE_CAP,
   RV_SURPRISE_MAX_PAGE,
   RV_SURPRISE_PICK,
-  isAutoDownloadable
+  isAutoDownloadable,
+  stripTags
 } from './utils'
 import { analyzeMix } from './loudness'
 import type { Level } from './components/LevelsBadge'
@@ -266,6 +267,8 @@ interface AppState {
   searchArtist: (artist: string) => void
   /** Charty z daného alba daného interpreta (klik na album ve výsledcích). */
   searchAlbum: (artist: string, album: string) => void
+  /** Všechny charty daného chartera (klik na chartera ve výsledcích). */
+  searchCharter: (charter: string) => void
   setDatabase: (d: Database) => void
   setSystem: (s: RhythmVerseSystem) => void
   toggleInstrumentFilter: (id: string) => void
@@ -1923,6 +1926,14 @@ export const useStore = create<AppState>((set, get) => {
     if (!name || !album.trim()) return
     // Album vždy spolu s interpretem: „Greatest Hits" má stovky kapel.
     set({ query: name, artistFilter: artist, albumFilter: album, selectedIndex: -1, selectedKeys: [] })
+    void get().doSearch(1)
+  },
+  searchCharter: (charter) => {
+    const name = stripTags(charter).trim()
+    if (!name) return
+    // Prázdné hledání + filtr Charter = procházení celého katalogu jen s jeho
+    // charty. Ostatní textové filtry pryč, ať výsledek odpovídá jen jemu.
+    set({ query: '', charterFilter: name, artistFilter: '', albumFilter: '', selectedIndex: -1, selectedKeys: [] })
     void get().doSearch(1)
   },
   setDatabase: (d) => {

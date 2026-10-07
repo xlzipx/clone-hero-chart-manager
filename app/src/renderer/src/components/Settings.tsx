@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { CatalogActivity } from './CatalogActivity'
 import {
   DEFAULT_FOLDER_TEMPLATE,
   FOLDER_TAGS,
@@ -10,6 +9,7 @@ import type { AppConfig, ReminderPosition } from '../../../shared/types'
 import { useStore } from '../store'
 import { IS_LINUX, IS_MAC } from '../platform'
 import { HotkeyInput } from './HotkeyInput'
+import { UpdateNotes } from './UpdateNotes'
 import { Icon, type IconName } from './Icon'
 
 // Ukázková píseň pro náhled šablony. Má VYPLNĚNÉ všechny tagy, ať je hned vidět,
@@ -321,15 +321,24 @@ function PathField({
   placeholder,
   status,
   onCommit,
-  onBrowse
+  onBrowse,
+  onDetect,
+  detecting,
+  note
 }: {
   value: string
   placeholder?: string
   status?: { ok: boolean; text: string } | null
   onCommit: (v: string) => void
   onBrowse: () => void
+  /** Volitelné tlačítko „Detect" (hry): znovu najít automaticky. */
+  onDetect?: () => void
+  detecting?: boolean
+  /** Výsledek posledního „Detect" pod polem. */
+  note?: { ok: boolean; text: string } | null
 }): JSX.Element {
   return (
+    <>
     <div className="stpath">
       <div className="stpath__box">
         <Icon name="folder" size={15} />
@@ -340,10 +349,23 @@ function PathField({
           </span>
         ) : null}
       </div>
+      {onDetect ? (
+        <button
+          type="button"
+          className="btn-secondary stpath__browse"
+          onClick={onDetect}
+          disabled={detecting}
+          title="Look for the game again in the usual places and launcher records"
+        >
+          {detecting ? 'Detecting…' : 'Detect'}
+        </button>
+      ) : null}
       <button type="button" className="btn-secondary stpath__browse" onClick={onBrowse}>
         Browse…
       </button>
     </div>
+    {note ? <p className={`stpath__note ${note.ok ? 'is-ok' : 'is-bad'}`}>{note.text}</p> : null}
+    </>
   )
 }
 
@@ -361,6 +383,8 @@ export function Settings(): JSX.Element | null {
   const [exeStatus, setExeStatus] = useState<{ path: string | null; autoDetected: boolean } | null>(null)
   const [yargStatus, setYargStatus] = useState<{ path: string | null; autoDetected: boolean } | null>(null)
   const [songsOk, setSongsOk] = useState<boolean | null>(null)
+  const [detecting, setDetecting] = useState<'clone-hero' | 'yarg' | null>(null)
+  const [detectNote, setDetectNote] = useState<{ game: 'clone-hero' | 'yarg'; ok: boolean; text: string } | null>(null)
   const [version, setVersion] = useState('')
   const [updateMsg, setUpdateMsg] = useState<{ text: string; url?: string } | null>(null)
   const [checking, setChecking] = useState(false)
@@ -383,6 +407,29 @@ export function Settings(): JSX.Element | null {
     void window.api.yargExeStatus().then(setYargStatus)
     void window.api.songsDirExists().then(setSongsOk)
   }, [config?.songsDir, config?.chExePath, config?.yargExePath])
+
+  // „Detect": najít hru znovu automaticky. Nalezeno → ruční cesta pryč (pole
+  // přejde na Auto-detected); nenalezeno → ruční cesta zůstává beze změny.
+  const detectGame = async (game: 'clone-hero' | 'yarg'): Promise<void> => {
+    if (!config) return
+    // „Detecting…" až když hledání trvá znatelně dlouho (registry, pomalý disk);
+    // běžně je hotovo za pár ms a přepnutí popisku by jen problikl. Stará zpráva
+    // pod polem zůstává, dokud nepřijde nová — řádek neposkočí.
+    const slow = window.setTimeout(() => setDetecting(game), 300)
+    const found = await window.api.redetectGame(game).catch(() => null)
+    window.clearTimeout(slow)
+    setDetecting(null)
+    const name = game === 'clone-hero' ? 'Clone Hero' : 'YARG'
+    if (!found) {
+      setDetectNote({ game, ok: false, text: `Couldn't find ${name} automatically. Use Browse… to pick it.` })
+      return
+    }
+    const key = game === 'clone-hero' ? 'chExePath' : 'yargExePath'
+    if (config[key]) set({ [key]: '' })
+    else if (game === 'clone-hero') void window.api.chExeStatus().then(setExeStatus)
+    else void window.api.yargExeStatus().then(setYargStatus)
+    setDetectNote({ game, ok: true, text: `Found ${name}: ${found}` })
+  }
 
   // Poprvé bez složky Songs → rovnou na Library & paths.
   useEffect(() => {
@@ -453,7 +500,6 @@ export function Settings(): JSX.Element | null {
           </button>
         ))}
         <div className="stv__navfoot">
-          <CatalogActivity />
           <span className="stv__saved">
             <Icon name="check" size={11} /> Changes save automatically
           </span>
@@ -499,7 +545,7 @@ export function Settings(): JSX.Element | null {
                 >
                   <PathField
                     value={config.songsDir}
-                    status={songsOk === null ? null : songsOk ? { ok: true, text: 'Found' } : { ok: false, text: 'Not found' }}
+                    status={songsOk === false ? { ok: false, text: 'Not found' } : null}
                     onCommit={(v) => set({ songsDir: v })}
                     onBrowse={async () => {
                       const dir = await window.api.chooseDirectory()
@@ -541,6 +587,9 @@ export function Settings(): JSX.Element | null {
                       const f = await window.api.chooseExeFile()
                       if (f) set({ chExePath: f })
                     }}
+                    onDetect={() => void detectGame('clone-hero')}
+                    detecting={detecting === 'clone-hero'}
+                    note={detectNote?.game === 'clone-hero' ? detectNote : null}
                   />
                 </Row>
                 <Row
@@ -570,6 +619,9 @@ export function Settings(): JSX.Element | null {
                       const f = await window.api.chooseExeFile()
                       if (f) set({ yargExePath: f })
                     }}
+                    onDetect={() => void detectGame('yarg')}
+                    detecting={detecting === 'yarg'}
+                    note={detectNote?.game === 'yarg' ? detectNote : null}
                   />
                 </Row>
               </Card>
@@ -763,7 +815,7 @@ export function Settings(): JSX.Element | null {
               <Row title="Tips in the title bar" desc="Short rotating hints next to the title, like how to preview a song.">
                 <Switch label="Tips in the title bar" checked={config.showTips !== false} onChange={(v) => set({ showTips: v })} />
               </Row>
-              <Row title="Compact rows" desc="Shorter search result rows, so more songs fit on the screen.">
+              <Row title="Compact rows" desc="Shorter song rows in Search and My Library, so more songs fit on the screen.">
                 <Switch label="Compact rows" checked={!!config.compactRows} onChange={(v) => set({ compactRows: v })} />
               </Row>
               <Row title="Reduce motion" desc="Turns off animations and transitions. Can help on slower computers.">
@@ -788,7 +840,7 @@ export function Settings(): JSX.Element | null {
                 />
               </Row>
               {config.showReminder ? (
-                <Row title="Reminder position">
+                <Row title="Overlay icon position" desc="Which corner of the screen the reminder appears in.">
                   <PositionPicker value={config.reminderPosition} onChange={(v) => set({ reminderPosition: v })} />
                 </Row>
               ) : null}
@@ -799,7 +851,7 @@ export function Settings(): JSX.Element | null {
                   <>
                     Optional global shortcut that brings the app forward even while a game has focus. Click the
                     field and press a key or combo, e.g. <code>F10</code> or{' '}
-                    <code>{IS_MAC ? '⌘⇧H' : 'Control+Shift+H'}</code>. Backspace clears it.
+                    <code>{IS_MAC ? '⌘⇧H' : 'Ctrl+Shift+H'}</code>.
                   </>
                 }
               >
@@ -848,6 +900,7 @@ export function Settings(): JSX.Element | null {
               </Row>
             </Card>
           ) : null}
+          {section === 'updates' && version ? <UpdateNotes version={version} /> : null}
 
           {section === 'maintenance' ? (
             <>
@@ -972,6 +1025,22 @@ export function Settings(): JSX.Element | null {
                       Restore…
                     </button>
                   </div>
+                </Row>
+                <Row
+                  title="Reset all settings"
+                  desc="Every setting goes back to its default. Only your folder and game paths stay as they are."
+                >
+                  <button
+                    className="btn-secondary stdanger"
+                    onClick={async () => {
+                      if (await window.api.settingsReset()) {
+                        await loadConfig()
+                        flash('Settings reset to defaults.')
+                      }
+                    }}
+                  >
+                    Reset…
+                  </button>
                 </Row>
               </Card>
             </>

@@ -40,6 +40,7 @@ export type IconName =
   | 'external'
   | 'file'
   | 'folderPlus'
+  | 'plus'
   | 'trash'
   | 'scissors'
   | 'paste'
@@ -229,6 +230,7 @@ const PATHS: Record<IconName, JSX.Element> = {
       <path d="M14 3v5h5" />
     </>
   ),
+  plus: <path d="M12 5v14M5 12h14" />,
   folderPlus: (
     <>
       <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />

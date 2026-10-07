@@ -11,8 +11,9 @@
 //          Wine / Proton / Flatpak). Focus restore přes `wmctrl` → `xdotool`
 //          (best-effort — když ani jedno není, jen launch).
 
-import { exec, execFile, spawn } from 'child_process'
-import { existsSync, readdirSync, readFileSync, readlinkSync, statSync } from 'fs'
+import { exec, execFile, execFileSync, spawn } from 'child_process'
+import { existsSync, readdirSync, readFileSync, readlinkSync, statSync, writeFileSync } from 'fs'
+import { app } from 'electron'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
 import { promisify } from 'util'
@@ -21,6 +22,7 @@ import { cleanChildEnv, isLinux, isMac, isWin } from './platform'
 import { errMsg } from '../../shared/errors'
 
 const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 /** Známé jména procesů pro každou hru (mohou se v budoucnu rozšířit). */
 const PROC_CH = 'Clone Hero.exe'
@@ -112,13 +114,13 @@ function findElfBinary(root: string, names: string[], maxDepth: number): string 
  * Vrátí cestu ke spustitelnému Clone Hero artefaktu (manuální override z configu
  * má přednost). Na Windows je to `Clone Hero.exe`, na macOS `Clone Hero.app`.
  */
-export function detectChExe(): string | null {
+export function detectChExe(ignoreManual = false): string | null {
   const cfg = getConfig()
-  if (cfg.chExePath && existsSync(cfg.chExePath)) return cfg.chExePath
+  if (!ignoreManual && cfg.chExePath && existsSync(cfg.chExePath)) return cfg.chExePath
 
   if (isMac) {
     for (const p of macChAppCandidates()) if (existsSync(p)) return p
-    return null
+    return remembered('clone-hero')
   }
 
   if (isLinux) {
@@ -149,7 +151,7 @@ export function detectChExe(): string | null {
       '/var/lib/flatpak/app/net.clonehero.CloneHero/current/active/files/bin/CloneHero.x86_64'
     ]
     for (const p of linuxCandidates) if (existsSync(p)) return p
-    return null
+    return remembered('clone-hero')
   }
 
   // Windows.
@@ -166,7 +168,7 @@ export function detectChExe(): string | null {
   ]) {
     if (existsSync(p)) return p
   }
-  return null
+  return extraChExe()
 }
 
 /**
@@ -177,9 +179,9 @@ export function detectChExe(): string | null {
  * macOS: `YARG.app` — buď v /Applications, nebo (přes YARC Launcher) vnořené
  *   pod `~/Library/Application Support/YARC/…`.
  */
-export function detectYargExe(): string | null {
+export function detectYargExe(ignoreManual = false): string | null {
   const cfg = getConfig()
-  if (cfg.yargExePath && existsSync(cfg.yargExePath)) return cfg.yargExePath
+  if (!ignoreManual && cfg.yargExePath && existsSync(cfg.yargExePath)) return cfg.yargExePath
 
   if (isMac) {
     const home = homedir()
@@ -191,14 +193,16 @@ export function detectYargExe(): string | null {
       if (existsSync(p)) return p
     }
     // YARC Launcher instaluje YARG do vnořené složky v Application Support.
-    return findAppBundle(
-      [
-        join(home, 'Library', 'Application Support', 'YARC'),
-        join(home, 'Library', 'Application Support', 'YARC Launcher'),
-        join(home, 'Library', 'Application Support', 'in.yarg.launcher')
-      ],
-      'YARG.app',
-      5
+    return (
+      findAppBundle(
+        [
+          join(home, 'Library', 'Application Support', 'YARC'),
+          join(home, 'Library', 'Application Support', 'YARC Launcher'),
+          join(home, 'Library', 'Application Support', 'in.yarg.launcher')
+        ],
+        'YARG.app',
+        5
+      ) ?? remembered('yarg')
     )
   }
 
@@ -221,7 +225,7 @@ export function detectYargExe(): string | null {
       const hit = findElfBinary(root, ['YARG.x86_64', 'YARG'], 4)
       if (hit) return hit
     }
-    return null
+    return remembered('yarg')
   }
 
   if (!isWin) return null
@@ -260,7 +264,211 @@ export function detectYargExe(): string | null {
     }
   }
 
+  return extraYargExe()
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Doplňkové zdroje cest (Windows). Zkouší se AŽ když ruční cesta i pevný
+// seznam běžných míst nic nenajdou — co fungovalo dřív, funguje stejně.
+//   1. záznamy launcherů (Clone Hero Launcher, YARC Launcher),
+//   2. záznamy odinstalace ve Windows (InstallLocation),
+//   3. cesta zapamatovaná z běžící hry (game-paths.json v userData).
+// ─────────────────────────────────────────────────────────────────────
+
+function readJson(p: string): unknown {
+  try {
+    return JSON.parse(readFileSync(p, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+/** Clone Hero Launcher: %APPDATA%\net.clonehero\ch_launcher\game_installs.json. */
+function chFromLauncher(): string | null {
+  if (!process.env.APPDATA) return null
+  const j = readJson(join(process.env.APPDATA, 'net.clonehero', 'ch_launcher', 'game_installs.json')) as {
+    defaultInstallId?: string
+    installs?: { id?: string; executablePath?: string; disabled?: boolean }[]
+  } | null
+  const installs = Array.isArray(j?.installs) ? j.installs : []
+  // Výchozí instalace launcheru má přednost, pak ostatní povolené.
+  const ordered = [...installs.filter((i) => i.id === j?.defaultInstallId), ...installs.filter((i) => i.id !== j?.defaultInstallId && !i.disabled)]
+  for (const i of ordered) if (i.executablePath && existsSync(i.executablePath)) return i.executablePath
   return null
+}
+
+/** Nejnovější `<GUID>\installation\YARG.exe` ve složce `YARG Installs`. */
+function newestYargIn(root: string): string | null {
+  if (!existsSync(root)) return null
+  let entries: string[]
+  try {
+    entries = readdirSync(root)
+  } catch {
+    return null
+  }
+  const candidates: { path: string; mtime: number }[] = []
+  for (const guid of entries) {
+    const exe = join(root, guid, 'installation', 'YARG.exe')
+    try {
+      if (existsSync(exe)) candidates.push({ path: exe, mtime: statSync(exe).mtimeMs })
+    } catch {
+      /* ignore */
+    }
+  }
+  candidates.sort((a, b) => b.mtime - a.mtime)
+  return candidates[0]?.path ?? null
+}
+
+/** YARC Launcher: %APPDATA%\in.yarg.launcher\settings.json → downloadLocation. */
+function yargFromLauncher(): string | null {
+  if (!process.env.APPDATA) return null
+  const j = readJson(join(process.env.APPDATA, 'in.yarg.launcher', 'settings.json')) as { downloadLocation?: string } | null
+  const dl = typeof j?.downloadLocation === 'string' ? j.downloadLocation : ''
+  return dl ? newestYargIn(join(dl, 'YARG Installs')) : null
+}
+
+/** InstallLocation záznamů odinstalace, jejichž DisplayName odpovídá vzoru.
+ *  `reg query` je rychlé; výsledek se drží 5 minut (i prázdný). */
+const UNINSTALL_ROOTS = [
+  'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+  'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+  'HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall'
+]
+const uninstallCache = new Map<string, { at: number; locs: string[] }>()
+function uninstallLocations(word: string, match: RegExp): string[] {
+  const hit = uninstallCache.get(word)
+  if (hit && Date.now() - hit.at < 5 * 60_000) return hit.locs
+  const locs: string[] = []
+  for (const root of UNINSTALL_ROOTS) {
+    let out = ''
+    try {
+      out = execFileSync('reg', ['query', root, '/s', '/f', word, '/d'], { encoding: 'utf8', windowsHide: true, timeout: 3000 })
+    } catch {
+      continue // nic nenalezeno = exit 1
+    }
+    let key = ''
+    for (const line of out.split(/\r?\n/)) {
+      if (line.startsWith('HKEY_')) key = line.trim()
+      const m = /^\s+DisplayName\s+REG_\w+\s+(.*)$/.exec(line)
+      if (!key || !m || !match.test(m[1])) continue
+      try {
+        const v = execFileSync('reg', ['query', key, '/v', 'InstallLocation'], { encoding: 'utf8', windowsHide: true, timeout: 3000 })
+        const loc = /InstallLocation\s+REG_\w+\s+(.*)/.exec(v)?.[1]?.trim()
+        if (loc) locs.push(loc.replace(/[\\/]+$/, ''))
+      } catch {
+        /* bez InstallLocation */
+      }
+    }
+  }
+  uninstallCache.set(word, { at: Date.now(), locs })
+  return locs
+}
+
+function chFromRegistry(): string | null {
+  // Starý instalátor hry i nový Clone Hero Launcher (hra je pak ve vedlejší
+  // složce `Clone Hero`). Náš vlastní záznam „Clone Hero Chart Manager" vynechat.
+  for (const loc of uninstallLocations('Clone Hero', /^Clone Hero(?! Chart Manager)/i)) {
+    for (const p of [join(loc, 'Clone Hero.exe'), join(dirname(loc), 'Clone Hero', 'Clone Hero.exe'), join(dirname(loc), 'Clone Hero.exe')]) {
+      if (existsSync(p)) return p
+    }
+  }
+  return null
+}
+
+function yargFromRegistry(): string | null {
+  for (const loc of uninstallLocations('YARC', /^YARC Launcher/i)) {
+    const exe = newestYargIn(join(loc, 'Content', 'YARG Installs'))
+    if (exe) return exe
+  }
+  return null
+}
+
+/** Cesty zapamatované z běžící hry (userData/game-paths.json). */
+function rememberedFile(): string {
+  return join(app.getPath('userData'), 'game-paths.json')
+}
+function remembered(game: GameId): string | null {
+  const j = readJson(rememberedFile()) as Partial<Record<GameId, string>> | null
+  const p = j?.[game]
+  return typeof p === 'string' && existsSync(p) ? p : null
+}
+
+function extraChExe(): string | null {
+  return chFromLauncher() ?? chFromRegistry() ?? remembered('clone-hero')
+}
+function extraYargExe(): string | null {
+  return yargFromLauncher() ?? yargFromRegistry() ?? remembered('yarg')
+}
+
+/** Uloží cestu ke hře do game-paths.json (jen když se změnila). */
+const lastRemembered = new Map<GameId, string>()
+function rememberPath(game: GameId, p: string): void {
+  if (lastRemembered.get(game) === p) return
+  try {
+    const j = ((readJson(rememberedFile()) as Record<string, string> | null) ?? {}) as Record<string, string>
+    if (j[game] !== p) {
+      j[game] = p
+      writeFileSync(rememberedFile(), JSON.stringify(j, null, 2))
+    }
+    lastRemembered.set(game, p)
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Když hra běží, zjistí cestu k jejímu exe a zapamatuje si ji (jednou za běh
+ *  aplikace pro každou hru). Kdo hru spustí jakkoli jinak, má pak Launch funkční.
+ *  Windows: PowerShell Get-Process. macOS: `ps` podle PID z pgrep → cesta k .app. */
+const rememberTried = new Set<GameId>()
+async function rememberRunningExe(game: GameId, pid?: string): Promise<void> {
+  if (rememberTried.has(game)) return
+  if (isWin) {
+    rememberTried.add(game)
+    const name = game === 'clone-hero' ? 'Clone Hero' : 'YARG'
+    try {
+      const { stdout } = await execFileAsync(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', `(Get-Process -Name '${name}' -ErrorAction SilentlyContinue | Select-Object -First 1).Path`],
+        { windowsHide: true, timeout: 8000 }
+      )
+      const p = String(stdout).trim()
+      if (p && /\.exe$/i.test(p) && existsSync(p)) rememberPath(game, p)
+    } catch {
+      /* best-effort */
+    }
+  } else if (isMac && pid && /^\d+$/.test(pid)) {
+    rememberTried.add(game)
+    try {
+      // comm = plná cesta ke spustitelnému souboru, např.
+      // /Applications/Clone Hero.app/Contents/MacOS/Clone Hero → bundle .app.
+      const { stdout } = await execFileAsync('ps', ['-o', 'comm=', '-p', pid], { timeout: 3000 })
+      const exe = String(stdout).trim()
+      const i = exe.indexOf('.app/')
+      const bundle = i > 0 ? exe.slice(0, i + 4) : ''
+      if (bundle && existsSync(bundle)) rememberPath(game, bundle)
+    } catch {
+      /* best-effort */
+    }
+  }
+}
+
+/** Linux: cesta k binárce běžící hry z /proc/<pid>/exe. Jen skutečná binárka hry
+ *  (ne Wine / Flatpak / skriptový obal) — ty se spustit napřímo nedají. */
+function linuxGameExe(pid: string, game: GameId): string | null {
+  try {
+    const exe = readlinkSync(`/proc/${pid}/exe`)
+    const base = exe.split('/').pop() ?? ''
+    const ok = game === 'clone-hero' ? /^clonehero\.x86_64$/i.test(base) : /^yarg(\.x86_64)?$/i.test(base)
+    return ok && existsSync(exe) ? exe : null
+  } catch {
+    return null
+  }
+}
+
+/** Tlačítko „Detect" v Nastavení: automatická detekce bez ohledu na ruční cestu. */
+export function redetectGame(game: GameId): string | null {
+  uninstallCache.clear()
+  return game === 'clone-hero' ? detectChExe(true) : detectYargExe(true)
 }
 
 /** Status detekce CH.exe — pro UI rozhodnutí o zobrazení pole. */
@@ -328,6 +536,8 @@ async function runningGameLinux(): Promise<RunningGame> {
 
   let chFound = false
   let yargFound = false
+  let chExe: string | null = null
+  let yargExe: string | null = null
   for (const name of entries) {
     // /proc obsahuje spoustu nečíselných entries (self, sys, meminfo, …).
     if (!/^\d+$/.test(name)) continue
@@ -358,12 +568,18 @@ async function runningGameLinux(): Promise<RunningGame> {
 
     if (!chFound && flat.includes('clonehero')) {
       chFound = true
+      chExe = linuxGameExe(name, 'clone-hero')
       if (yargFound) break
     } else if (!yargFound && flat.includes('yarg')) {
       yargFound = true
+      yargExe = linuxGameExe(name, 'yarg')
       if (chFound) break
     }
   }
+
+  // Zapamatovat cestu ke hře (jen skutečná binárka; obaly se přeskočí).
+  if (chExe) rememberPath('clone-hero', chExe)
+  if (yargExe) rememberPath('yarg', yargExe)
 
   // Když by běžely obě, preferujeme CH (dokumentované chování).
   if (chFound) return 'clone-hero'
@@ -379,13 +595,19 @@ async function runningGameWin(): Promise<RunningGame> {
       `tasklist /NH /FO CSV /FI "IMAGENAME eq ${PROC_CH}"`,
       { windowsHide: true, timeout: 2500 }
     )
-    if (chOut.toLowerCase().includes(PROC_CH.toLowerCase())) return 'clone-hero'
+    if (chOut.toLowerCase().includes(PROC_CH.toLowerCase())) {
+      void rememberRunningExe('clone-hero')
+      return 'clone-hero'
+    }
 
     const { stdout: yOut } = await execAsync(
       `tasklist /NH /FO CSV /FI "IMAGENAME eq ${PROC_YARG}"`,
       { windowsHide: true, timeout: 2500 }
     )
-    if (yOut.toLowerCase().includes(PROC_YARG.toLowerCase())) return 'yarg'
+    if (yOut.toLowerCase().includes(PROC_YARG.toLowerCase())) {
+      void rememberRunningExe('yarg')
+      return 'yarg'
+    }
 
     return null
   } catch {
@@ -397,13 +619,15 @@ async function runningGameMac(): Promise<RunningGame> {
   // pgrep -x: přesná shoda jména procesu. Vrátí exit 1 když nic nenajde →
   // promisify(exec) to hodí jako reject, takže chytneme v catch. CH má přednost.
   try {
-    await execAsync(`pgrep -x "${PROC_CH_MAC}"`, { timeout: 2500 })
+    const { stdout } = await execAsync(`pgrep -x "${PROC_CH_MAC}"`, { timeout: 2500 })
+    void rememberRunningExe('clone-hero', String(stdout).trim().split(/\s+/)[0])
     return 'clone-hero'
   } catch {
     /* CH neběží — zkus YARG */
   }
   try {
-    await execAsync(`pgrep -x "${PROC_YARG_MAC}"`, { timeout: 2500 })
+    const { stdout } = await execAsync(`pgrep -x "${PROC_YARG_MAC}"`, { timeout: 2500 })
+    void rememberRunningExe('yarg', String(stdout).trim().split(/\s+/)[0])
     return 'yarg'
   } catch {
     return null

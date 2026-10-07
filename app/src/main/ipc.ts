@@ -12,7 +12,7 @@ import type {
   SortDir,
   SortKey
 } from '../shared/types'
-import { getConfig, setConfig } from './core/config'
+import { getConfig, setConfig, resetConfig } from './core/config'
 import { isLinux, isMac } from './core/platform'
 import {
   catalogGenres,
@@ -29,7 +29,8 @@ import {
   bringGameToFront,
   chExeStatus,
   runningGame,
-  yargExeStatus
+  yargExeStatus,
+  redetectGame
 } from './core/gamedetect'
 import { hideReminder, showReminder } from './reminder'
 import { jobManager } from './core/jobs'
@@ -334,6 +335,7 @@ export function registerIpc(): void {
   )
   ipcMain.handle('game:chExeStatus', () => chExeStatus())
   ipcMain.handle('game:yargExeStatus', () => yargExeStatus())
+  ipcMain.handle('game:redetect', (_e, game: 'clone-hero' | 'yarg') => redetectGame(game === 'yarg' ? 'yarg' : 'clone-hero'))
 
   ipcMain.handle('dialog:chooseExe', async () => {
     const win = getOverlay() ?? undefined
@@ -426,6 +428,24 @@ export function registerIpc(): void {
     const { windowState: _w, ...rest } = getConfig()
     writeFileSync(res.filePath, JSON.stringify(rest, null, 2), 'utf-8')
     return true
+  })
+  ipcMain.handle('settings:reset', async () => {
+    const win = getOverlay() ?? undefined
+    const { response } = await dialog.showMessageBox(win as BrowserWindow, {
+      type: 'warning',
+      buttons: ['Reset settings', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Reset all settings',
+      message: 'Reset all settings to their defaults?',
+      detail: 'Every setting goes back to its default. Only your folder and game paths stay as they are.',
+      noLink: true
+    })
+    if (response !== 0) return null
+    const next = resetConfig()
+    registerHotkeys()
+    applyUiScale(next.uiScale || 1)
+    return next
   })
   ipcMain.handle('settings:import', async () => {
     const win = getOverlay() ?? undefined

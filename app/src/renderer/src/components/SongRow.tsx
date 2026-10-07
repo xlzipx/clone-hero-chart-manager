@@ -6,6 +6,7 @@ import {
   formatDownloads,
   formatLabel,
   formatLength,
+  stripTags,
   type ManualHost
 } from '../utils'
 import { Icon } from './Icon'
@@ -126,6 +127,7 @@ function SongRowBase({
   // (víc kopií) předáme jako seznam — manager pak nabídne přepínání mezi nimi.
   const openLibraryAt = useStore((s) => s.openLibraryAt)
   const searchArtist = useStore((s) => s.searchArtist)
+  const searchCharter = useStore((s) => s.searchCharter)
   const searchAlbum = useStore((s) => s.searchAlbum)
   const revealInLibrary = async (): Promise<void> => {
     try {
@@ -283,7 +285,7 @@ function SongRowBase({
           ) : null}
           {song.album ? (
             <span className="song__album">
-              {' · '}
+              {' - '}
               <button
                 type="button"
                 className="song__artistlink"
@@ -303,6 +305,15 @@ function SongRowBase({
         </div>
         <div className="song__meta">
           <span className="badge badge--len">{formatLength(song.lengthSeconds)}</span>
+          {/* Nejdřív to, co se týká hraní (délka, obtížnosti) — obtížnosti tak mají
+              u všech řádků stejné místo. Pak původ chartu (databáze, formát,
+              charter, stažení, datum). */}
+          {song.levels != null ? (
+            <LevelsBadge levels={song.levels} />
+          ) : song.expertOnly === true ? (
+            // Řádek katalogu ještě bez přesných úrovní (před přenačtením).
+            <LevelsBadge levels="x" />
+          ) : null}
           {/* Zdrojová databáze. Encore má klíč „enchor:…", vše ostatní je RhythmVerse. */}
           {song.key.startsWith('enchor:') ? (
             <span className="badge badge--db badge--db-chorus" title="From Chorus Encore">
@@ -327,12 +338,6 @@ function SongRowBase({
               <span className="badge badge--native">{formatLabel(song.gameFormat)}</span>
             )
           )}
-          {song.levels != null ? (
-            <LevelsBadge levels={song.levels} />
-          ) : song.expertOnly === true ? (
-            // Řádek katalogu ještě bez přesných úrovní (před přenačtením).
-            <LevelsBadge levels="x" />
-          ) : null}
           {owned ? (
             <button
               type="button"
@@ -351,7 +356,19 @@ function SongRowBase({
           ) : null}
           {song.charter ? (
             <span className="song__charter">
-              <Icon name="charter" size={12} /> <RichText text={song.charter} />
+              <Icon name="charter" size={12} />{' '}
+              <button
+                type="button"
+                className="song__artistlink"
+                title={`Show all charts by ${stripTags(song.charter)}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  searchCharter(song.charter ?? '')
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+              >
+                <RichText text={song.charter} />
+              </button>
             </span>
           ) : null}
           {song.downloads != null && song.downloads > 0 ? (
@@ -364,7 +381,7 @@ function SongRowBase({
               className="song__date"
               title={`Added or last modified on ${song.key.startsWith('enchor:') ? 'Chorus Encore' : 'RhythmVerse'}`}
             >
-              <Icon name="calendar" size={12} /> Added/modified {formatDate(song.updatedMs)}
+              <Icon name="calendar" size={12} /> {formatDate(song.updatedMs)}
             </span>
           ) : null}
         </div>

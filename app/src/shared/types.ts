@@ -653,6 +653,8 @@ export interface RendererApi {
   chExeStatus(): Promise<{ path: string | null; autoDetected: boolean }>
   /** Status detekce YARG.exe. */
   yargExeStatus(): Promise<{ path: string | null; autoDetected: boolean }>
+  /** Znovu automaticky najít hru (bez ohledu na ruční cestu); null = nenalezeno. */
+  redetectGame(game: 'clone-hero' | 'yarg'): Promise<string | null>
   /** Otevře file picker pro `.exe`. */
   chooseExeFile(): Promise<string | null>
   /** Odběr změn stavu hry (poll 3s) — vrací která hra běží, nebo null. */
@@ -690,6 +692,8 @@ export interface RendererApi {
   catalogRefreshAll(): Promise<void>
   settingsExport(): Promise<boolean>
   settingsImport(): Promise<AppConfig | null>
+  /** Vše na výchozí hodnoty (kromě knihovny a cest), po potvrzení; null = zrušeno. */
+  settingsReset(): Promise<AppConfig | null>
   openDataFolder(): Promise<void>
   /** Velikost mezipaměti Chromia v bajtech (obaly alb, ukázky). */
   cacheSize(): Promise<number>

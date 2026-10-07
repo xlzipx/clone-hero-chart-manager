@@ -13,6 +13,9 @@
   --text: #e8edf7;
   --text-dim: #8b97b0;
   --text-faint: #66718c;
+  /* Drobné údaje na kartě písně (album, charter, stažení, datum): tlumenější než
+   * interpret, ale čitelné i na světlejším pruhu (kontrast ~4,5 : 1). */
+  --text-meta: color-mix(in srgb, var(--text-dim) 90%, var(--text-faint));
   --accent: #3f6bf0;
   --accent-2: #5b83ff;
   /* RGB kanály akcentu — aby šly tinty rgba(var(--accent-rgb), α) přebarvit
@@ -545,6 +548,205 @@ textarea {
 /* První nadpis uvnitř sekce nemá odsazovat od hlavičky verze. */
 .wn__rel .wn__h:first-of-type {
   margin-top: 8px;
+}
+
+/* Nevratná akce v Nastavení (Reset…): tlumeně červená, výrazná až při najetí. */
+.btn-secondary.stdanger:hover {
+  color: #ff6b6b;
+  box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.45);
+  background: rgba(255, 107, 107, 0.1);
+}
+
+/* ---------- Settings: Updates → Release notes ----------
+ * Nainstalovaná verze zvýrazněná v barvě sekce (--sc), zbytek řady na časové
+ * ose, která se vysouvá roletou (grid 0fr → 1fr). */
+/* Spodní odsazení = boční (20 px); .stcard je v souboru až níž, proto dvě třídy. */
+.stcard.stnotes {
+  padding-bottom: 20px;
+}
+.stnotes__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.stnotes__head .linkbtn.stnotes__gh {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-faint);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.stnotes__head .linkbtn.stnotes__gh:hover {
+  color: var(--sc);
+}
+.stnotes__cur {
+  position: relative;
+  margin-top: 12px;
+  padding: 16px 18px 12px;
+  border-radius: 12px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--sc) 13%, transparent), transparent 60%),
+    rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc) 30%, transparent);
+}
+.stnotes__cur::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--sc);
+  box-shadow: 0 0 12px var(--sc);
+}
+.stnotes__cur--loading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.stnotes__skel {
+  height: 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  animation: lvpulse 1.2s ease-in-out infinite;
+}
+.stnotes__relhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.stnotes__ver {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.stnotes__ver--sm {
+  font-size: 15px;
+}
+.stnotes__tag {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sc);
+  background: color-mix(in srgb, var(--sc) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc) 45%, transparent);
+}
+.stnotes__date {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.stnotes__body {
+  margin-top: 4px;
+}
+.stnotes__body .wn__h {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.stnotes__body .wn__list li::marker {
+  color: var(--sc);
+}
+.stnotes__empty {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+.stnotes__toggle {
+  width: 100%;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.stnotes__toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.stnotes__toggletext {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.stnotes__count {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+.stnotes__toggle svg {
+  color: var(--text-faint);
+  transition: transform 0.25s ease;
+}
+.stnotes__toggle.is-open svg {
+  transform: rotate(90deg);
+  color: var(--sc);
+}
+.stnotes__roll {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
+}
+.stnotes__roll.is-open {
+  grid-template-rows: 1fr;
+}
+.stnotes__rollinner {
+  overflow: hidden;
+  min-height: 0;
+}
+.stnotes__timeline {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0 0 0 22px;
+  position: relative;
+}
+/* Svislá linka časové osy. */
+.stnotes__timeline::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sc) 55%, transparent), rgba(255, 255, 255, 0.06));
+}
+.stnotes__item {
+  position: relative;
+  padding-bottom: 16px;
+}
+.stnotes__item + .stnotes__item {
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+/* Tečka verze na ose. */
+.stnotes__item::before {
+  content: '';
+  position: absolute;
+  left: -21px;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--panel, #1b1c20);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sc) 70%, transparent);
+}
+.stnotes__item + .stnotes__item::before {
+  top: 20px;
 }
 
 /* ---------- Settings: sekce Updates ---------- */
@@ -2082,9 +2284,11 @@ textarea {
   text-overflow: ellipsis;
   margin-top: 2px;
 }
+/* Album a rok o stupeň tlumenější než interpret (ať se od něj odliší), ale
+ * pořád čitelné (~3,8 : 1). */
 .song__album,
 .song__year {
-  color: var(--text-faint);
+  color: color-mix(in srgb, var(--text-dim) 72%, var(--text-faint));
 }
 .song__meta {
   display: flex;
@@ -3131,14 +3335,116 @@ textarea {
 .dd--pos .dd__btn {
   min-width: 150px;
 }
-.hotkey-input {
-  cursor: pointer;
-  caret-color: transparent;
+/* Záznamník zkratky v Nastavení: klávesy jako keycapy, při nahrávání pulzuje
+ * tečka v barvě sekce (--sc), vpravo křížek na odebrání. */
+.hkrec {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
-.hotkey-input--invalid {
-  border-color: var(--warn) !important;
-  background: rgba(255, 107, 107, 0.08) !important;
-  color: var(--warn) !important;
+.hkrec__field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 2px 4px rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow 0.15s, background 0.15s;
+}
+.hkrec__field:hover {
+  background: rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.13), inset 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+.hkrec--rec .hkrec__field {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc, var(--accent)) 60%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--sc, var(--accent)) 14%, transparent);
+}
+.hkrec--invalid .hkrec__field {
+  box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.6);
+  background: rgba(255, 107, 107, 0.08);
+}
+.hkrec__keys {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.hkrec__keywrap {
+  display: inline-flex;
+  align-items: center;
+}
+.hkrec__plus {
+  margin: 0 5px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+.hkrec__key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 25px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.05));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 2px 0 rgba(0, 0, 0, 0.45);
+}
+.hkrec--invalid .hkrec__key {
+  color: var(--warn);
+}
+.hkrec__hint {
+  color: var(--text-faint);
+}
+.hkrec__aside {
+  margin-left: auto;
+  flex: none;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.hkrec__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sc, var(--accent));
+  box-shadow: 0 0 8px var(--sc, var(--accent));
+  animation: hkrec-pulse 1.1s ease-in-out infinite;
+}
+@keyframes hkrec-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+.hkrec__clear {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  color: var(--text-faint);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.hkrec__clear:hover {
+  color: var(--text);
+  background: rgba(255, 107, 107, 0.14);
 }
 .hotkey-warn {
   margin: 0;
@@ -9703,7 +10009,7 @@ button.plrow__na:hover {
   align-items: center;
   gap: 5px;
   font-size: 12.5px;
-  color: var(--text-faint);
+  color: var(--text-meta);
 }
 .song__meta .song__date {
   font-variant-numeric: tabular-nums;
@@ -10241,6 +10547,19 @@ button.plrow__na:hover {
   color: var(--text-faint);
   transition: box-shadow 0.15s;
 }
+/* Výsledek tlačítka „Detect" pod polem cesty. */
+.stpath__note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.stpath__note.is-ok {
+  color: var(--ok);
+}
+.stpath__note.is-bad {
+  color: var(--warn);
+}
 .stpath__box:focus-within {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc) 60%, transparent), 0 0 0 3px color-mix(in srgb, var(--sc) 14%, transparent);
 }
@@ -10338,7 +10657,7 @@ button.plrow__na:hover {
 }
 
 .sthk {
-  max-width: 360px;
+  max-width: 420px;
 }
 .stbtns {
   display: flex;
@@ -10502,12 +10821,66 @@ button.plrow__na:hover {
 .lv__tree {
   padding: 16px 12px;
 }
+/* Nadpisy sekcí stromu: barevný svítící proužek + světlejší text. Barvy jako
+ * ikony sekcí v Nastavení (Tools tyrkysová jako vokály, Other folders a Songs žlutá). */
 .lv__treelabel {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--text-faint);
-  padding: 0 10px 8px;
+  --tc: #cfd0d6;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #c4c6cf;
+  padding: 0 10px 10px;
+}
+.lv__treelabel::before {
+  content: '';
+  flex: none;
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--tc);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--tc) 70%, transparent);
+}
+/* Ikonky nástrojů ve stromu v barvě jejich hlavičky (Setlists i Duplicates
+ * tyrkysové — stejné jako --sc v SetlistsView / DuplicatesView). */
+.lv__titem svg.lv__ttool--setlists {
+  color: var(--g-vocals);
+}
+.lv__titem svg.lv__ttool--dups {
+  color: var(--g-vocals);
+}
+.lv__titem--on svg.lv__ttool,
+.lv__titem:hover svg.lv__ttool {
+  opacity: 1;
+}
+/* Ikonky složek ve stromu i v seznamu/kartách: slabě žluté (navazují na žluté
+ * nadpisy sekcí). */
+svg.lvfolder-ico {
+  color: color-mix(in srgb, #f5c518 55%, var(--text-faint));
+}
+/* Velká ikonka na kartě složky: jen náznak žluté. */
+.lvart-icon svg.lvfolder-ico {
+  color: color-mix(in srgb, #f5c518 22%, var(--text-faint));
+}
+.lv__titem svg.lv__tfolder {
+  color: color-mix(in srgb, #f5c518 55%, var(--text-faint));
+  opacity: 0.85;
+}
+.lv__titem--on svg.lv__tfolder,
+.lv__titem:hover svg.lv__tfolder {
+  color: color-mix(in srgb, #f5c518 75%, var(--text-faint));
+  opacity: 1;
+}
+.lv__treelabel--tools {
+  --tc: var(--g-vocals);
+}
+.lv__treelabel--other {
+  --tc: #f5c518;
+}
+.lv__treelabel--songs {
+  --tc: #f5c518;
 }
 .lv__titem {
   position: relative;
@@ -11667,8 +12040,9 @@ button.plrow__na:hover {
   font-weight: 600;
   color: var(--text-faint);
 }
+/* „Keep" čistě zelený — mátová by splývala s tyrkysovou barvou stránky. */
 .dpv__state--best {
-  color: #6fe0b4;
+  color: #5fd36b;
 }
 .dpv__state--rm {
   color: #ff8a8a;
@@ -12277,6 +12651,53 @@ li.lvexist__more {
   display: none;
 }
 
+/* Stejně kompaktní karty i v My Library (pohled Cards). Výška 60 px musí
+ * sedět s CARD_ROW_COMPACT v LibraryView (virtualizace). */
+.compact-rows .lv__head--cards,
+.compact-rows .lv__list .song.lvcard {
+  grid-template-columns: 22px 44px minmax(150px, 1fr) 340px 20px 30px;
+}
+.compact-rows .lv__list .song.lvcard {
+  padding: 7px 14px;
+  contain-intrinsic-size: auto 45px;
+}
+.compact-rows .lv__list--cards > .song.lvcard {
+  height: 60px;
+}
+.compact-rows .lv__list .song.lvcard .song__art {
+  width: 44px;
+  height: 44px;
+}
+.compact-rows .lv__list .lvart-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.compact-rows .lv__list .song.lvcard:not(.lvcard--plain) .song__main {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: baseline;
+}
+.compact-rows .lv__list .song.lvcard .song__title {
+  font-size: 15px;
+}
+.compact-rows .lv__list .song.lvcard .song__artist {
+  margin-top: 0;
+}
+.compact-rows .lv__list .song.lvcard .song__meta {
+  grid-column: 1 / -1;
+  margin-top: 5px;
+}
+.compact-rows .lv__list .song.lvcard .song__meta .badge {
+  height: 20px;
+}
+.compact-rows .lv__list .song.lvcard .instrument__label {
+  display: none;
+}
+.compact-rows .lv__list .song.lvcard .instrument {
+  gap: 6px;
+}
+
 /* Kostra při načítání ve stejné výšce jako kompaktní řádek (nic neposkočí). */
 .compact-rows .results--table .sk--art {
   width: 44px;
@@ -12431,25 +12852,31 @@ li.lvexist__more {
 .reduc__opt--lv-m.is-on, .lv__chip--lv-m.lv__chip--on { color: var(--lv-m); border-color: color-mix(in srgb, var(--lv-m) 55%, transparent); background: color-mix(in srgb, var(--lv-m) 13%, transparent); }
 .reduc__opt--lv-h.is-on, .lv__chip--lv-h.lv__chip--on { color: var(--lv-h); border-color: color-mix(in srgb, var(--lv-h) 55%, transparent); background: color-mix(in srgb, var(--lv-h) 13%, transparent); }
 .reduc__opt--lv-x.is-on, .lv__chip--lv-x.lv__chip--on { color: var(--lv-x); border-color: color-mix(in srgb, var(--lv-x) 55%, transparent); background: color-mix(in srgb, var(--lv-x) 13%, transparent); }
-/* Čtverečky E M H X: obsažená úroveň vybarvená, chybějící jen obrys. */
+/* Čtverečky E M H X v neonovém stylu pilulek (RB3 → CH, RV): obsažená úroveň
+   = barevné písmeno, průsvitný rámeček a podbarvení; chybějící jen tlumený obrys. */
 .lvlsq {
   display: inline-flex;
-  gap: 2px;
+  gap: 3px;
 }
 .lvlsq b {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 13px;
-  height: 14px;
-  border-radius: 3px;
-  font-size: 9px;
+  width: 17px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 10.5px;
   font-weight: 700;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
-.lvlsq b.lvlsq--e { background: var(--lv-e); border-color: var(--lv-e); color: #0e2a18; }
-.lvlsq b.lvlsq--m { background: var(--lv-m); border-color: var(--lv-m); color: #3a2c05; }
-.lvlsq b.lvlsq--h { background: var(--lv-h); border-color: var(--lv-h); color: #3d1a06; }
-.lvlsq b.lvlsq--x { background: var(--lv-x); border-color: var(--lv-x); color: #3d0c0c; }
+.lvlsq b[class] {
+  --c: var(--lv-e);
+  color: var(--c);
+  border-color: color-mix(in srgb, var(--c) 50%, transparent);
+  background: color-mix(in srgb, var(--c) 13%, transparent);
+}
+.lvlsq b.lvlsq--m { --c: var(--lv-m); }
+.lvlsq b.lvlsq--h { --c: var(--lv-h); }
+.lvlsq b.lvlsq--x { --c: var(--lv-x); }

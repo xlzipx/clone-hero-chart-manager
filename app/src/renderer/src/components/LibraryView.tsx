@@ -100,8 +100,10 @@ type Ctx = { x: number; y: number; side?: string; ext?: string } | null
 const NAME_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true })
 let lastCwd = ''
 let lastExtFolders: ExtraFolderInfo[] = []
-/** Výška karty v pohledu Cards (pevná, viz .lv__list--cards > .lvcard v CSS). */
+/** Výška karty v pohledu Cards (pevná, viz .lv__list--cards > .lvcard v CSS);
+ *  s nastavením „Compact rows" nižší, stejně jako řádky hledání. */
 const CARD_ROW = 98
+const CARD_ROW_COMPACT = 60
 /** Od kolika položek se karty virtualizují, a kolik karet navíc nad/pod výřezem. */
 const VIRT_MIN = 120
 const VIRT_OVERSCAN = 8
@@ -204,6 +206,7 @@ export function LibraryView(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
 
   const [view, setView] = useState<'cards' | 'list'>(config?.libraryView ?? 'cards')
+  const cardRow = useStore((s) => s.config?.compactRows) ? CARD_ROW_COMPACT : CARD_ROW
   const [sortKey, setSortKey] = useState<SortKey>(() => {
     const k = config?.librarySort?.key
     return SORTS.some((s) => s.id === k) ? (k as SortKey) : 'name'
@@ -238,7 +241,7 @@ export function LibraryView(): JSX.Element {
   const listRef = useRef<HTMLDivElement>(null)
   // Virtualizace karet: u velkých složek se vykreslí jen karty ve výřezu (+ rezerva).
   // Tisíce karet s obaly by jinak brzdily každý snímek scrollu (layout, styly,
-  // hlídání viditelnosti). Karty mají pevnou výšku (CARD_ROW), takže rozsah jde
+  // hlídání viditelnosti). Karty mají pevnou výšku (cardRow), takže rozsah jde
   // spočítat přímo ze scrollTop.
   const [vScroll, setVScroll] = useState(0)
   const [vHeight, setVHeight] = useState(900)
@@ -505,7 +508,7 @@ export function LibraryView(): JSX.Element {
         else if (el) {
           // Virtualizovaný seznam: karta ještě není v DOM → posun podle indexu.
           const idx = visibleRef.current.findIndex((i) => i.name === name)
-          if (idx >= 0) el.scrollTo({ top: Math.max(0, idx * CARD_ROW - el.clientHeight / 2 + CARD_ROW / 2) })
+          if (idx >= 0) el.scrollTo({ top: Math.max(0, idx * cardRow - el.clientHeight / 2 + cardRow / 2) })
         }
       }, 80)
     }
@@ -943,7 +946,7 @@ export function LibraryView(): JSX.Element {
       const row = el?.querySelector('.lvrow--focus')
       if (row) row.scrollIntoView({ block: 'nearest' })
       else if (el && view === 'cards') {
-        el.scrollTop = Math.max(0, next * CARD_ROW - el.clientHeight / 2)
+        el.scrollTop = Math.max(0, next * cardRow - el.clientHeight / 2)
         requestAnimationFrame(() => el.querySelector('.lvrow--focus')?.scrollIntoView({ block: 'nearest' }))
       }
     })
@@ -980,8 +983,14 @@ export function LibraryView(): JSX.Element {
     setQ('')
     setFiltersOpen(true)
   }
-  const h = useRef({ rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem, selectOnly, filterBy })
-  h.current = { rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem, selectOnly, filterBy }
+  // Klik na chartera v kartě: jeho písně v aktuální složce (vč. podsložek).
+  const filterCharter = (charter: string): void => {
+    setFilters((f) => ({ ...f, charter: stripTags(charter).trim() }))
+    setQ('')
+    setFiltersOpen(true)
+  }
+  const h = useRef({ rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem, selectOnly, filterBy, filterCharter })
+  h.current = { rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem, selectOnly, filterBy, filterCharter }
   const handlers = useMemo<RowHandlers>(
     () => ({
       click: (n, e) => h.current.rowClick(n, e),
@@ -991,7 +1000,8 @@ export function LibraryView(): JSX.Element {
       check: (n) => h.current.toggleCheck(n),
       observe: (el) => h.current.observe(el),
       fix: (it) => h.current.fixItem(it),
-      filterBy: (artist, album) => h.current.filterBy(artist, album)
+      filterBy: (artist, album) => h.current.filterBy(artist, album),
+      filterCharter: (charter) => h.current.filterCharter(charter)
     }),
     []
   )
@@ -1206,13 +1216,13 @@ export function LibraryView(): JSX.Element {
       <aside className="lv__tree" aria-label="Library folders">
         {/* Nástroje nahoře, ať nejsou pod dlouhým seznamem složek. */}
         <div className="lv__treesec">
-          <div className="lv__treelabel">Tools</div>
+          <div className="lv__treelabel lv__treelabel--tools">Tools</div>
           <button
             type="button"
             className={`lv__titem ${tool === 'setlists' ? 'lv__titem--on' : ''}`}
             onClick={() => setTool('setlists')}
           >
-            <Icon name="note" size={15} />
+            <Icon name="note" size={15} className="lv__ttool lv__ttool--setlists" />
             <span className="lv__tname">Setlists</span>
           </button>
           <button
@@ -1220,14 +1230,14 @@ export function LibraryView(): JSX.Element {
             className={`lv__titem ${tool === 'duplicates' ? 'lv__titem--on' : ''}`}
             onClick={() => setTool('duplicates')}
           >
-            <Icon name="copy" size={15} />
+            <Icon name="copy" size={15} className="lv__ttool lv__ttool--dups" />
             <span className="lv__tname">Duplicates</span>
           </button>
         </div>
         {/* Další složky s charty mimo Songs (archiv na jiném disku…). Procházejí
             se stejně jako Songs; Copy to… / Move to… míří do Songs. */}
         <div className="lv__treesec">
-          <div className="lv__treelabel">Other folders</div>
+          <div className="lv__treelabel lv__treelabel--other">Other folders</div>
           {extFolders.map((f) => (
             <button
               key={f.id}
@@ -1244,17 +1254,17 @@ export function LibraryView(): JSX.Element {
               }}
               title={f.path}
             >
-              <Icon name="folder" size={15} />
+              <Icon name="folder" size={15} className="lv__tfolder" />
               <ScrollName text={f.name} />
             </button>
           ))}
           <button type="button" className="lv__titem lv__titem--add" onClick={() => void addExtFolder()} title="Browse another folder with charts, like an archive on another drive">
-            <Icon name="folderPlus" size={15} />
+            <Icon name="plus" size={15} />
             <span className="lv__tname">Add folder…</span>
           </button>
         </div>
         <div className="lv__treesec">
-          <div className="lv__treelabel">Songs</div>
+          <div className="lv__treelabel lv__treelabel--songs">Songs</div>
           <button
             type="button"
             className={`lv__titem ${!tool && cwd === '' ? 'lv__titem--on' : ''}`}
@@ -1263,7 +1273,7 @@ export function LibraryView(): JSX.Element {
               void load('')
             }}
           >
-            <Icon name="folder" size={15} />
+            <Icon name="folder" size={15} className="lv__tfolder" />
             <span className="lv__tname">All folders</span>
             <span className="lv__tcount">{rootDirs.length}</span>
           </button>
@@ -1284,7 +1294,7 @@ export function LibraryView(): JSX.Element {
               }}
               title={d.name}
             >
-              <Icon name="folder" size={15} />
+              <Icon name="folder" size={15} className="lv__tfolder" />
               <ScrollName text={d.name} />
               <span className="lv__tcount">{rootCounts[d.name] ?? ''}</span>
             </button>
@@ -1757,9 +1767,9 @@ export function LibraryView(): JSX.Element {
               const virt = view === 'cards' && visible.length > VIRT_MIN
               // Začátek vždy na sudém indexu: zebra pruhy (nth-child) pak při
               // scrollu neproblikávají.
-              const start0 = virt ? Math.max(0, Math.floor(vScroll / CARD_ROW) - VIRT_OVERSCAN) : 0
+              const start0 = virt ? Math.max(0, Math.floor(vScroll / cardRow) - VIRT_OVERSCAN) : 0
               const start = start0 - (start0 % 2)
-              const end = virt ? Math.min(visible.length, Math.ceil((vScroll + vHeight) / CARD_ROW) + VIRT_OVERSCAN) : visible.length
+              const end = virt ? Math.min(visible.length, Math.ceil((vScroll + vHeight) / cardRow) + VIRT_OVERSCAN) : visible.length
               const rows = visible.slice(start, end).map((it) => (
               <LibRow
                 // Klíč = celá cesta: stejně pojmenovaná píseň v jiné složce musí
@@ -1780,9 +1790,9 @@ export function LibraryView(): JSX.Element {
               if (!virt) return rows
               return (
                 <>
-                  <div className="lv__vspace" style={{ height: start * CARD_ROW }} aria-hidden="true" />
+                  <div className="lv__vspace" style={{ height: start * cardRow }} aria-hidden="true" />
                   {rows}
-                  <div className="lv__vspace" style={{ height: (visible.length - end) * CARD_ROW }} aria-hidden="true" />
+                  <div className="lv__vspace" style={{ height: (visible.length - end) * cardRow }} aria-hidden="true" />
                 </>
               )
             })()
@@ -2188,6 +2198,7 @@ interface RowHandlers {
   observe: (el: HTMLElement | null) => void
   fix: (it: Item) => void
   filterBy: (artist: string, album?: string) => void
+  filterCharter: (charter: string) => void
 }
 
 const LibRow = memo(function LibRow({
@@ -2254,6 +2265,7 @@ const LibRow = memo(function LibRow({
           name={it.kind === 'broken' ? 'alert' : it.e.type === 'dir' ? 'folder' : it.isSng ? 'note' : 'file'}
           size={17}
           color={it.kind === 'song' ? 'var(--accent)' : undefined}
+          className={it.kind !== 'broken' && it.e.type === 'dir' ? 'lvfolder-ico' : undefined}
         />
         <span className="lvli__name">
           {it.dir ? <span className="lvli__dir">{it.dir}/</span> : null}
@@ -2325,7 +2337,7 @@ const LibRow = memo(function LibRow({
       <div className={`song lvcard lvcard--plain ${cls}`} {...common}>
         {check}
         <div className="song__art lvart-icon">
-          <Icon name={it.kind === 'folder' ? 'folder' : 'file'} size={24} />
+          <Icon name={it.kind === 'folder' ? 'folder' : 'file'} size={24} className={it.kind === 'folder' ? 'lvfolder-ico' : undefined} />
         </div>
         <div className="song__main">
           <div className="song__title" title={it.name}>
@@ -2387,7 +2399,7 @@ const LibRow = memo(function LibRow({
           )}
           {info?.album ? (
             <span className="song__album">
-              {' · '}
+              {' - '}
               <button
                 type="button"
                 className="song__artistlink"
@@ -2411,7 +2423,19 @@ const LibRow = memo(function LibRow({
           {it.isSng ? <span className="badge badge--native">.sng</span> : null}
           {info?.charter ? (
             <span className="song__charter">
-              <Icon name="charter" size={12} /> <RichText text={info.charter} />
+              <Icon name="charter" size={12} />{' '}
+              <button
+                type="button"
+                className="song__artistlink"
+                title={`Show songs charted by ${stripTags(info.charter)} in this folder`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  h.filterCharter(info.charter)
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+              >
+                <RichText text={info.charter} />
+              </button>
             </span>
           ) : null}
         </div>
