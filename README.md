@@ -6,10 +6,9 @@
 
 <p align="center">
   <a href="https://github.com/xlzipx/clone-hero-chart-manager/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/xlzipx/clone-hero-chart-manager?style=flat-square&label=release&color=2fd6c0" /></a>
-  <a href="https://github.com/xlzipx/clone-hero-chart-manager/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/xlzipx/clone-hero-chart-manager/total?style=flat-square&color=4d8cff" /></a>
-  <img alt="Platforms: Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-ffc63d?style=flat-square" />
+  <a href="#install"><img alt="Platforms: Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-4d8cff?style=flat-square" /></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/xlzipx/clone-hero-chart-manager?style=flat-square&color=e15cf7" /></a>
-  <img alt="Built with Electron and React" src="https://img.shields.io/badge/built%20with-Electron%20%2B%20React-ff5257?style=flat-square" />
+  <a href="docs/building.md"><img alt="Built with Electron and React" src="https://img.shields.io/badge/built%20with-Electron%20%2B%20React-ff5257?style=flat-square" /></a>
 </p>
 
 <p align="center">
