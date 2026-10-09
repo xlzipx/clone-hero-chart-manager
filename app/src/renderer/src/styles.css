@@ -11222,6 +11222,21 @@ svg.lvfolder-ico {
   color: var(--text);
   font-weight: 700;
 }
+/* „Clear filters" vedle Filters: při zapnutí filtru vyjede zleva. */
+.lv__fclearbtn {
+  animation: lvClearIn 0.22s ease-out;
+}
+@keyframes lvClearIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lv__fclearbtn {
+    animation: none;
+  }
+}
 
 /* Hromadná oprava rozbitých písní */
 .lv__fixall {

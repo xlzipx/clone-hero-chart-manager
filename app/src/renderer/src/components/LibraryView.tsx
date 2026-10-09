@@ -977,17 +977,16 @@ export function LibraryView(): JSX.Element {
     setAnchor(name)
   }
   // Klik na interpreta / album v kartě: ukáže jeho písně v aktuální složce
-  // (včetně podsložek, jako ostatní filtry).
+  // (včetně podsložek, jako ostatní filtry). Panel filtrů se NEvysouvá —
+  // filtr ukazuje počet u tlačítka Filters a vedle něj „Clear filters".
   const filterBy = (artist: string, album?: string): void => {
     setFilters((f) => ({ ...f, artist: stripTags(artist).trim(), album: album ? stripTags(album).trim() : '' }))
     setQ('')
-    setFiltersOpen(true)
   }
   // Klik na chartera v kartě: jeho písně v aktuální složce (vč. podsložek).
   const filterCharter = (charter: string): void => {
     setFilters((f) => ({ ...f, charter: stripTags(charter).trim() }))
     setQ('')
-    setFiltersOpen(true)
   }
   const h = useRef({ rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem, selectOnly, filterBy, filterCharter })
   h.current = { rowClick, rowOpen, rowCtx, toggleCheck, observe, fixItem, selectOnly, filterBy, filterCharter }
@@ -1430,6 +1429,12 @@ export function LibraryView(): JSX.Element {
               <Icon name="filter" size={14} /> Filters
               {activeFilterCount ? <span className="lv__fcount">{activeFilterCount}</span> : null}
             </button>
+            {/* Se zapnutými filtry vyjede vedle tlačítka Filters jejich vymazání. */}
+            {activeFilterCount ? (
+              <button type="button" className="lib__btn lv__fclearbtn" onClick={() => setFilters(NO_FILTERS)}>
+                <Icon name="close" size={13} /> Clear filters
+              </button>
+            ) : null}
             <div className="lv__seg" role="group" aria-label="View">
               <button type="button" className={view === 'cards' ? 'on' : ''} onClick={() => changeView('cards')} title="Cards: album art, difficulty, intensity, preview">
                 <Icon name="cards" size={15} />
@@ -1598,7 +1603,7 @@ export function LibraryView(): JSX.Element {
                 onChange={(e) => setFilters((f) => ({ ...f, charter: e.target.value }))}
               />
             </div>
-            {/* Souhrn panelu: kolik písní filtrům odpovídá (vymazání je dole v liště). */}
+            {/* Souhrn panelu: kolik písní filtrům odpovídá (vymazání je u tlačítka Filters). */}
             <div className="lv__fgroup lv__fsum">
               <span className="lv__flabel">Matches</span>
               <div className="lv__fsumrow">
@@ -1854,19 +1859,11 @@ export function LibraryView(): JSX.Element {
               <Icon name="paste" size={14} /> Paste ({clip.items.length})
             </button>
           ) : null}
-          {/* Se zapnutými filtry je tu jejich vymazání (výraznější než odkaz
-              v panelu a vidět i se zavřeným panelem); jinak nápověda zkratek. */}
-          {activeFilterCount ? (
-            <button type="button" className="lib__btn" onClick={() => setFilters(NO_FILTERS)}>
-              <Icon name="close" size={13} /> Clear filters ({activeFilterCount})
-            </button>
-          ) : (
-            <span className="lib__hint">
-              {IS_MAC
-                ? 'Right-click for actions · ⌘A · ⌘C/X/V · ⌘⌫ · ↩'
-                : 'Right-click for actions · Ctrl+A · Ctrl+C/X/V · Del · F2'}
-            </span>
-          )}
+          <span className="lib__hint">
+            {IS_MAC
+              ? 'Right-click for actions · ⌘A · ⌘C/X/V · ⌘⌫ · ↩'
+              : 'Right-click for actions · Ctrl+A · Ctrl+C/X/V · Del · F2'}
+          </span>
         </div>
       </section>
 
