@@ -739,22 +739,13 @@ export function Settings(): JSX.Element | null {
                   />
                 </Row>
                 <Row
-                  title="Rock Band charts"
-                  desc={
-                    <>
-                      <em className="field__rec">Convert recommended</em> — Xbox 360 CON and RB3CON charts become Clone
-                      Hero song folders while they download. Original file saves exactly what the database has, with no
-                      unpacking or conversion, for example to play it in Rock Band 3 on Xbox 360.
-                    </>
-                  }
+                  title="Converter"
+                  desc="Rock Band charts (Xbox 360 CON and RB3CON) become Clone Hero song folders while they download. Turn it off to save the original file exactly as the database has it, for example for Rock Band 3 on Xbox 360."
                 >
-                  <Seg
-                    value={config.rbFormat === 'original' ? 'original' : 'convert'}
-                    options={[
-                      { v: 'convert', l: 'Convert' },
-                      { v: 'original', l: 'Original file' }
-                    ]}
-                    onChange={(v) => set({ rbFormat: v })}
+                  <Switch
+                    label="Converter"
+                    checked={config.rbFormat !== 'original'}
+                    onChange={(v) => set({ rbFormat: v ? 'convert' : 'original' })}
                   />
                 </Row>
                 <Row

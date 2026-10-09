@@ -48,7 +48,7 @@ export function DownloadOptions({ encore, rb = false }: { encore: 'choice' | 'no
       )}
       {rb ? (
         <>
-          {encore === 'choice' ? <div className="rowmenu__label">Rock Band charts</div> : null}
+          {encore === 'choice' ? <div className="rowmenu__label">Converter</div> : null}
           <button
             className={`rowmenu__item rowmenu__opt ${rbFormat === 'convert' ? 'on' : ''}`}
             role="menuitemradio"
