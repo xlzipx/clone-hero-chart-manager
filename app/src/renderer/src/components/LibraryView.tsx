@@ -1598,16 +1598,13 @@ export function LibraryView(): JSX.Element {
                 onChange={(e) => setFilters((f) => ({ ...f, charter: e.target.value }))}
               />
             </div>
-            {/* Souhrn panelu: kolik písní filtrům odpovídá + vymazání. */}
+            {/* Souhrn panelu: kolik písní filtrům odpovídá (vymazání je dole v liště). */}
             <div className="lv__fgroup lv__fsum">
               <span className="lv__flabel">Matches</span>
               <div className="lv__fsumrow">
                 <span className="lv__fsumcount">
                   <b>{visible.filter((i) => i.kind === 'song').length}</b> of {songCount} songs
                 </span>
-                <button className="lv__chip lv__fclear" type="button" disabled={!activeFilterCount} onClick={() => setFilters(NO_FILTERS)}>
-                  <Icon name="close" size={12} /> Clear filters
-                </button>
               </div>
               {metaFilter || infoLoading ? (
                 <span className="lv__fhint">
