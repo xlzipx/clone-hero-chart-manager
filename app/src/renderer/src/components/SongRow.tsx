@@ -25,7 +25,21 @@ function AlbumArt({ url }: { url: string | null }): JSX.Element {
       </div>
     )
   }
-  return <img src={url} alt="" loading="lazy" onError={() => setFailed(true)} />
+  // decoding="async": velké obaly (až 1000+ px) se dekódují mimo hlavní vlákno,
+  // jinak by řádky, které se posunou do zobrazení (vysouvání panelu filtrů,
+  // scroll), zasekávaly animaci.
+  // `decode()` po načtení obal rovnou připraví, takže se při prvním vykreslení
+  // (řádek vjede do zobrazení) už nedekóduje.
+  return (
+    <img
+      src={url}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onLoad={(e) => void e.currentTarget.decode?.().catch(() => undefined)}
+      onError={() => setFailed(true)}
+    />
+  )
 }
 
 interface Props {

@@ -283,7 +283,16 @@ export function SearchBar(): JSX.Element {
           className={`searchbar__filters ${showFilters ? 'searchbar__filters--open' : ''} ${
             activeFilterCount > 0 ? 'searchbar__filters--active' : ''
           }`}
-          onClick={() => setShowFilters(!showFilters)}
+          onClick={() => {
+            setShowFilters(!showFilters)
+            // Výsledky jen po dobu vysouvání na vlastní vrstvě (plynulá roleta,
+            // jako v My Library); natrvalo by vrstva zpomalovala scrollování.
+            const list = document.querySelector('.results')
+            if (list) {
+              list.classList.add('results--rolling')
+              window.setTimeout(() => list.classList.remove('results--rolling'), 400)
+            }
+          }}
           title="Advanced filters — browse by genre, year, decade and length"
         >
           <Icon name="filter" size={15} />

@@ -12522,7 +12522,8 @@ svg.lvfolder-ico {
 /* Během vysouvání filtrů je seznam na vlastní vrstvě: mění se jen jeho výška
  * a prohlížeč nemusí v každém snímku znovu kreslit karty. Jen dočasně (třídu
  * přidá/odebere LibraryView), natrvalo by vrstva zpomalovala scrollování. */
-.lv__list--rolling {
+.lv__list--rolling,
+.results--rolling {
   will-change: transform;
 }
 /* Ukazatel aktualizace katalogu: stejný zaoblený obdélník jako tlačítko
