@@ -1400,24 +1400,48 @@ textarea {
 .searchbar__clearfilters {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   height: 46px;
-  padding: 0 14px;
+  padding: 0 16px;
   border-radius: 12px;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  color: var(--text);
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 13px;
+  font-size: 13.5px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  overflow: hidden;
+  transition: background 0.15s ease;
+  /* Vyjede plynule (roste do šířky), takže Filters vedle neposkočí. */
+  animation: clearGrowIn 0.24s ease-out;
+  --grow-gap: 10px;
 }
 .searchbar__clearfilters:hover {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
-  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.06);
+}
+@keyframes clearGrowIn {
+  from {
+    max-width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    margin-left: calc(-1 * var(--grow-gap));
+    opacity: 0;
+  }
+  to {
+    max-width: 220px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .searchbar__clearfilters {
+    animation: none;
+  }
+}
+/* Během hledání tlačítko Search nebledne (jen nejde znovu stisknout). */
+.searchbar__go:disabled {
+  opacity: 1;
+  cursor: progress;
 }
 /* Stavová řádka lokálního katalogu pod charter/album (nenápadná, jen text). */
 .filterpanel__cat {
@@ -11222,15 +11246,12 @@ svg.lvfolder-ico {
   color: var(--text);
   font-weight: 700;
 }
-/* „Clear filters" vedle Filters: při zapnutí filtru vyjede zleva. */
+/* „Clear filters" vedle Filters: vyjede plynule do šířky (jako v hledání). */
 .lv__fclearbtn {
-  animation: lvClearIn 0.22s ease-out;
-}
-@keyframes lvClearIn {
-  from {
-    opacity: 0;
-    transform: translateX(-8px);
-  }
+  overflow: hidden;
+  white-space: nowrap;
+  animation: clearGrowIn 0.24s ease-out;
+  --grow-gap: 8px;
 }
 @media (prefers-reduced-motion: reduce) {
   .lv__fclearbtn {

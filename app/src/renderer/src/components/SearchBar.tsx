@@ -164,25 +164,20 @@ export function SearchBar(): JSX.Element {
     query.trim().length >= 2 &&
     (suggestLoading || suggest.length > 0 || suggestTotal === 0)
 
-  const activeFilterCount = (['genre', 'year', 'decade', 'songLength'] as const).filter(
-    (k) => (filters[k]?.length ?? 0) > 0
-  ).length
-
-  // Je co mazat? (browse filtry + charter/album/redukce/direct/hide owned +
-  // nástroj/obtížnost) — stejná množina, jakou resetuje clearFilters.
-  const hasActiveFilters =
-    activeFilterCount > 0 ||
-    !!charterFilter.trim() ||
-    !!albumFilter.trim() ||
-    !!artistFilter.trim() ||
-    hideOwned ||
-    reductions !== 'any' ||
-    levelFilter.length > 0 ||
-    directOnly ||
-    instrumentFilters.length > 0 ||
-    diffMin > 0 ||
-    diffMax < 6 ||
-    dateActive
+  // Počet u tlačítka Filters = vše, co „Clear filters" vymaže (jako v My Library):
+  // každý nástroj zvlášť, rozsah intenzity, filtry panelu, charter/interpret/album,
+  // obtížnosti a přepínače Hide owned / Direct downloads.
+  const activeFilterCount =
+    instrumentFilters.length +
+    (diffMin > 0 || diffMax < 6 ? 1 : 0) +
+    (['genre', 'year', 'decade', 'songLength'] as const).filter((k) => (filters[k]?.length ?? 0) > 0).length +
+    (dateActive ? 1 : 0) +
+    (charterFilter.trim() ? 1 : 0) +
+    (artistFilter.trim() ? 1 : 0) +
+    (albumFilter.trim() ? 1 : 0) +
+    (reductions !== 'any' || levelFilter.length > 0 ? 1 : 0) +
+    (directOnly ? 1 : 0) +
+    (hideOwned ? 1 : 0)
 
   return (
     <div className="searchbar">
@@ -283,17 +278,6 @@ export function SearchBar(): JSX.Element {
             </div>
           ) : null}
         </div>
-        {hasActiveFilters ? (
-          <button
-            type="button"
-            className="searchbar__clearfilters"
-            onClick={() => clearFilters()}
-            title="Clear all active filters"
-          >
-            <Icon name="close" size={13} />
-            <span>Clear filters</span>
-          </button>
-        ) : null}
         <button
           type="button"
           className={`searchbar__filters ${showFilters ? 'searchbar__filters--open' : ''} ${
@@ -308,8 +292,22 @@ export function SearchBar(): JSX.Element {
             <span className="searchbar__filters-badge">{activeFilterCount}</span>
           ) : null}
         </button>
-        <button className="searchbar__go" onClick={runFullSearch} disabled={loading}>
-          {loading ? '…' : 'Search'}
+        {/* Se zapnutými filtry vyjede vedle tlačítka Filters jejich vymazání
+            (stejně jako v My Library). */}
+        {activeFilterCount > 0 ? (
+          <button
+            type="button"
+            className="searchbar__clearfilters"
+            onClick={() => clearFilters()}
+            title="Clear all active filters"
+          >
+            <Icon name="close" size={13} />
+            <span>Clear filters</span>
+          </button>
+        ) : null}
+        {/* Během hledání se text ani šířka nemění, ať řada tlačítek neposkakuje. */}
+        <button className="searchbar__go" onClick={runFullSearch} disabled={loading} aria-busy={loading}>
+          Search
         </button>
       </div>
       <FilterPanel />

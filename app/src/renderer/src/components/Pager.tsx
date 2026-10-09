@@ -1,6 +1,6 @@
 import bugIcon from '../assets/bug.webp'
 import { useStore } from '../store'
-import { INSTRUMENTS, rvReachablePages } from '../utils'
+import { rvReachablePages } from '../utils'
 import { Icon } from './Icon'
 
 const ISSUES_URL = 'https://github.com/xlzipx/clone-hero-chart-manager/issues'
@@ -71,9 +71,6 @@ export function Pager({
   const resultCount = useStore((s) => s.resultCount)
   const database = useStore((s) => s.database)
   const instrumentFilters = useStore((s) => s.instrumentFilters)
-  const diffMin = useStore((s) => s.diffMin)
-  const diffMax = useStore((s) => s.diffMax)
-  const clearFilters = useStore((s) => s.clearFilters)
   const goToPage = useStore((s) => s.goToPage)
   const deep = useStore((s) => s.deep)
   const deepLoading = useStore((s) => s.deepLoading)
@@ -92,57 +89,11 @@ export function Pager({
       : database === 'rhythmverse'
         ? Math.min(rvReach, rawPages)
         : rawPages
-  const diffActive = !(diffMin === 0 && diffMax === 6)
-  const dateFilter = useStore((s) => s.dateFilter)
-  const dateActive = dateFilter.preset !== 'any'
-  const artistFilter = useStore((s) => s.artistFilter)
-  const albumFilter = useStore((s) => s.albumFilter)
-  const filtersActive = instrumentFilters.length > 0 || diffActive || dateActive || !!artistFilter || !!albumFilter
-
-  const chipParts: string[] = []
-  if (artistFilter) chipParts.push(`Artist: ${artistFilter.trim()}`)
-  if (albumFilter) chipParts.push(`Album: ${albumFilter.trim()}`)
-  if (instrumentFilters.length) {
-    chipParts.push(
-      instrumentFilters
-        .map((id) => INSTRUMENTS.find((i) => i.id === id)?.label ?? id)
-        .join(' + ')
-    )
-  }
-  if (diffActive) {
-    chipParts.push(diffMin === diffMax ? `Difficulty ${diffMin}` : `Difficulty ${diffMin}–${diffMax}`)
-  }
-  if (dateActive) {
-    const labels: Record<string, string> = {
-      '1d': 'Past 24 hours',
-      '7d': 'Past week',
-      '30d': 'Past month',
-      '90d': 'Past 3 months',
-      '365d': 'Past year'
-    }
-    chipParts.push(
-      dateFilter.preset === 'custom'
-        ? `Added ${dateFilter.from || '…'} – ${dateFilter.to || '…'}`
-        : `Added ${labels[dateFilter.preset].toLowerCase()}`
-    )
-  }
-
   return (
     <div className="pager">
       <div className="pager__left">
-        {filtersActive ? (
-          <>
-            <span className="filterchip">
-              {chipParts.join(' · ')}
-              <button className="filterchip__x" onClick={clearFilters} title="Clear filters">
-                <Icon name="close" size={10} />
-              </button>
-            </span>
-            <button className="pager__clear" onClick={clearFilters}>
-              Clear Filters
-            </button>
-          </>
-        ) : null}
+        {/* Aktivní filtry ukazuje počet u tlačítka Filters a vedle něj
+            „Clear filters" (jako v My Library), tady už nic. */}
       </div>
 
       <div className="pager__pages">
