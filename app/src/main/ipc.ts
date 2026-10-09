@@ -195,8 +195,8 @@ export function registerIpc(): void {
   // Skutečná ukázka z .sng na Encore (Range požadavky, nic se neukládá).
   ipcMain.handle('preview:sng', (_e, url: string) => getSngPreview(url))
 
-  ipcMain.handle('jobs:enqueue', (_e, song: SongResult, targetSubfolder?: string) =>
-    jobManager.enqueue(song, targetSubfolder)
+  ipcMain.handle('jobs:enqueue', (_e, song: SongResult, targetSubfolder?: string, opts?: { convert?: boolean }) =>
+    jobManager.enqueue(song, targetSubfolder, opts?.convert === true)
   )
   ipcMain.handle(
     'jobs:enqueueLocal',

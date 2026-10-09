@@ -55,6 +55,17 @@ export async function isArchiveByMagic(path: string): Promise<boolean> {
   return false
 }
 
+/** Přípona archivu podle magic bytů ('.zip' / '.7z' / '.rar' / '.gz'), jinak null. */
+export async function archiveExt(path: string): Promise<string | null> {
+  const buf = await head(path, 6)
+  if (buf.length < 2) return null
+  if (buf[0] === 0x50 && buf[1] === 0x4b) return '.zip'
+  if (buf[0] === 0x37 && buf[1] === 0x7a && buf[2] === 0xbc && buf[3] === 0xaf) return '.7z'
+  if (buf[0] === 0x52 && buf[1] === 0x61 && buf[2] === 0x72 && buf[3] === 0x21) return '.rar'
+  if (buf[0] === 0x1f && buf[1] === 0x8b) return '.gz'
+  return null
+}
+
 /** True, pokud soubor začíná jako HTML (odkaz vrátil webovou stránku, ne song). */
 export async function isHtmlFile(path: string): Promise<boolean> {
   const head64 = (await head(path, 64)).toString('latin1').trim().toLowerCase()

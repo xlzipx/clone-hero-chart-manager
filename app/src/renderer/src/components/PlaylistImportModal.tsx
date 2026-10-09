@@ -54,8 +54,9 @@ const ERROR_MSG: Record<PlaylistResolveError, string> = {
   unknown: 'Something went wrong. Try again.'
 }
 
-export function chartLabel(c: SongResult): string {
-  return formatLabel(c.gameFormat) + (c.needsConversion ? ' → CH' : '')
+/** Štítek formátu; `keepOriginal` = Rock Band chart se uloží jako originál (bez → CH). */
+export function chartLabel(c: SongResult, keepOriginal = false): string {
+  return formatLabel(c.gameFormat) + (c.needsConversion && !keepOriginal ? ' → CH' : '')
 }
 
 /**
@@ -132,6 +133,7 @@ export function PlaylistImportModal(): JSX.Element | null {
   const show = useStore((s) => s.showPlaylistImport)
   const close = useStore((s) => s.setShowPlaylistImport)
   const openBatchDownload = useStore((s) => s.openBatchDownload)
+  const keepOriginal = useStore((s) => s.config?.rbFormat === 'original')
   // Index „už mám v knihovně" (artist|title, plní se na startu appky). Podle něj
   // označíme skladby, které už uživatel má, ať zbytečně nestahuje duplikáty.
   const ownedKeys = useStore((s) => s.ownedKeys)
@@ -468,7 +470,7 @@ export function PlaylistImportModal(): JSX.Element | null {
                             ) : null}
                             {dl ? (
                               <span className={`badge ${chart.needsConversion ? 'badge--convert' : 'badge--native'}`}>
-                                {chartLabel(chart)}
+                                {chartLabel(chart, keepOriginal)}
                               </span>
                             ) : (
                               <button
@@ -521,7 +523,7 @@ export function PlaylistImportModal(): JSX.Element | null {
                               <span className="plver__radio">{ci === r.chosen ? '●' : '○'}</span>
                               {isAutoDownloadable(c) ? (
                                 <span className={`badge ${c.needsConversion ? 'badge--convert' : 'badge--native'}`}>
-                                  {chartLabel(c)}
+                                  {chartLabel(c, keepOriginal)}
                                 </span>
                               ) : (
                                 <span className="plrow__na">

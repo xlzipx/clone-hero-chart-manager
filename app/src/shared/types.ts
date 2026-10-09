@@ -304,6 +304,9 @@ export interface DownloadJob {
   message?: string
   error?: string
   installPath?: string
+  /** Rock Band chart se uloží jako originální soubor (bez rozbalení a konverze).
+   *  Rozhoduje se při zařazení podle `rbFormat`, změna nastavení frontu neovlivní. */
+  keepOriginal?: boolean
 }
 
 export interface HotkeyConfig {
@@ -384,6 +387,10 @@ export interface AppConfig {
   /** Stahovat videa na pozadí (video.mp4 …). false = po stažení se smažou;
    *  platí pro RhythmVerse i Encore, ne pro soubory přetažené z disku. */
   downloadVideos: boolean
+  /** Rock Band charty (CON / RB3CON): 'convert' = převést na Clone Hero chart
+   *  (výchozí), 'original' = uložit stažený soubor tak, jak je (např. pro
+   *  Rock Band 3 na Xboxu 360), bez rozbalení i konverze. */
+  rbFormat: 'convert' | 'original'
   /** Kolik stažení běží naráz (1–4). */
   maxConcurrentDownloads: number
   /** Hotová stažení zmizí z fronty samy po pár sekundách (jinak zůstanou do Clear). */
@@ -554,7 +561,8 @@ export interface RendererApi {
   getFilterOptions(system?: RhythmVerseSystem): Promise<FilterOptions>
   /** Načte skladby z odkazu na playlist (v1: veřejný Spotify přes embed). */
   resolvePlaylist(url: string): Promise<PlaylistResolveResult>
-  enqueueDownload(song: SongResult, targetSubfolder?: string): Promise<string>
+  /** `convert: true` vynutí převod i při `rbFormat: 'original'` (oprava rozbitého chartu). */
+  enqueueDownload(song: SongResult, targetSubfolder?: string, opts?: { convert?: boolean }): Promise<string>
   /** Spustí pipeline pro lokální soubor (drag-and-drop z disku). */
   enqueueLocalFile(
     localPath: string,

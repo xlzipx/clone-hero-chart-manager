@@ -225,6 +225,7 @@ function defaults(): AppConfig {
     windowState: null,
     encoreFormat: 'folder',
     downloadVideos: true,
+    rbFormat: 'convert',
     maxConcurrentDownloads: 2,
     autoClearFinished: true,
     deleteMode: 'trash'

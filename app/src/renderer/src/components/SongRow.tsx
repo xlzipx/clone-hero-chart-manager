@@ -141,6 +141,8 @@ function SongRowBase({
   // Zvuková ukázka (poslech před stažením). Stav bereme přímo ze store, ať se
   // tlačítko překreslí i přes memo (hook subscription memo neobchází).
   const previewKey = useStore((s) => s.previewKey)
+  // Rock Band chart jako originál (nastavení) → pilulka bez „→ CH".
+  const keepOriginal = useStore((s) => s.config?.rbFormat === 'original')
   const previewStateVal = useStore((s) => s.previewState)
   const previewLabel = useStore((s) => s.previewLabel)
   const togglePreview = useStore((s) => s.togglePreview)
@@ -331,9 +333,15 @@ function SongRowBase({
             // Clone Hero. SNG / RV / Clone Hero jsou pro uživatele totéž (vše
             // skončí jako normální složka písně), takže by jen mátly.
             song.needsConversion ? (
-              <span className="badge badge--convert" title="Converted to a Clone Hero chart on download">
-                {formatLabel(song.gameFormat)} → CH
-              </span>
+              keepOriginal ? (
+                <span className="badge badge--convert" title="Saved as the original file, without conversion (Settings, Download format)">
+                  {formatLabel(song.gameFormat)}
+                </span>
+              ) : (
+                <span className="badge badge--convert" title="Converted to a Clone Hero chart on download">
+                  {formatLabel(song.gameFormat)} → CH
+                </span>
+              )
             ) : NATIVE_FORMATS.has(formatLabel(song.gameFormat)) ? null : (
               <span className="badge badge--native">{formatLabel(song.gameFormat)}</span>
             )

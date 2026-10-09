@@ -251,7 +251,7 @@ async function downloadOnce(
   destPath: string,
   onProgress?: (p: DownloadProgress) => void,
   signal?: AbortSignal
-): Promise<{ received: number; total: number | null }> {
+): Promise<{ received: number; total: number | null; fileName: string | null }> {
   let res = await fetch(url, {
     headers: { 'User-Agent': UA, Accept: '*/*' },
     redirect: 'follow',
@@ -306,26 +306,33 @@ async function downloadOnce(
   // pipeline vyhodí AbortError (jinak by se soubor dostahoval celý a zrušení
   // by se projevilo až po dokončení).
   await pipeline(nodeStream, counter, createWriteStream(destPath), { signal })
-  return { received, total }
+  // Skutečný název souboru: z Content-Disposition, jinak z poslední URL po redirectech.
+  const fileName =
+    filenameFromContentDisposition(res.headers.get('content-disposition')) ||
+    (res.url ? guessFileName(res.url) : null)
+  return { received, total, fileName }
 }
 
-/** Stáhne soubor na disk a ověří úplnost. Truncated download → retry, pak vyhodí chybu. */
+/**
+ * Stáhne soubor na disk a ověří úplnost. Truncated download → retry, pak vyhodí chybu.
+ * Vrací název souboru, jak ho poslal server (pro uložení originálu), nebo null.
+ */
 export async function downloadTo(
   sourceUrl: string,
   destPath: string,
   onProgress?: (p: DownloadProgress) => void,
   signal?: AbortSignal
-): Promise<void> {
+): Promise<{ fileName: string | null }> {
   const resolved = await resolve(sourceUrl)
 
   // Max 2 pokusy – druhý jen pokud server hlásil Content-Length a my dostali míň.
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const { received, total } = await downloadOnce(resolved.url, destPath, onProgress, signal)
+    const { received, total, fileName } = await downloadOnce(resolved.url, destPath, onProgress, signal)
 
     // Bez Content-Length nemůžeme validovat — věříme, že to dopadlo.
-    if (total === null) return
+    if (total === null) return { fileName }
     // Tolerujeme drobnou odchylku (chunked, padding) — vyžadujeme aspoň 99 % očekávaného.
-    if (received >= Math.floor(total * 0.99)) return
+    if (received >= Math.floor(total * 0.99)) return { fileName }
 
     if (attempt === 1) {
       // Retry — nějaké hosty občas zavřou spojení předčasně.
@@ -335,6 +342,7 @@ export async function downloadTo(
       `Download was truncated (got ${received} of ${total} bytes). The host closed the connection early. Try again, or open the page in your browser.`
     )
   }
+  return { fileName: null } // sem se nedojde (druhý pokus vždy vrátí nebo vyhodí)
 }
 
 /** Odhadne název souboru z URL (bez query). */

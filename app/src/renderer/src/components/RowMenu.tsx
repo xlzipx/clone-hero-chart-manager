@@ -87,7 +87,7 @@ export function RowMenu({ song }: { song: SongResult }): JSX.Element {
               onClick={stop}
               onDoubleClick={stop}
             >
-              <DownloadOptions encore={isEncore ? 'choice' : 'note'} />
+              <DownloadOptions encore={isEncore ? 'choice' : 'note'} rb={song.needsConversion} />
               <div className="rowmenu__sep" />
               {pageUrl ? (
                 <button

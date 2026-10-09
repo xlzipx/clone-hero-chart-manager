@@ -21,14 +21,16 @@ function jobErrorText(err: unknown): string {
 import { downloadDriveFolder, downloadTo, guessFileName, isDriveFolder } from './download'
 import { extract } from './extractor'
 import {
+  archiveExt,
   findArchiveFiles,
   findConFiles,
   findDtxEntries,
   isArchiveByMagic,
+  isConFile,
   isHtmlFile
 } from './filetype'
 import { convertCon, convertDtx } from './converter'
-import { install } from './library'
+import { install, installOriginal } from './library'
 import { getConfig } from './config'
 import { extractSng, isSngFile } from './sngextract'
 
@@ -96,6 +98,11 @@ async function removeVideos(dir: string): Promise<void> {
   }
 }
 
+/** Koncovka názvu CON souboru bez přípony, jak je u Rock Band customs zvykem. */
+function conSuffix(song: SongResult): string {
+  return /^rb2/i.test(song.gameFormat ?? '') ? '_rb2con' : '_rb3con'
+}
+
 /** Vnitřní signál, že úlohu zrušil uživatel — odliší zrušení od reálné chyby. */
 class CanceledError extends Error {
   constructor() {
@@ -161,9 +168,11 @@ class JobManager extends EventEmitter {
     if (this.canceled.has(id)) throw new CanceledError()
   }
 
-  enqueue(song: SongResult, targetSubfolder?: string): string {
+  /** `forceConvert` = vždy převést (oprava rozbitého chartu), i když uživatel chce originály. */
+  enqueue(song: SongResult, targetSubfolder?: string, forceConvert = false): string {
     const id = randomUUID()
-    const job: DownloadJob = { id, song, targetSubfolder, stage: 'queued', progress: -1 }
+    const keepOriginal = !forceConvert && getConfig().rbFormat === 'original'
+    const job: DownloadJob = { id, song, targetSubfolder, stage: 'queued', progress: -1, keepOriginal }
     this.jobs.set(id, job)
     this.queue.push(id)
     this.emit('update', job)
@@ -333,7 +342,7 @@ class JobManager extends EventEmitter {
         const downloadPath = join(tmpRoot, fileName)
         // Throttle: aktualizuj UI nejvýš jednou na 1 % (jinak desítky updateů/s).
         let lastPct = -1
-        await downloadTo(
+        const { fileName: serverName } = await downloadTo(
           url,
           downloadPath,
           (p) => {
@@ -344,6 +353,21 @@ class JobManager extends EventEmitter {
           },
           aborter.signal
         )
+
+        // Originál Rock Band chartu (nastavení Keep original file): uložit
+        // stažený soubor tak, jak je, bez rozbalení i konverze.
+        if (
+          job.keepOriginal &&
+          (song.needsConversion || (await isConFile(downloadPath))) &&
+          !(await isHtmlFile(downloadPath))
+        ) {
+          this.throwIfCanceled(id)
+          this.setStage(id, 'installing', 'Saving original file…')
+          const ext = (await archiveExt(downloadPath)) ?? ((await isConFile(downloadPath)) ? conSuffix(song) : '')
+          const { installedPaths } = await installOriginal(downloadPath, serverName, ext, song, job.targetSubfolder)
+          this.update(id, { stage: 'done', progress: 1, message: 'Done (original file)', installPath: installedPaths[0] })
+          return
+        }
 
         // 2) Rozbalení (pokud archiv) — detekce podle obsahu, ne přípony
         // (Google Drive stahuje soubory bez přípony).
@@ -376,6 +400,19 @@ class JobManager extends EventEmitter {
       // 3) Konverze (pokud potřeba) — nejdřív CON, jinak zkus DTXMania.
       const conFiles = await findConFiles(workDir)
       let installSource = workDir
+      if (conFiles.length > 0 && job.keepOriginal && !url.startsWith('local-file://')) {
+        // Originály chtěné, ale CON byl schovaný v archivu (databáze ho nehlásila
+        // jako Rock Band) → uložit samotné CON soubory, bez konverze.
+        this.setStage(id, 'installing', 'Saving original file…')
+        const saved: string[] = []
+        for (const con of conFiles) {
+          const name = conFiles.length > 1 ? basename(con) : null
+          saved.push(...(await installOriginal(con, name, conSuffix(song), song, job.targetSubfolder)).installedPaths)
+        }
+        const word = saved.length === 1 ? 'file' : 'files'
+        this.update(id, { stage: 'done', progress: 1, message: `Done (${saved.length} original ${word})`, installPath: saved[0] })
+        return
+      }
       if (conFiles.length > 0) {
         this.setStage(
           id,

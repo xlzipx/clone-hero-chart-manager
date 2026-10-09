@@ -2255,7 +2255,7 @@ export const useStore = create<AppState>((set, get) => {
       // Náhrada jde do STEJNÉ složky jako rozbitá píseň (po dokončení ji nahradí).
       const parent = p.rel.split('/').slice(0, -1).join('/')
       try {
-        const jobId = await window.api.enqueueDownload(p.song, parent || undefined)
+        const jobId = await window.api.enqueueDownload(p.song, parent || undefined, { convert: true })
         set((s) => ({
           enqueuedKeys: { ...s.enqueuedKeys, [p.song.key]: jobId },
           fixJobs: { ...s.fixJobs, [jobId]: { rel: p.rel, name: p.name, bulk: true } }
@@ -2404,7 +2404,7 @@ export const useStore = create<AppState>((set, get) => {
       if (get().enqueuedKeys[song.key]) return
       const parent = fix.rel.split('/').slice(0, -1).join('/')
       try {
-        const jobId = await window.api.enqueueDownload(song, parent || undefined)
+        const jobId = await window.api.enqueueDownload(song, parent || undefined, { convert: true })
         set((s) => ({
           fixTarget: null,
           enqueuedKeys: { ...s.enqueuedKeys, [song.key]: jobId },

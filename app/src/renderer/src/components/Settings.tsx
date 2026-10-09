@@ -724,8 +724,8 @@ export function Settings(): JSX.Element | null {
                   desc={
                     <>
                       <em className="field__rec">Song folder recommended</em> — works everywhere, like the .zip on
-                      Chorus Encore. A single .sng file is read by Clone Hero v1+ and YARG. RhythmVerse charts are
-                      always saved as song folders.
+                      Chorus Encore. A single .sng file is read by Clone Hero v1+ and YARG. RhythmVerse Clone Hero
+                      charts are always saved as song folders.
                     </>
                   }
                 >
@@ -736,6 +736,25 @@ export function Settings(): JSX.Element | null {
                       { v: 'sng', l: '.sng file' }
                     ]}
                     onChange={(v) => set({ encoreFormat: v })}
+                  />
+                </Row>
+                <Row
+                  title="Rock Band charts"
+                  desc={
+                    <>
+                      <em className="field__rec">Convert recommended</em> — Xbox 360 CON and RB3CON charts become Clone
+                      Hero song folders while they download. Original file saves exactly what the database has, with no
+                      unpacking or conversion, for example to play it in Rock Band 3 on Xbox 360.
+                    </>
+                  }
+                >
+                  <Seg
+                    value={config.rbFormat === 'original' ? 'original' : 'convert'}
+                    options={[
+                      { v: 'convert', l: 'Convert' },
+                      { v: 'original', l: 'Original file' }
+                    ]}
+                    onChange={(v) => set({ rbFormat: v })}
                   />
                 </Row>
                 <Row

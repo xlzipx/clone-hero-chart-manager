@@ -276,15 +276,10 @@ export function listSongFolders(): string[] {
 }
 
 /**
- * Nainstaluje jednu nebo více písní z `sourceRoot` (rozbalený/zkonvertovaný obsah)
- * do knihovny. `subfolder` = volitelná cílová podsložka uvnitř Songs.
- * Vrací cesty nainstalovaných složek.
+ * Cílová složka v knihovně pro stahovanou píseň: Songs + ručně zvolená podsložka
+ * + podsložky ze šablony. Vrací i název chartu ze šablony (`tpl.name`).
  */
-export async function install(
-  sourceRoot: string,
-  song: SongResult,
-  subfolder?: string
-): Promise<InstallResult> {
+function resolveTarget(song: SongResult, subfolder?: string): { songsDir: string; tpl: ReturnType<typeof renderFolderTemplate> } {
   const baseSongsDir = getConfig().songsDir
   // Sanitizace případné podsložky (může obsahovat i vnořenou cestu od uživatele).
   // POZOR: prázdné segmenty musí pryč PŘED sanitizací — `sanitize('')` vrací
@@ -312,6 +307,20 @@ export async function install(
   if (targetAbs !== baseAbs && !targetAbs.startsWith(baseAbs + sep)) {
     throw new Error('Invalid target subfolder (must stay inside the Songs library).')
   }
+  return { songsDir, tpl }
+}
+
+/**
+ * Nainstaluje jednu nebo více písní z `sourceRoot` (rozbalený/zkonvertovaný obsah)
+ * do knihovny. `subfolder` = volitelná cílová podsložka uvnitř Songs.
+ * Vrací cesty nainstalovaných složek.
+ */
+export async function install(
+  sourceRoot: string,
+  song: SongResult,
+  subfolder?: string
+): Promise<InstallResult> {
+  const { songsDir, tpl } = resolveTarget(song, subfolder)
   if (!existsSync(songsDir)) await fsp.mkdir(songsDir, { recursive: true })
 
   const installed: string[] = []
@@ -385,4 +394,43 @@ export async function install(
   invalidateLibraryIndex()
   invalidateOwnedIndex()
   return { installedPaths: installed }
+}
+
+/**
+ * Uloží stažený soubor tak, jak je (originál z databáze, např. RB3CON pro
+ * Rock Band 3 na Xboxu 360) — bez rozbalení a konverze. Název: ten, který poslal
+ * server, pokud dává smysl; jinak název chartu ze šablony + přípona podle obsahu.
+ */
+export async function installOriginal(
+  filePath: string,
+  serverName: string | null,
+  ext: string,
+  song: SongResult,
+  subfolder?: string
+): Promise<InstallResult> {
+  const { songsDir, tpl } = resolveTarget(song, subfolder)
+  if (!existsSync(songsDir)) await fsp.mkdir(songsDir, { recursive: true })
+  const clean = serverName ? sanitize(serverName) : ''
+  // „download", „uc" (Google Drive) nebo holé číslo/ID nic neříkají → šablona.
+  const meaningful = /[a-z]{3}/i.test(clean.replace(/\.[^.]+$/, '')) && !/^(download|uc|file)(\.|$)/i.test(clean)
+  let baseName: string
+  let fileExt: string
+  if (meaningful) {
+    const m = /^(.*?)(\.[a-z0-9]{1,6})?$/i.exec(clean)!
+    baseName = m[1] || clean
+    // Bez přípony (typicky song_rb3con) nechat jak je; `ext` jen když je skutečná přípona.
+    fileExt = m[2] || (ext.startsWith('.') ? ext : '')
+  } else {
+    baseName = tpl.name
+    fileExt = ext
+  }
+  const dest = uniqueFile(songsDir, baseName, fileExt)
+  writeFileSync(dest, '') // rezervace názvu (viz install), copyFile ho přepíše
+  try {
+    await fsp.copyFile(filePath, dest)
+  } catch (e) {
+    await fsp.rm(dest, { force: true }).catch(() => undefined)
+    throw e
+  }
+  return { installedPaths: [dest] }
 }

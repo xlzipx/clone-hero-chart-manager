@@ -50,10 +50,10 @@ export function formatDownloads(n: number | null): string {
 export function formatLabel(format: string | null): string {
   if (!format) return '?'
   const map: Record<string, string> = {
-    rb3xbox: 'RB3',
+    rb3xbox: 'RB3CON',
     rb3ps3: 'RB3 PS3',
     rb3wii: 'RB3 Wii',
-    rb2xbox: 'RB2',
+    rb2xbox: 'RB2CON',
     clonehero: 'Clone Hero',
     ch: 'Clone Hero',
     chart: 'Clone Hero',

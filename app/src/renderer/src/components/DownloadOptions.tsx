@@ -10,9 +10,11 @@ import { Icon } from './Icon'
  *
  * `encore`: 'choice' = ukázat volbu formátu, 'note' = jen poznámka (řádek
  * z RhythmVerse, kde se soubory vždy rozbalují).
+ * `rb`: ukázat volbu pro Rock Band charty (převést na Clone Hero / originál).
  */
-export function DownloadOptions({ encore }: { encore: 'choice' | 'note' }): JSX.Element {
+export function DownloadOptions({ encore, rb = false }: { encore: 'choice' | 'note'; rb?: boolean }): JSX.Element {
   const encoreFormat = useStore((s) => s.config?.encoreFormat ?? 'folder')
+  const rbFormat = useStore((s) => s.config?.rbFormat ?? 'convert')
   const downloadVideos = useStore((s) => s.config?.downloadVideos ?? true)
   const saveConfig = useStore((s) => s.saveConfig)
 
@@ -41,9 +43,32 @@ export function DownloadOptions({ encore }: { encore: 'choice' | 'note' }): JSX.
             <span className="rowmenu__radio" /> Single .sng file
           </button>
         </>
-      ) : (
+      ) : rb ? null : (
         <div className="rowmenu__note">Song folder (RhythmVerse files are always unpacked)</div>
       )}
+      {rb ? (
+        <>
+          {encore === 'choice' ? <div className="rowmenu__label">Rock Band charts</div> : null}
+          <button
+            className={`rowmenu__item rowmenu__opt ${rbFormat === 'convert' ? 'on' : ''}`}
+            role="menuitemradio"
+            aria-checked={rbFormat === 'convert'}
+            title="Converted into a Clone Hero song folder while it downloads, playable in Clone Hero and YARG"
+            onClick={() => void saveConfig({ rbFormat: 'convert' })}
+          >
+            <span className="rowmenu__radio" /> Convert to Clone Hero
+          </button>
+          <button
+            className={`rowmenu__item rowmenu__opt ${rbFormat === 'original' ? 'on' : ''}`}
+            role="menuitemradio"
+            aria-checked={rbFormat === 'original'}
+            title="Saved exactly as it is on the database, for example an RB3CON for Rock Band 3 on Xbox 360. Not playable in Clone Hero."
+            onClick={() => void saveConfig({ rbFormat: 'original' })}
+          >
+            <span className="rowmenu__radio" /> Original file (no conversion)
+          </button>
+        </>
+      ) : null}
       <button
         className={`rowmenu__item rowmenu__opt ${downloadVideos ? 'on' : ''}`}
         role="menuitemcheckbox"
@@ -112,8 +137,8 @@ export function BatchDownloadOptions(): JSX.Element {
                 onClick={stop}
                 onDoubleClick={stop}
               >
-                <DownloadOptions encore="choice" />
-                <div className="rowmenu__note">Chorus Encore format applies to the Chorus charts in your selection.</div>
+                <DownloadOptions encore="choice" rb />
+                <div className="rowmenu__note">Each format applies to the matching charts in your selection.</div>
               </div>
             </>,
             document.body
