@@ -2,27 +2,28 @@
  * Kurátorské tipy do rotujícího tickeru v horní liště. ZÁMĚRNĚ jen ty, které
  * NEJSOU na první pohled zřejmé nebo můžou mást (ne návod na samozřejmosti jako
  * drop zóna). Text krátký, jedna věta, bez emoji (produktový tón).
+ * Názvy míst a ovládacích prvků v aplikaci se píšou do **…** → v liště tučně.
  */
 export const TIPS: string[] = [
   'Click an artist or album name in the results to see all of its charts.',
-  'Duplicates in Library keeps the best copy of every song in one click.',
-  'Broken songs in Library can be fixed all at once with a fresh download.',
+  '**Duplicates** in **Library** keeps the best copy of every song in one click.',
+  'Broken songs in **Library** can be fixed all at once with a fresh download.',
   'Hover a song’s album art and press play to preview it before you download.',
   'Leave the search box empty to browse the entire catalogue, no keyword needed.',
-  'Surprise me in the sidebar picks a handful of random charts from whatever you’re currently browsing.',
-  'Import playlist in the sidebar takes a public Spotify link and finds charts for the whole playlist at once.',
-  'Set the database to Both to search RhythmVerse and Chorus Encore at the same time.',
-  'Chorus Encore charts download directly as .sng files, no Google Drive or MEGA step.',
-  'Open Filters to narrow by genre, year, decade, length, charter, artist, difficulty or intensity.',
+  '**Surprise me** in the sidebar picks a handful of random charts from whatever you’re currently browsing.',
+  '**Import playlist** in the sidebar takes a public **Spotify** link and finds charts for the whole playlist at once.',
+  'Set the database to **Both** to search **RhythmVerse** and **Chorus Encore** at the same time.',
+  '**Chorus Encore** charts download directly as .sng files, no Google Drive or MEGA step.',
+  'Open **Filters** to narrow by genre, year, decade, length, charter, artist, difficulty or intensity.',
   'Charter and artist filters search the full catalog of both databases.',
-  'In Sort by, pick Added for the newest charts or Downloads for the most popular.',
+  'In **Sort by**, pick **Added** for the newest charts or **Downloads** for the most popular.',
   'Rock Band CON charts are converted to Clone Hero automatically when you download them.',
-  'Need the original RB3CON file? Turn off the Converter in Settings, or pick Original file in a song’s download menu.',
-  'A chart tagged Official DLC is a paid Rock Band song, so it opens the store instead of downloading.',
+  'Need the original RB3CON file? Turn off the **Converter** in **Settings**, or pick **Original file** in a song’s download menu.',
+  'A chart tagged **Official DLC** is a paid Rock Band song, so it opens the store instead of downloading.',
   'Charts hosted on MEGA or Mediafire open in your browser; download them, then drop the file back here.',
-  'Phase Shift and Rock Band charts often need a manual download; the Clone Hero tab is the most reliable.',
-  'An In library tag means you already own that chart, click it to jump to it in your library.',
-  'In Library, right-click a folder and pick Listen in music player to play your downloaded charts in the built-in player.',
-  'Set Chart folder name in Settings and save every download into a predefined folder.',
-  'After a download finishes, switch to Clone Hero and run Scan Songs to see the new charts in game.'
+  'Phase Shift and Rock Band charts often need a manual download; the **Clone Hero** tab is the most reliable.',
+  'An **In library** tag means you already own that chart, click it to jump to it in your library.',
+  'In **Library**, right-click a folder and pick **Listen in music player** to play your downloaded charts in the built-in player.',
+  'Set **Chart folder name** in **Settings** and save every download into a predefined folder.',
+  'After a download finishes, switch to Clone Hero and run **Scan Songs** to see the new charts in game.'
 ]

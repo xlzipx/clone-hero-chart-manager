@@ -42,8 +42,19 @@ export function TipsTicker(): JSX.Element {
     }
   }
   const bodyW = (): number => bodyRef.current?.getBoundingClientRect().width ?? 0
+  // Tip může mít **zvýrazněné** názvy (místa a ovládací prvky aplikace) → <b>.
+  // Texty jsou naše vlastní (tips.ts), skládá se přes DOM uzly, ne innerHTML.
   const setText = (t: string): void => {
-    if (bodyRef.current) bodyRef.current.textContent = t
+    const b = bodyRef.current
+    if (!b) return
+    b.replaceChildren(
+      ...t.split(/\*\*(.+?)\*\*/).map((part, i) => {
+        if (i % 2 === 0) return document.createTextNode(part)
+        const strong = document.createElement('b')
+        strong.textContent = part
+        return strong
+      })
+    )
   }
   /** Rychlá fade výměna obsahu (rotace / hover ↔ tip). */
   const fadeSwap = (apply: () => void): void => {

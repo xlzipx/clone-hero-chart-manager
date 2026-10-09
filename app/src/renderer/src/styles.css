@@ -5470,6 +5470,11 @@ textarea {
 .tips__body--swap {
   opacity: 0;
 }
+/* Zvýrazněné názvy v tipu (Library, Settings, Filters…). */
+.tips__body b {
+  color: var(--text);
+  font-weight: 600;
+}
 /* Málo místa (úzké okno / vyšší UI scale) → tip se nevejde. Místo oříznutého
    útržku uprostřed věty ho schováme celý (šířka 0) a necháme jen žárovku; text se
    nadále měří přes scrollWidth, takže se po uvolnění místa zase objeví. */
