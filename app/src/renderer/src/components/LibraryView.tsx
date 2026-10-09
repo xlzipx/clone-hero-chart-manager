@@ -1413,7 +1413,9 @@ export function LibraryView(): JSX.Element {
               </button>
             </div>
             <button
-              className={`lib__btn ${filtersOpen ? 'lib__btn--on' : ''}`}
+              className={`lib__btn lv__filtersbtn ${filtersOpen ? 'lib__btn--on' : ''} ${
+                filtersOpen || activeFilterCount ? 'lv__filtersbtn--lit' : ''
+              }`}
               onClick={() => {
                 setFiltersOpen((v) => !v)
                 // Seznam jen po dobu vysouvání na vlastní vrstvě (plynulá roleta);

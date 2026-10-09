@@ -11246,6 +11246,11 @@ svg.lvfolder-ico {
   color: var(--text);
   font-weight: 700;
 }
+/* Filters svítí (jasný rámeček) při otevřeném panelu nebo zapnutých filtrech,
+   stejně jako tlačítko Filters v hledání. */
+.lib__btn.lv__filtersbtn--lit {
+  border-color: var(--accent);
+}
 /* „Clear filters" vedle Filters: vyjede plynule do šířky (jako v hledání). */
 .lv__fclearbtn {
   overflow: hidden;
