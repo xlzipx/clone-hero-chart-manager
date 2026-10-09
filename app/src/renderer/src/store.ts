@@ -172,6 +172,10 @@ interface AppState {
   /** Písně k vybraným klíčům — výběr přežije přechod na jinou stránku, kde
    *  už píseň v `results` není (hromadné stažení ji potřebuje celou). */
   selectedSongs: Record<string, SongResult>
+  /** Převod Rock Band chartu zvolený u konkrétní písně (menu v hledání);
+   *  písně bez záznamu se řídí nastavením `rbFormat`. Jen pro toto spuštění. */
+  rbChoice: Record<string, 'convert' | 'original'>
+  setRbChoice: (keys: string[], value: 'convert' | 'original') => void
   pendingBatch: SongResult[] | null
   // Hromadný lokální drop (víc souborů / složka) — čeká na výběr cílové složky.
   pendingLocalBatch: string[] | null
@@ -1017,7 +1021,7 @@ export const useStore = create<AppState>((set, get) => {
 
   const enqueueOne = async (song: SongResult, subfolder?: string): Promise<void> => {
     try {
-      const jobId = await window.api.enqueueDownload(song, subfolder)
+      const jobId = await window.api.enqueueDownload(song, subfolder, { rbFormat: get().rbChoice[song.key] })
       set((s) => ({ enqueuedKeys: { ...s.enqueuedKeys, [song.key]: jobId } }))
     } catch (e) {
       set({ error: userMsg(e) })
@@ -1030,7 +1034,7 @@ export const useStore = create<AppState>((set, get) => {
     const newEntries: Record<string, string> = {}
     for (const song of songs) {
       try {
-        newEntries[song.key] = await window.api.enqueueDownload(song, subfolder)
+        newEntries[song.key] = await window.api.enqueueDownload(song, subfolder, { rbFormat: get().rbChoice[song.key] })
       } catch {
         /* jednotlivé selhání nezastaví dávku */
       }
@@ -1556,6 +1560,17 @@ export const useStore = create<AppState>((set, get) => {
   lastSubfolder: '',
   selectedKeys: [],
   selectedSongs: {},
+  rbChoice: {},
+  setRbChoice: (keys, value) =>
+    set((s) => {
+      const next = { ...s.rbChoice }
+      // Stejné jako nastavení → záznam netřeba (píseň pak sleduje nastavení).
+      for (const k of keys) {
+        if (value === (s.config?.rbFormat ?? 'convert')) delete next[k]
+        else next[k] = value
+      }
+      return { rbChoice: next }
+    }),
   pendingBatch: null,
   pendingLocalBatch: null,
   openRowMenu: null,

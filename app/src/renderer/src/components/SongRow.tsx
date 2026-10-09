@@ -142,7 +142,7 @@ function SongRowBase({
   // tlačítko překreslí i přes memo (hook subscription memo neobchází).
   const previewKey = useStore((s) => s.previewKey)
   // Rock Band chart jako originál (nastavení) → pilulka bez „→ CH".
-  const keepOriginal = useStore((s) => s.config?.rbFormat === 'original')
+  const keepOriginal = useStore((s) => (s.rbChoice[song.key] ?? s.config?.rbFormat) === 'original')
   const previewStateVal = useStore((s) => s.previewState)
   const previewLabel = useStore((s) => s.previewLabel)
   const togglePreview = useStore((s) => s.togglePreview)

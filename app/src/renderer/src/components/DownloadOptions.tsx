@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from '../store'
 import { Icon } from './Icon'
@@ -10,11 +10,16 @@ import { Icon } from './Icon'
  *
  * `encore`: 'choice' = ukázat volbu formátu, 'note' = jen poznámka (řádek
  * z RhythmVerse, kde se soubory vždy rozbalují).
- * `rb`: ukázat volbu pro Rock Band charty (převést na Clone Hero / originál).
+ * `rbKeys`: Rock Band písně, kterých se volba převodu týká (řádek = jedna,
+ * hromadné stažení = vybrané). Platí jen pro ně; výchozí je v Nastavení.
  */
-export function DownloadOptions({ encore, rb = false }: { encore: 'choice' | 'note'; rb?: boolean }): JSX.Element {
+export function DownloadOptions({ encore, rbKeys = [] }: { encore: 'choice' | 'note'; rbKeys?: string[] }): JSX.Element {
   const encoreFormat = useStore((s) => s.config?.encoreFormat ?? 'folder')
-  const rbFormat = useStore((s) => s.config?.rbFormat ?? 'convert')
+  const rbDefault = useStore((s) => s.config?.rbFormat ?? 'convert')
+  const rbChoice = useStore((s) => s.rbChoice)
+  const setRbChoice = useStore((s) => s.setRbChoice)
+  const rb = rbKeys.length > 0
+  const rbIs = (v: 'convert' | 'original'): boolean => rb && rbKeys.every((k) => (rbChoice[k] ?? rbDefault) === v)
   const downloadVideos = useStore((s) => s.config?.downloadVideos ?? true)
   const saveConfig = useStore((s) => s.saveConfig)
 
@@ -50,20 +55,20 @@ export function DownloadOptions({ encore, rb = false }: { encore: 'choice' | 'no
         <>
           {encore === 'choice' ? <div className="rowmenu__label">Converter</div> : null}
           <button
-            className={`rowmenu__item rowmenu__opt ${rbFormat === 'convert' ? 'on' : ''}`}
+            className={`rowmenu__item rowmenu__opt ${rbIs('convert') ? 'on' : ''}`}
             role="menuitemradio"
-            aria-checked={rbFormat === 'convert'}
+            aria-checked={rbIs('convert')}
             title="Converted into a Clone Hero song folder while it downloads, playable in Clone Hero and YARG"
-            onClick={() => void saveConfig({ rbFormat: 'convert' })}
+            onClick={() => setRbChoice(rbKeys, 'convert')}
           >
             <span className="rowmenu__radio" /> Convert to Clone Hero
           </button>
           <button
-            className={`rowmenu__item rowmenu__opt ${rbFormat === 'original' ? 'on' : ''}`}
+            className={`rowmenu__item rowmenu__opt ${rbIs('original') ? 'on' : ''}`}
             role="menuitemradio"
-            aria-checked={rbFormat === 'original'}
+            aria-checked={rbIs('original')}
             title="Saved exactly as it is on the database, for example an RB3CON for Rock Band 3 on Xbox 360. Not playable in Clone Hero."
-            onClick={() => void saveConfig({ rbFormat: 'original' })}
+            onClick={() => setRbChoice(rbKeys, 'original')}
           >
             <span className="rowmenu__radio" /> Original file (no conversion)
           </button>
@@ -98,6 +103,13 @@ export function BatchDownloadOptions(): JSX.Element {
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const WIDTH = 270
+  const selectedKeys = useStore((s) => s.selectedKeys)
+  const selectedSongs = useStore((s) => s.selectedSongs)
+  // Volba převodu v hromadném menu platí pro vybrané Rock Band písně.
+  const rbKeys = useMemo(
+    () => selectedKeys.filter((k) => selectedSongs[k]?.needsConversion),
+    [selectedKeys, selectedSongs]
+  )
 
   useLayoutEffect(() => {
     if (!open) return
@@ -137,7 +149,7 @@ export function BatchDownloadOptions(): JSX.Element {
                 onClick={stop}
                 onDoubleClick={stop}
               >
-                <DownloadOptions encore="choice" rb />
+                <DownloadOptions encore="choice" rbKeys={rbKeys} />
                 <div className="rowmenu__note">Each format applies to the matching charts in your selection.</div>
               </div>
             </>,

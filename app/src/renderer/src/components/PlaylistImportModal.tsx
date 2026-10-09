@@ -133,7 +133,9 @@ export function PlaylistImportModal(): JSX.Element | null {
   const show = useStore((s) => s.showPlaylistImport)
   const close = useStore((s) => s.setShowPlaylistImport)
   const openBatchDownload = useStore((s) => s.openBatchDownload)
-  const keepOriginal = useStore((s) => s.config?.rbFormat === 'original')
+  const rbDefault = useStore((s) => s.config?.rbFormat ?? 'convert')
+  const rbChoice = useStore((s) => s.rbChoice)
+  const keepOriginal = (c: SongResult): boolean => (rbChoice[c.key] ?? rbDefault) === 'original'
   // Index „už mám v knihovně" (artist|title, plní se na startu appky). Podle něj
   // označíme skladby, které už uživatel má, ať zbytečně nestahuje duplikáty.
   const ownedKeys = useStore((s) => s.ownedKeys)
@@ -470,7 +472,7 @@ export function PlaylistImportModal(): JSX.Element | null {
                             ) : null}
                             {dl ? (
                               <span className={`badge ${chart.needsConversion ? 'badge--convert' : 'badge--native'}`}>
-                                {chartLabel(chart, keepOriginal)}
+                                {chartLabel(chart, keepOriginal(chart))}
                               </span>
                             ) : (
                               <button
@@ -523,7 +525,7 @@ export function PlaylistImportModal(): JSX.Element | null {
                               <span className="plver__radio">{ci === r.chosen ? '●' : '○'}</span>
                               {isAutoDownloadable(c) ? (
                                 <span className={`badge ${c.needsConversion ? 'badge--convert' : 'badge--native'}`}>
-                                  {chartLabel(c, keepOriginal)}
+                                  {chartLabel(c, keepOriginal(c))}
                                 </span>
                               ) : (
                                 <span className="plrow__na">

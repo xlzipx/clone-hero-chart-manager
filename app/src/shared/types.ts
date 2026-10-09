@@ -561,8 +561,13 @@ export interface RendererApi {
   getFilterOptions(system?: RhythmVerseSystem): Promise<FilterOptions>
   /** Načte skladby z odkazu na playlist (v1: veřejný Spotify přes embed). */
   resolvePlaylist(url: string): Promise<PlaylistResolveResult>
-  /** `convert: true` vynutí převod i při `rbFormat: 'original'` (oprava rozbitého chartu). */
-  enqueueDownload(song: SongResult, targetSubfolder?: string, opts?: { convert?: boolean }): Promise<string>
+  /** `rbFormat` = volba pro tuto píseň (jinak platí nastavení); `convert: true`
+   *  vynutí převod vždy (oprava rozbitého chartu). */
+  enqueueDownload(
+    song: SongResult,
+    targetSubfolder?: string,
+    opts?: { convert?: boolean; rbFormat?: 'convert' | 'original' }
+  ): Promise<string>
   /** Spustí pipeline pro lokální soubor (drag-and-drop z disku). */
   enqueueLocalFile(
     localPath: string,

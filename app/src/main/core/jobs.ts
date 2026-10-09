@@ -168,10 +168,17 @@ class JobManager extends EventEmitter {
     if (this.canceled.has(id)) throw new CanceledError()
   }
 
-  /** `forceConvert` = vždy převést (oprava rozbitého chartu), i když uživatel chce originály. */
-  enqueue(song: SongResult, targetSubfolder?: string, forceConvert = false): string {
+  /**
+   * `opts.rbFormat` = volba pro tuto píseň z menu v hledání (jinak platí
+   * nastavení); `opts.convert` = vždy převést (oprava rozbitého chartu).
+   */
+  enqueue(
+    song: SongResult,
+    targetSubfolder?: string,
+    opts?: { convert?: boolean; rbFormat?: 'convert' | 'original' }
+  ): string {
     const id = randomUUID()
-    const keepOriginal = !forceConvert && getConfig().rbFormat === 'original'
+    const keepOriginal = !opts?.convert && (opts?.rbFormat ?? getConfig().rbFormat) === 'original'
     const job: DownloadJob = { id, song, targetSubfolder, stage: 'queued', progress: -1, keepOriginal }
     this.jobs.set(id, job)
     this.queue.push(id)

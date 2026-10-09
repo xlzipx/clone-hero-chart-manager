@@ -80,7 +80,11 @@ const api = {
   resolvePlaylist: (url: string) =>
     ipcRenderer.invoke('playlist:resolve', url) as Promise<PlaylistResolveResult>,
 
-  enqueueDownload: (song: SongResult, targetSubfolder?: string, opts?: { convert?: boolean }) =>
+  enqueueDownload: (
+    song: SongResult,
+    targetSubfolder?: string,
+    opts?: { convert?: boolean; rbFormat?: 'convert' | 'original' }
+  ) =>
     ipcRenderer.invoke('jobs:enqueue', song, targetSubfolder, opts) as Promise<string>,
 
   enqueueLocalFile: (localPath: string, song: SongResult, targetSubfolder?: string) =>
