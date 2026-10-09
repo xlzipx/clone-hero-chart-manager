@@ -55,17 +55,23 @@ export function TitleBar(): JSX.Element {
       <TipsTicker />
 
       <div className="titlebar__actions">
+        {/* V Nastavení vede tlačítko zpět na to, co leží pod nimi (hledání nebo
+            knihovna), ať se odtud nedá „ztratit" (dřív šlo zpět jen přes kolečko). */}
         <button
-          className={`titlebar__library ${showLibrary ? 'titlebar__library--back' : ''}`}
+          className={`titlebar__library ${showLibrary || showSettings ? 'titlebar__library--back' : ''}`}
           title={
-            showLibrary
-              ? 'Back to searching for charts (your search is kept)'
-              : 'Browse and manage your Songs library: folders, metadata, setlists, duplicates'
+            showSettings
+              ? showLibrary
+                ? 'Close settings and go back to your library'
+                : 'Close settings and go back to searching for charts'
+              : showLibrary
+                ? 'Back to searching for charts (your search is kept)'
+                : 'Browse and manage your Songs library: folders, metadata, setlists, duplicates'
           }
-          onClick={() => setShowLibrary(!showLibrary)}
+          onClick={() => (showSettings ? setShowSettings(false) : setShowLibrary(!showLibrary))}
         >
-          <Icon name={showLibrary ? 'search' : 'folder'} size={15} />
-          <span>{showLibrary ? 'Back to search' : 'My Library'}</span>
+          <Icon name={showSettings ? (showLibrary ? 'folder' : 'search') : showLibrary ? 'search' : 'folder'} size={15} />
+          <span>{showSettings ? (showLibrary ? 'Back to library' : 'Back to search') : showLibrary ? 'Back to search' : 'My Library'}</span>
         </button>
         <button
           className={`titlebar__btn ${showSettings ? 'titlebar__btn--on' : ''}`}
