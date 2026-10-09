@@ -307,15 +307,6 @@ function SongRowBase({
         </div>
         <div className="song__meta">
           <span className="badge badge--len">{formatLength(song.lengthSeconds)}</span>
-          {/* Nejdřív to, co se týká hraní (délka, obtížnosti) — obtížnosti tak mají
-              u všech řádků stejné místo. Pak původ chartu (databáze, formát,
-              charter, stažení, datum). */}
-          {song.levels != null ? (
-            <LevelsBadge levels={song.levels} />
-          ) : song.expertOnly === true ? (
-            // Řádek katalogu ještě bez přesných úrovní (před přenačtením).
-            <LevelsBadge levels="x" />
-          ) : null}
           {/* Zdrojová databáze. Encore má klíč „enchor:…", vše ostatní je RhythmVerse. */}
           {song.key.startsWith('enchor:') ? (
             <span className="badge badge--db badge--db-chorus" title="From Chorus Encore">
@@ -346,6 +337,14 @@ function SongRowBase({
               <span className="badge badge--native">{formatLabel(song.gameFormat)}</span>
             )
           )}
+          {/* Obtížnosti až za databází a formátem: hned vedle sebe s pilulkami
+              formátu splývaly. Pak „In library" a původ (charter, stažení, datum). */}
+          {song.levels != null ? (
+            <LevelsBadge levels={song.levels} />
+          ) : song.expertOnly === true ? (
+            // Řádek katalogu ještě bez přesných úrovní (před přenačtením).
+            <LevelsBadge levels="x" />
+          ) : null}
           {owned ? (
             <button
               type="button"
