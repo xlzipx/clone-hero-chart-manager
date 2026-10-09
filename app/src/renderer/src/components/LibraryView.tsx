@@ -1465,7 +1465,7 @@ export function LibraryView(): JSX.Element {
                   )
                 })}
               </div>
-              <span className="lv__fhint">Songs must chart all selected.</span>
+              <span className="lv__fhint">Shows songs with every selected instrument.</span>
             </div>
             <div className="lv__fgroup lv__fgroup--range">
               <span className="lv__flabel">Intensity</span>
@@ -1553,7 +1553,7 @@ export function LibraryView(): JSX.Element {
                 })()}
               </div>
               <span className="lv__fhint">
-                {filters.expertOnly ? 'No easier difficulty than Expert.' : 'Songs must include all selected.'}
+                {filters.expertOnly ? 'No easier difficulty than Expert.' : 'Shows songs with every selected difficulty.'}
                 {levelFilter && levelsLoading ? ' Reading charts…' : ''}
               </span>
             </div>
