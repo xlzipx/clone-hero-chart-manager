@@ -720,6 +720,8 @@ export interface RendererApi {
   getReleaseNotesSince(since?: string, max?: number): Promise<ReleaseNotes[]>
   /** Poznámky ke všem vydáním aktuální minor řady (od x.y.0 po nainstalovanou). */
   getReleaseNotesMilestone(): Promise<ReleaseNotes[]>
+  /** Poznámky k nainstalované verzi (uložené na disku, jinak z GitHubu). */
+  getReleaseNotesCurrent(): Promise<ReleaseNotes | null>
   // ---- Lokální katalog metadat ----
   /** Aktuální stav katalogu (empty/syncing/ready + progress + počty). */
   catalogStatus(): Promise<CatalogStatus>

@@ -10,6 +10,7 @@ import { createOverlay, getOverlay, revealOverlay } from './overlay'
 import { destroyReminder } from './reminder'
 import { createTray, destroyTray } from './tray'
 import { initAutoUpdate } from './core/autoupdate'
+import { getCurrentReleaseNotes } from './core/update'
 import { isMac, isWin } from './core/platform'
 import { handleAudioProtocol, registerAudioScheme } from './core/localaudio'
 import { closeCatalog, ensureCatalogSeed, initCatalog, upgradeCatalogFromSeed } from './core/catalog'
@@ -60,6 +61,8 @@ if (!app.requestSingleInstanceLock()) {
     createTray()
     registerHotkeys()
     initAutoUpdate(getOverlay)
+    // Poznámky k nainstalované verzi dopředu (Nastavení → Updates je pak ukáže hned).
+    void getCurrentReleaseNotes()
 
     // Lokální katalog metadat: při PRVNÍM spuštění rozbalit přibalený seed
     // (instalátor nese snapshot celého katalogu → nemusí se stahovat z API),

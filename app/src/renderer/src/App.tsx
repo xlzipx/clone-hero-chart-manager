@@ -34,6 +34,7 @@ import {
 import type { SongResult } from '../../shared/types'
 import { isTypingTarget } from './rangeToggle'
 import { levelsMatch } from './components/LevelsBadge'
+import { preloadReleaseNotes } from './components/UpdateNotes'
 
 /** Manuální host (MEGA/Mediafire/shortener) nejde spolehlivě auto-stáhnout —
  *  místo zařazení do fronty (kde by jen spadlo) otevřeme stránku v prohlížeči. */
@@ -371,6 +372,7 @@ export function App(): JSX.Element {
       }
       // Po aktualizaci (změna verze oproti minule) ukaž „What's new".
       try {
+        void preloadReleaseNotes() // Nastavení → Updates pak poznámky ukáže hned
         const v = await window.api.appVersion()
         const last = localStorage.getItem('chm.lastSeenVersion')
         // Po updatu ukaž changelog VŠECH verzí novějších než ta, kterou měl minule

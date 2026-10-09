@@ -294,7 +294,9 @@ const api = {
   getReleaseNotesSince: (since?: string, max?: number) =>
     ipcRenderer.invoke('app:releaseNotesSince', since, max) as Promise<ReleaseNotes[]>,
   getReleaseNotesMilestone: () =>
-    ipcRenderer.invoke('app:releaseNotesMilestone') as Promise<ReleaseNotes[]>
+    ipcRenderer.invoke('app:releaseNotesMilestone') as Promise<ReleaseNotes[]>,
+  getReleaseNotesCurrent: () =>
+    ipcRenderer.invoke('app:releaseNotesCurrent') as Promise<ReleaseNotes | null>
 }
 
 contextBridge.exposeInMainWorld('api', api)

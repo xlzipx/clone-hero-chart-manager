@@ -5,6 +5,8 @@
 // vrací null, UI nic neukáže.
 
 import { app } from 'electron'
+import { readFileSync, writeFileSync } from 'fs'
+import { join } from 'path'
 import type { ReleaseNotes, UpdateInfo } from '../../shared/types'
 
 const REPO = 'xlzipx/clone-hero-chart-manager'
@@ -19,16 +21,56 @@ export async function getReleaseNotes(version?: string): Promise<ReleaseNotes | 
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': `CHM/${v}` }
     })
     if (!res.ok) return null
-    const j = (await res.json()) as { name?: string; body?: string; html_url?: string }
+    const j = (await res.json()) as { name?: string; body?: string; html_url?: string; published_at?: string }
     return {
       version: v,
       name: j.name || tag,
       body: j.body || '',
-      url: j.html_url || `https://github.com/${REPO}/releases/tag/${tag}`
+      url: j.html_url || `https://github.com/${REPO}/releases/tag/${tag}`,
+      date: j.published_at
     }
   } catch {
     return null
   }
+}
+
+/**
+ * Poznámky k NAINSTALOVANÉ verzi pro Nastavení → Updates. Po prvním úspěšném
+ * načtení se uloží do userData, takže po restartu jsou hned (bez GitHubu);
+ * po updatu na novou verzi se načtou znovu. Volá se už při startu appky, aby
+ * byly hotové dřív, než uživatel otevře Nastavení. Neúspěch (offline) se
+ * neukládá a příští volání to zkusí znovu.
+ */
+let currentNotes: Promise<ReleaseNotes | null> | null = null
+
+export function getCurrentReleaseNotes(): Promise<ReleaseNotes | null> {
+  if (!currentNotes) {
+    currentNotes = loadCurrentReleaseNotes().then((n) => {
+      if (!n) currentNotes = null
+      return n
+    })
+  }
+  return currentNotes
+}
+
+async function loadCurrentReleaseNotes(): Promise<ReleaseNotes | null> {
+  const version = app.getVersion().replace(/^v/i, '')
+  const file = join(app.getPath('userData'), 'release-notes.json')
+  try {
+    const cached = JSON.parse(readFileSync(file, 'utf8')) as ReleaseNotes
+    if (cached?.version === version && typeof cached.body === 'string') return cached
+  } catch {
+    /* zatím nic uloženého */
+  }
+  const notes = await getReleaseNotes(version)
+  if (notes?.body.trim()) {
+    try {
+      writeFileSync(file, JSON.stringify(notes))
+    } catch {
+      /* uložení je jen zrychlení */
+    }
+  }
+  return notes
 }
 
 /**

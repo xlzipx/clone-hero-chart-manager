@@ -80,7 +80,7 @@ import { getSongAudio, getSongAudioSig } from './core/localaudio'
 import { getSngPreview } from './core/sngpreview'
 import { fetchFilterOptions, search as searchRhythmverse } from './core/rhythmverse'
 import { resolveSpotifyPlaylist } from './core/spotify'
-import { getReleaseNotes, getReleaseNotesSince, getReleaseNotesMilestone } from './core/update'
+import { getReleaseNotes, getReleaseNotesSince, getReleaseNotesMilestone, getCurrentReleaseNotes } from './core/update'
 import { registerHotkeys, unregisterHotkeys } from './hotkeys'
 import { applyUiScale, getOverlay, hideOverlay, isMaximized, toggleMaximize } from './overlay'
 
@@ -399,6 +399,7 @@ export function registerIpc(): void {
     getReleaseNotesSince(since, max)
   )
   ipcMain.handle('app:releaseNotesMilestone', () => getReleaseNotesMilestone())
+  ipcMain.handle('app:releaseNotesCurrent', () => getCurrentReleaseNotes())
 
   // Přeposílání průběhu úloh do renderer procesu.
   jobManager.on('update', (job) => {
