@@ -472,7 +472,7 @@ export function App(): JSX.Element {
         // Nastavení leží nad knihovnou i hledáním → zavírá se první.
         else if (st.showSettings) st.setShowSettings(false)
         else if (st.showLibrary) st.setShowLibrary(false)
-        // Označené písně: první Escape jen zruší výběr (jako v My Library),
+        // Označené písně: první Escape jen zruší výběr (jako v Library),
         // teprve další schová okno.
         else if (st.selectedKeys.length > 0 && !typing) st.clearSelection()
         else window.api.hideOverlay()
@@ -506,7 +506,7 @@ export function App(): JSX.Element {
         e.preventDefault()
         const next =
           e.key === 'ArrowDown' ? Math.min(selectedIndex + 1, max) : Math.max(selectedIndex - 1, 0)
-        // Shift+šipka rozšiřuje výběr od místa, kde Shift začal (jako v My Library).
+        // Shift+šipka rozšiřuje výběr od místa, kde Shift začal (jako v Library).
         if (e.shiftKey) {
           if (keyAnchor.current === null) keyAnchor.current = Math.max(selectedIndex, 0)
           const [lo, hi] = keyAnchor.current < next ? [keyAnchor.current, next] : [next, keyAnchor.current]

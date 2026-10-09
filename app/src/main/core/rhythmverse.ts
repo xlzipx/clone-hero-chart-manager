@@ -103,7 +103,7 @@ function computeExpertOnly(diffs: unknown): boolean | null {
  * Obsažené obtížnosti (podmnožina „emhx") z `file.difficulties`: per nástroj
  * příznaky e/m/h/x (+ „all" = všechny). Vokály a pro/real nástroje se
  * nepočítají (Clone Hero je nehraje po obtížnostech) — stejně jako u písní
- * v My Library. null = data chybí, '' = data jsou, ale bez obtížností nástrojů.
+ * v Library. null = data chybí, '' = data jsou, ale bez obtížností nástrojů.
  */
 function computeLevels(diffs: unknown): string | null {
   if (!diffs || typeof diffs !== 'object') return null

@@ -5,8 +5,8 @@
  */
 export const TIPS: string[] = [
   'Click an artist or album name in the results to see all of its charts.',
-  'Duplicates in My Library keeps the best copy of every song in one click.',
-  'Broken songs in My Library can be fixed all at once with a fresh download.',
+  'Duplicates in Library keeps the best copy of every song in one click.',
+  'Broken songs in Library can be fixed all at once with a fresh download.',
   'Hover a song’s album art and press play to preview it before you download.',
   'Leave the search box empty to browse the entire catalogue, no keyword needed.',
   'Surprise me in the sidebar picks a handful of random charts from whatever you’re currently browsing.',
@@ -22,7 +22,7 @@ export const TIPS: string[] = [
   'Charts hosted on MEGA or Mediafire open in your browser; download them, then drop the file back here.',
   'Phase Shift and Rock Band charts often need a manual download; the Clone Hero tab is the most reliable.',
   'An In library tag means you already own that chart, click it to jump to it in your library.',
-  'In My Library, right-click a folder and pick Listen in music player to play your downloaded charts in the built-in player.',
+  'In Library, right-click a folder and pick Listen in music player to play your downloaded charts in the built-in player.',
   'Set Chart folder name in Settings and save every download into a predefined folder.',
   'After a download finishes, switch to Clone Hero and run Scan Songs to see the new charts in game.'
 ]

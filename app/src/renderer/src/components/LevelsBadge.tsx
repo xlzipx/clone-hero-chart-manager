@@ -12,7 +12,7 @@ export const LEVELS: { id: Level; label: string }[] = [
  *  čtverečky E M H X — obsažená úroveň vybarvená (zelená → červená), chybějící
  *  jen naznačená. Písmena čtou jako výčet úrovní, ne jako stupnici (stejně
  *  vysoké rozsvícené dílky vypadaly jako ukazatel „na maximum").
- *  Sdílený mezi vyhledáváním a My Library, ať znamená všude totéž. */
+ *  Sdílený mezi vyhledáváním a Library, ať znamená všude totéž. */
 export function LevelsBadge({ levels }: { levels: string | null | undefined }): JSX.Element | null {
   if (!levels) return null
   const names = LEVELS.filter((l) => levels.includes(l.id)).map((l) => l.label)

@@ -137,7 +137,7 @@ function SongRowBase({
     if (url) window.api.openExternal(url)
   }
 
-  // „In library" → otevři píseň v Library Manageru (ne v Průzkumníku). Duplikáty
+  // „In library" → otevři píseň v Library (ne v Průzkumníku). Duplikáty
   // (víc kopií) předáme jako seznam — manager pak nabídne přepínání mezi nimi.
   const openLibraryAt = useStore((s) => s.openLibraryAt)
   const searchArtist = useStore((s) => s.searchArtist)
@@ -363,7 +363,7 @@ function SongRowBase({
             <button
               type="button"
               className="badge badge--owned"
-              title="Show this song in the Library Manager"
+              title="Show this song in Library"
               onClick={(e) => {
                 e.stopPropagation()
                 void revealInLibrary()

@@ -164,7 +164,7 @@ export function SearchBar(): JSX.Element {
     query.trim().length >= 2 &&
     (suggestLoading || suggest.length > 0 || suggestTotal === 0)
 
-  // Počet u tlačítka Filters = vše, co „Clear filters" vymaže (jako v My Library):
+  // Počet u tlačítka Filters = vše, co „Clear filters" vymaže (jako v Library):
   // každý nástroj zvlášť, rozsah intenzity, filtry panelu, charter/interpret/album,
   // obtížnosti a přepínače Hide owned / Direct downloads.
   const activeFilterCount =
@@ -286,7 +286,7 @@ export function SearchBar(): JSX.Element {
           onClick={() => {
             setShowFilters(!showFilters)
             // Výsledky jen po dobu vysouvání na vlastní vrstvě (plynulá roleta,
-            // jako v My Library); natrvalo by vrstva zpomalovala scrollování.
+            // jako v Library); natrvalo by vrstva zpomalovala scrollování.
             const list = document.querySelector('.results')
             if (list) {
               list.classList.add('results--rolling')
@@ -302,7 +302,7 @@ export function SearchBar(): JSX.Element {
           ) : null}
         </button>
         {/* Se zapnutými filtry vyjede vedle tlačítka Filters jejich vymazání
-            (stejně jako v My Library). */}
+            (stejně jako v Library). */}
         {activeFilterCount > 0 ? (
           <button
             type="button"

@@ -93,7 +93,7 @@ export function Pager({
     <div className="pager">
       <div className="pager__left">
         {/* Aktivní filtry ukazuje počet u tlačítka Filters a vedle něj
-            „Clear filters" (jako v My Library), tady už nic. */}
+            „Clear filters" (jako v Library), tady už nic. */}
       </div>
 
       <div className="pager__pages">

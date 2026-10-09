@@ -40,7 +40,7 @@ export interface SongResult {
   expertOnly: boolean | null
   /**
    * Obsažené obtížnosti nástrojů (bez vokálů): podmnožina „emhx" (Easy /
-   * Medium / Hard / Expert), stejně jako u písní v My Library. null = neznámé.
+   * Medium / Hard / Expert), stejně jako u písní v Library. null = neznámé.
    */
   levels: string | null
   charter: string | null

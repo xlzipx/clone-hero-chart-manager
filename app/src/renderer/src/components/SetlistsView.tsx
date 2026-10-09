@@ -36,7 +36,7 @@ export function ToolHead({
   )
 }
 
-/** Obal + ukázka písně z knihovny (stejné chování jako karty v My Library). */
+/** Obal + ukázka písně z knihovny (stejné chování jako karty v Library). */
 export function SongArt({
   rel,
   thumb,

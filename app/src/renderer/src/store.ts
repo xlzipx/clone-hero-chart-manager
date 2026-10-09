@@ -309,7 +309,7 @@ interface AppState {
   startBulkFix: (pairs: { rel: string; name: string; song: SongResult }[]) => Promise<void>
   dismissBulkRun: () => void
   dismissFixNotice: () => void
-  /** Otevře Library Manager rovnou na dané písni (kopiích) a vybere ji. */
+  /** Otevře Library rovnou na dané písni (kopiích) a vybere ji. */
   openLibraryAt: (rels: string[]) => void
   setShowWhatsNew: (v: boolean) => void
   /** Otevře „What's new". `since` = z jaké verze uživatel přišel (null/nezadáno = posledních N). */

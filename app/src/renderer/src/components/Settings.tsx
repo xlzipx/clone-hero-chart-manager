@@ -533,7 +533,7 @@ export function Settings(): JSX.Element | null {
                   <Icon name="info" size={16} />
                   <span>
                     Pick your Clone Hero <strong>Songs</strong> folder to get started. Downloaded charts go
-                    there and My Library shows what's inside.
+                    there and Library shows what's inside.
                   </span>
                 </div>
               ) : null}
@@ -541,7 +541,7 @@ export function Settings(): JSX.Element | null {
                 <Row
                   stack
                   title="Songs folder"
-                  desc="Your Clone Hero Songs folder. Downloads are installed here and My Library shows its contents."
+                  desc="Your Clone Hero Songs folder. Downloads are installed here and Library shows its contents."
                 >
                   <PathField
                     value={config.songsDir}
@@ -831,7 +831,7 @@ export function Settings(): JSX.Element | null {
               <Row title="Tips in the title bar" desc="Short rotating hints next to the title, like how to preview a song.">
                 <Switch label="Tips in the title bar" checked={config.showTips !== false} onChange={(v) => set({ showTips: v })} />
               </Row>
-              <Row title="Compact rows" desc="Shorter song rows in Search and My Library, so more songs fit on the screen.">
+              <Row title="Compact rows" desc="Shorter song rows in Search and Library, so more songs fit on the screen.">
                 <Switch label="Compact rows" checked={!!config.compactRows} onChange={(v) => set({ compactRows: v })} />
               </Row>
               <Row title="Reduce motion" desc="Turns off animations and transitions. Can help on slower computers.">
