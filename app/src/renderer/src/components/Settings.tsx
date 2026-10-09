@@ -740,7 +740,13 @@ export function Settings(): JSX.Element | null {
                 </Row>
                 <Row
                   title="Converter"
-                  desc="Rock Band charts (Xbox 360 CON and RB3CON) become Clone Hero song folders while they download. Turn it off to save the original file exactly as the database has it, for example for Rock Band 3 on Xbox 360."
+                  desc={
+                    <>
+                      <em className="field__rec">On recommended</em> — Rock Band charts (Xbox 360 CON and RB3CON) become
+                      Clone Hero song folders while they download. Turn it off to save the original file exactly as the
+                      database has it, for example for Rock Band 3 on Xbox 360.
+                    </>
+                  }
                 >
                   <Switch
                     label="Converter"
