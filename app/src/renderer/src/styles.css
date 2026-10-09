@@ -8918,13 +8918,6 @@ button.plrow__na:hover {
   border-color: rgba(var(--lv-warn-rgb), 0.5);
   background: rgba(var(--lv-warn-rgb), 0.12);
 }
-.lv__fclear {
-  align-self: flex-start;
-  margin-top: 4px;
-}
-.lv__filters {
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-}
 .lv__brokenlink {
   display: inline-flex;
   align-items: center;
@@ -11172,30 +11165,31 @@ svg.lvfolder-ico {
 .lv__head {
   overflow-x: hidden;
 }
-/* Panel filtrů: skupiny se při nedostatku místa zalamují pod sebe a výběr
- * obtížností (Tier od–do) se smí zúžit, místo aby vjel do pole Charter. */
+/* Panel filtrů: jedna mřížka o čtyřech sloupcích pro oba řádky (nahoře
+ * přepínače, dole textová pole + souhrn), takže všechno lícuje pod sebou.
+ * V úzkém panelu (bez pravého sloupce, malé okno) se složí do dvou sloupců. */
+.lvfroll__inner {
+  container-type: inline-size;
+}
 .lv__filters {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 18px 24px;
+  padding: 16px 18px 18px;
 }
-.lv__filters > .lv__fgroup {
-  flex: 1 1 180px;
+@container (max-width: 820px) {
+  .lv__filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
-.lv__filters > .lv__fgroup:first-child {
-  flex: 1.6 1 250px;
-}
-.lv__filters > .lv__fgroup:last-child {
-  flex: 0 1 auto;
+.lv__fhint {
+  line-height: 1.35;
 }
 .lv__range {
   flex-wrap: wrap;
   min-width: 0;
 }
-/* Intenzita je jednociferná (0–6) → úzká pole stejně vysoká jako čipy
-   filtrů; celá skupina jen tak široká, jak je potřeba (nápověda se zalomí). */
-.lv__filters > .lv__fgroup.lv__fgroup--range {
-  flex: 0 0 150px;
-}
+/* Intenzita je jednociferná (0–6) → úzká pole stejně vysoká jako čipy. */
 .lv__range .lib__sortsel {
   flex: 0 0 auto;
   width: 50px;
@@ -11209,6 +11203,24 @@ svg.lvfolder-ico {
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
+}
+/* Souhrn ve čtvrtém sloupci: počet shod a vymazání ve výšce textových polí. */
+.lv__fsumrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px; /* výška .lv__finput */
+}
+.lv__fsumcount {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.lv__fsumcount b {
+  color: var(--text);
+  font-weight: 700;
 }
 
 /* Hromadná oprava rozbitých písní */
@@ -12781,20 +12793,6 @@ li.lvexist__more {
   color: var(--text-dim);
 }
 
-/* Filtry v My Library: Artist / Album / Charter vedle sebe přes celou šířku. */
-.lv__ftext {
-  grid-column: 1 / -1;
-  flex: 1 1 100%; /* panel filtrů je flex se zalamováním → vlastní celý řádek */
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px 22px;
-  align-items: start;
-}
-.lv__ftext .lv__finput {
-  width: 100%;
-  max-width: none;
-}
 
 /* Hledání: „Difficulty levels" nese pět přepínačů (Easy … Expert + Expert only)
    → přirozená šířka bez stropu .filterfield, přepínače podle obsahu. */

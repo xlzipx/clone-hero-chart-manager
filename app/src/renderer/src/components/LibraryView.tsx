@@ -1465,7 +1465,7 @@ export function LibraryView(): JSX.Element {
                   )
                 })}
               </div>
-              <span className="lv__fhint">Only songs with every selected instrument charted.</span>
+              <span className="lv__fhint">Songs must chart all selected.</span>
             </div>
             <div className="lv__fgroup lv__fgroup--range">
               <span className="lv__flabel">Intensity</span>
@@ -1503,9 +1503,7 @@ export function LibraryView(): JSX.Element {
                 </select>
               </div>
               <span className="lv__fhint">
-                {filters.inst.length
-                  ? 'Every selected instrument must be in this range.'
-                  : 'No instrument selected: any instrument in this range.'}
+                {filters.inst.length ? 'Each selected instrument in range.' : 'Any instrument in range.'}
               </span>
             </div>
             <div className="lv__fgroup">
@@ -1555,10 +1553,8 @@ export function LibraryView(): JSX.Element {
                 })()}
               </div>
               <span className="lv__fhint">
-                {filters.expertOnly
-                  ? 'Only charts with no easier difficulty than Expert.'
-                  : 'Songs that include every selected difficulty.'}
-                {levelFilter && levelsLoading ? ' (still reading charts…)' : ''}
+                {filters.expertOnly ? 'No easier difficulty than Expert.' : 'Songs must include all selected.'}
+                {levelFilter && levelsLoading ? ' Reading charts…' : ''}
               </span>
             </div>
             <div className="lv__fgroup">
@@ -1573,44 +1569,52 @@ export function LibraryView(): JSX.Element {
                   <Icon name="alert" size={14} /> Broken songs{brokenCount ? ` (${brokenCount})` : ''}
                 </button>
               </div>
-              <button className="lv__link lv__fclear" type="button" disabled={!activeFilterCount} onClick={() => setFilters(NO_FILTERS)}>
-                Clear filters
-              </button>
             </div>
-            {/* Textová pole vedle sebe na vlastním řádku. */}
-            <div className="lv__ftext">
-              <div className="lv__fgroup">
-                <span className="lv__flabel">Artist</span>
-                <input
-                  className="lv__finput"
-                  placeholder="e.g. Linkin Park"
-                  value={filters.artist}
-                  onChange={(e) => setFilters((f) => ({ ...f, artist: e.target.value }))}
-                />
-              </div>
-              <div className="lv__fgroup">
-                <span className="lv__flabel">Album</span>
-                <input
-                  className="lv__finput"
-                  placeholder="e.g. Meteora"
-                  value={filters.album}
-                  onChange={(e) => setFilters((f) => ({ ...f, album: e.target.value }))}
-                />
-              </div>
-              <div className="lv__fgroup">
-                <span className="lv__flabel">Charter</span>
-                <input
-                  className="lv__finput"
-                  placeholder="Charter name"
-                  value={filters.charter}
-                  onChange={(e) => setFilters((f) => ({ ...f, charter: e.target.value }))}
-                />
-                <span className="lv__fhint">
-                  {visible.filter((i) => i.kind === 'song').length} of {songCount} songs match
-                  {metaFilter ? ', including subfolders' : ''}
-                  {infoLoading ? ' (still reading song details…)' : ''}
+            {/* Druhý řádek mřížky: textová pole pod sloupci prvního řádku. */}
+            <div className="lv__fgroup">
+              <span className="lv__flabel">Artist</span>
+              <input
+                className="lv__finput"
+                placeholder="e.g. Linkin Park"
+                value={filters.artist}
+                onChange={(e) => setFilters((f) => ({ ...f, artist: e.target.value }))}
+              />
+            </div>
+            <div className="lv__fgroup">
+              <span className="lv__flabel">Album</span>
+              <input
+                className="lv__finput"
+                placeholder="e.g. Meteora"
+                value={filters.album}
+                onChange={(e) => setFilters((f) => ({ ...f, album: e.target.value }))}
+              />
+            </div>
+            <div className="lv__fgroup">
+              <span className="lv__flabel">Charter</span>
+              <input
+                className="lv__finput"
+                placeholder="Charter name"
+                value={filters.charter}
+                onChange={(e) => setFilters((f) => ({ ...f, charter: e.target.value }))}
+              />
+            </div>
+            {/* Souhrn panelu: kolik písní filtrům odpovídá + vymazání. */}
+            <div className="lv__fgroup lv__fsum">
+              <span className="lv__flabel">Matches</span>
+              <div className="lv__fsumrow">
+                <span className="lv__fsumcount">
+                  <b>{visible.filter((i) => i.kind === 'song').length}</b> of {songCount} songs
                 </span>
+                <button className="lv__link" type="button" disabled={!activeFilterCount} onClick={() => setFilters(NO_FILTERS)}>
+                  Clear filters
+                </button>
               </div>
+              {metaFilter || infoLoading ? (
+                <span className="lv__fhint">
+                  {metaFilter ? 'Including subfolders.' : ''}
+                  {infoLoading ? ' Reading song details…' : ''}
+                </span>
+              ) : null}
             </div>
           </div>
           </div>
