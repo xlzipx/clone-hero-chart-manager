@@ -1605,8 +1605,8 @@ export function LibraryView(): JSX.Element {
                 <span className="lv__fsumcount">
                   <b>{visible.filter((i) => i.kind === 'song').length}</b> of {songCount} songs
                 </span>
-                <button className="lv__link" type="button" disabled={!activeFilterCount} onClick={() => setFilters(NO_FILTERS)}>
-                  Clear filters
+                <button className="lv__chip lv__fclear" type="button" disabled={!activeFilterCount} onClick={() => setFilters(NO_FILTERS)}>
+                  <Icon name="close" size={12} /> Clear filters
                 </button>
               </div>
               {metaFilter || infoLoading ? (
@@ -1857,11 +1857,19 @@ export function LibraryView(): JSX.Element {
               <Icon name="paste" size={14} /> Paste ({clip.items.length})
             </button>
           ) : null}
-          <span className="lib__hint">
-            {IS_MAC
-              ? 'Right-click for actions · ⌘A · ⌘C/X/V · ⌘⌫ · ↩'
-              : 'Right-click for actions · Ctrl+A · Ctrl+C/X/V · Del · F2'}
-          </span>
+          {/* Se zapnutými filtry je tu jejich vymazání (výraznější než odkaz
+              v panelu a vidět i se zavřeným panelem); jinak nápověda zkratek. */}
+          {activeFilterCount ? (
+            <button type="button" className="lib__btn" onClick={() => setFilters(NO_FILTERS)}>
+              <Icon name="close" size={13} /> Clear filters ({activeFilterCount})
+            </button>
+          ) : (
+            <span className="lib__hint">
+              {IS_MAC
+                ? 'Right-click for actions · ⌘A · ⌘C/X/V · ⌘⌫ · ↩'
+                : 'Right-click for actions · Ctrl+A · Ctrl+C/X/V · Del · F2'}
+            </span>
+          )}
         </div>
       </section>
 

@@ -11222,6 +11222,10 @@ svg.lvfolder-ico {
   color: var(--text);
   font-weight: 700;
 }
+.lv__fclear:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 /* Hromadná oprava rozbitých písní */
 .lv__fixall {
