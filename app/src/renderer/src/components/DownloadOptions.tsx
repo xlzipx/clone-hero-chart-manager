@@ -72,6 +72,8 @@ export function DownloadOptions({ encore, rbKeys = [] }: { encore: 'choice' | 'n
           >
             <span className="rowmenu__radio" /> Original file (no conversion)
           </button>
+          {/* Videa nepatří k převodu → oddělit, ať nevypadají jako jeho volba. */}
+          <div className="rowmenu__sep" />
         </>
       ) : null}
       <button
