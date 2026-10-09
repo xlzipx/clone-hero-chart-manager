@@ -9699,16 +9699,17 @@ button.plrow__na:hover {
   pointer-events: none;
 }
 
-/* Tlačítko v horní liště v Library = „Back to search" (sekundární vzhled). */
-.titlebar__library.titlebar__library--back,
-[data-theme='graphite'] .titlebar__library.titlebar__library--back {
+/* Search / Library v horní liště: tlačítko místa, kde nejste, má sekundární vzhled. */
+.titlebar__library.titlebar__library--idle,
+[data-theme='graphite'] .titlebar__library.titlebar__library--idle {
   background: var(--pill, var(--panel));
   color: var(--text);
   border: 1px solid var(--border-strong);
   box-shadow: none !important;
+  text-shadow: none;
 }
-.titlebar__library.titlebar__library--back:hover,
-[data-theme='graphite'] .titlebar__library.titlebar__library--back:hover {
+.titlebar__library.titlebar__library--idle:hover,
+[data-theme='graphite'] .titlebar__library.titlebar__library--idle:hover {
   background: var(--pill-hi, var(--panel-hover));
   color: var(--text);
 }

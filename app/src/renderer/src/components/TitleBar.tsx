@@ -5,7 +5,7 @@ import { TipsTicker } from './TipsTicker'
 
 /**
  * Horní řádek obsahu (redesign v2): jen textový brand „Chart Manager" vlevo,
- * vpravo My Library / Settings / minimize / close. Verze + „check for updates"
+ * vpravo Search / Library / Settings / minimize / close. Verze + „check for updates"
  * jsou dole v Sidebaru. Celý pruh je drag oblast okna.
  */
 export function TitleBar(): JSX.Element {
@@ -55,28 +55,32 @@ export function TitleBar(): JSX.Element {
       <TipsTicker />
 
       <div className="titlebar__actions">
-        {/* V Nastavení vede tlačítko zpět na to, co leží pod nimi (hledání nebo
-            knihovna), ať se odtud nedá „ztratit" (dřív šlo zpět jen přes kolečko). */}
+        {/* Navigace Search / Library: zvýrazněné je tlačítko místa, kde právě
+            jste (v Nastavení ani jedno). Obě fungují odkudkoli, i z Nastavení. */}
         <button
-          className={`titlebar__library ${showLibrary || showSettings ? 'titlebar__library--back' : ''}`}
-          title={
-            showSettings
-              ? showLibrary
-                ? 'Close settings and go back to your library'
-                : 'Close settings and go back to searching for charts'
-              : showLibrary
-                ? 'Back to searching for charts (your search is kept)'
-                : 'Browse and manage your Songs library: folders, metadata, setlists, duplicates'
-          }
-          onClick={() => (showSettings ? setShowSettings(false) : setShowLibrary(!showLibrary))}
+          className={`titlebar__library titlebar__search ${!showLibrary && !showSettings ? '' : 'titlebar__library--idle'}`}
+          title="Search for charts (your search is kept)"
+          aria-current={!showLibrary && !showSettings ? 'page' : undefined}
+          onClick={() => setShowLibrary(false)}
         >
-          <Icon name={showSettings ? (showLibrary ? 'folder' : 'search') : showLibrary ? 'search' : 'folder'} size={15} />
-          <span>{showSettings ? (showLibrary ? 'Back to library' : 'Back to search') : showLibrary ? 'Back to search' : 'My Library'}</span>
+          <Icon name="search" size={15} />
+          <span>Search</span>
+        </button>
+        <button
+          className={`titlebar__library ${showLibrary && !showSettings ? '' : 'titlebar__library--idle'}`}
+          title="Browse and manage your Songs library: folders, metadata, setlists, duplicates"
+          aria-current={showLibrary && !showSettings ? 'page' : undefined}
+          onClick={() => setShowLibrary(true)}
+        >
+          <Icon name="folder" size={15} />
+          <span>Library</span>
         </button>
         <button
           className={`titlebar__btn ${showSettings ? 'titlebar__btn--on' : ''}`}
-          title={showSettings ? 'Close settings' : 'Settings'}
-          onClick={() => setShowSettings(!showSettings)}
+          title="Settings"
+          aria-current={showSettings ? 'page' : undefined}
+          // Jen otevírá; zpět se jde přes Search / Library (nebo Done, Esc).
+          onClick={() => setShowSettings(true)}
         >
           <Icon name="settings" size={16} />
         </button>
