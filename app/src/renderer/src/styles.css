@@ -11191,10 +11191,19 @@ svg.lvfolder-ico {
   flex-wrap: wrap;
   min-width: 0;
 }
+/* Intenzita je jednociferná (0–6) → úzká pole stejně vysoká jako čipy
+   filtrů; celá skupina jen tak široká, jak je potřeba (nápověda se zalomí). */
+.lv__filters > .lv__fgroup.lv__fgroup--range {
+  flex: 0 0 150px;
+}
 .lv__range .lib__sortsel {
-  flex: 1 1 84px;
+  flex: 0 0 auto;
+  width: 50px;
+  height: 30px;
   min-width: 0;
-  max-width: 120px;
+  padding: 0 4px 0 8px;
+  font-size: 12.5px;
+  border-radius: 8px;
 }
 .lv__finput {
   min-width: 0;

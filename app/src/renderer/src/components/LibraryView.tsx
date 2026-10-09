@@ -1467,7 +1467,7 @@ export function LibraryView(): JSX.Element {
               </div>
               <span className="lv__fhint">Only songs with every selected instrument charted.</span>
             </div>
-            <div className="lv__fgroup">
+            <div className="lv__fgroup lv__fgroup--range">
               <span className="lv__flabel">Intensity</span>
               <div className="lv__range">
                 <select
