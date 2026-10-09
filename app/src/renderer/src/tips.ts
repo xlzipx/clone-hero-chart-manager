@@ -17,6 +17,7 @@ export const TIPS: string[] = [
   'Charter and artist filters search the full catalog of both databases.',
   'In Sort by, pick Added for the newest charts or Downloads for the most popular.',
   'Rock Band CON charts are converted to Clone Hero automatically when you download them.',
+  'Need the original RB3CON file, for example for Rock Band 3 on Xbox 360? Turn off the Converter in Settings, or pick Original file in a song’s download menu.',
   'A chart tagged Official DLC is a paid Rock Band song, so it opens the store instead of downloading.',
   'Charts hosted on MEGA or Mediafire open in your browser; download them, then drop the file back here.',
   'Phase Shift and Rock Band charts often need a manual download; the Clone Hero tab is the most reliable.',
