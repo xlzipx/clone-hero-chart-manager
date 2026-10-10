@@ -110,7 +110,7 @@ export async function readAlbumArt(folderAbs: string): Promise<string | null> {
  */
 export async function readSongInfo(
   folderAbs: string
-): Promise<Omit<import('../../shared/types').LibSongInfo, 'rel'> | null> {
+): Promise<(Omit<import('../../shared/types').LibSongInfo, 'rel'> & { unrated: string[] }) | null> {
   let txt: string
   try {
     txt = await fsp.readFile(join(folderAbs, 'song.ini'), 'utf-8')
@@ -135,6 +135,19 @@ export async function readSongInfo(
     vocals: diff('diff_vocals'),
     keys: diff('diff_keys') ?? diff('diff_keys_real')
   }
+  // Nástroje, u kterých song.ini žádné diff_* nemá vůbec (starší převody mívají
+  // jen název a interpreta). Knihovna je pak doplní podle stop v souboru s notami.
+  const unrated = (
+    [
+      ['guitar', ['diff_guitar']],
+      ['bass', ['diff_bass']],
+      ['drums', ['diff_drums', 'diff_drums_real']],
+      ['vocals', ['diff_vocals']],
+      ['keys', ['diff_keys', 'diff_keys_real']]
+    ] as const
+  )
+    .filter(([, keys]) => keys.every((k) => g(k) === undefined))
+    .map(([inst]) => inst)
   // Hodnoty jdou do UI SYROVĚ (vč. <color=…> tagů) — vykreslí je RichText
   // barevně jako hra. Editor metadat je stejně chce syrové.
   return {
@@ -145,6 +158,7 @@ export async function readSongInfo(
     genre: g('genre') ?? '',
     year: Number.isFinite(yr) ? yr : null,
     lengthSeconds: Number.isFinite(lenMs) ? Math.round(lenMs / 1000) : null,
-    difficulties
+    difficulties,
+    unrated
   }
 }

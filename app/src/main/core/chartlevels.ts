@@ -249,10 +249,19 @@ export async function songLevelsCached(folderAbs: string): Promise<string | null
 /** Obtížnosti nástrojů ze song.ini omezené na nástroje, které mají noty.
  *  Nezjištěné nástroje (prázdné / nečitelné noty) nechá být — radši ukázat
  *  údaj ze song.ini, než omylem schovat celý chart. */
-export function maskDifficulties(d: InstrumentDifficulties, insts: string | null | undefined): InstrumentDifficulties {
+export function maskDifficulties(
+  d: InstrumentDifficulties,
+  insts: string | null | undefined,
+  unrated: readonly string[] = []
+): InstrumentDifficulties {
   if (!insts) return d
   const out: Record<string, number | undefined> = { ...d }
   const map: Record<string, string> = { guitar: 'g', bass: 'b', drums: 'd', keys: 'k', vocals: 'v' }
-  for (const [key, letter] of Object.entries(map)) if (!insts.includes(letter)) delete out[key]
+  for (const [key, letter] of Object.entries(map)) {
+    if (!insts.includes(letter)) delete out[key]
+    // Nástroj má noty, ale song.ini mu žádné diff_* neuvádí (starší převody) →
+    // ukázat ho jako nacharovaný s neznámou intenzitou (0 = ikona svítí, tečky prázdné).
+    else if (out[key] === undefined && unrated.includes(key)) out[key] = 0
+  }
   return out as InstrumentDifficulties
 }

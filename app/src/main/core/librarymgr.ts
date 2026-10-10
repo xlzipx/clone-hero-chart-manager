@@ -672,11 +672,12 @@ export async function libAlbumCovers(rels: string[]): Promise<Record<string, str
 
 /** song.ini + obtížnosti jen u nástrojů, které mají v chartu noty (song.ini
  *  je občas uvádí i u nenacharovaných — typicky diff_* = 1 u všech). */
-async function readSongInfoChecked(abs: string): Promise<Awaited<ReturnType<typeof readSongInfo>>> {
-  const info = await readSongInfo(abs)
-  if (!info) return info
+async function readSongInfoChecked(abs: string): Promise<Omit<LibSongInfo, 'rel'> | null> {
+  const read = await readSongInfo(abs)
+  if (!read) return read
+  const { unrated, ...info } = read
   const content = await songContentCached(abs).catch(() => null)
-  return content ? { ...info, difficulties: maskDifficulties(info.difficulties, content.insts) } : info
+  return content ? { ...info, difficulties: maskDifficulties(info.difficulties, content.insts, unrated) } : info
 }
 
 /** Detail otevřené písně: metadata + obal alba (data URI). */
