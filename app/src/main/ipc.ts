@@ -14,13 +14,8 @@ import type {
 } from '../shared/types'
 import { getConfig, setConfig, resetConfig } from './core/config'
 import { isLinux, isMac } from './core/platform'
-import {
-  catalogGenres,
-  getLoudness,
-  queryCatalog,
-  setLoudness,
-  setOwnedKeys as setCatalogOwned
-} from './core/catalog'
+import { catalogGenres, getLoudness, setLoudness } from './core/catalog'
+import { queryCatalogAsync, setOwnedKeysEverywhere } from './core/catalogreader'
 import { getCatalogStatus, refreshWholeCatalog, syncCatalog } from './core/catalogsync'
 import type { CatalogQuery } from '../shared/types'
 import { search as searchEnchor } from './core/enchor'
@@ -165,7 +160,7 @@ export function registerIpc(): void {
   // ---- Lokální katalog metadat ----
   ipcMain.handle('catalog:status', () => getCatalogStatus())
   ipcMain.handle('catalog:genres', () => catalogGenres())
-  ipcMain.handle('catalog:query', (_e, q: CatalogQuery): SearchResponse => {
+  ipcMain.handle('catalog:query', (_e, q: CatalogQuery): Promise<SearchResponse> => {
     // Použitelnost je PER-ZDROJ: Encore se staví první a jeho dotazy musí
     // projít, i když se RhythmVerse část ještě stahuje.
     const src = getCatalogStatus().sources
@@ -176,11 +171,11 @@ export function registerIpc(): void {
           ? src.rv.ready
           : src.rv.ready && src.en.ready
     if (!ok) throw new Error('Catalog is not ready yet')
-    return queryCatalog(q)
+    return queryCatalogAsync(q)
   })
   ipcMain.handle('catalog:setOwned', (_e, keys: string[]) => {
     try {
-      setCatalogOwned(Array.isArray(keys) ? keys : [])
+      setOwnedKeysEverywhere(Array.isArray(keys) ? keys : [])
     } catch (err) {
       // Katalog nemusí být inicializovaný (selhal init) — „Hide owned" pak
       // spadne na klientský refine nad stránkou, appka běží dál.

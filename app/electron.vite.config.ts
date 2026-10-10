@@ -7,7 +7,11 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        input: { index: resolve(__dirname, 'src/main/index.ts') }
+        input: {
+          index: resolve(__dirname, 'src/main/index.ts'),
+          // Čtecí vlákno katalogu (worker_threads) — samostatný soubor vedle index.js.
+          catalogworker: resolve(__dirname, 'src/main/core/catalogworker.ts')
+        }
       }
     }
   },

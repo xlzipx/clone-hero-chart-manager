@@ -241,6 +241,26 @@ function FilterText({
   placeholder: string
   onChange: (v: string) => void
 }): JSX.Element {
+  // Psaní jde do vlastního stavu pole a filtr se nastaví až po krátké pauze
+  // (nebo Enter / opuštění pole). Dřív každé písmeno hned přefiltrovalo
+  // a překreslilo výsledky, takže se psaní při pomalejším tempu zasekávalo.
+  const [text, setText] = useState(value)
+  const timer = useRef<number>()
+  const sent = useRef(value)
+  // Změna zvenku (klik na chartera v řádku, Clear filters) → přepsat pole.
+  useEffect(() => {
+    if (value !== sent.current) {
+      sent.current = value
+      setText(value)
+    }
+  }, [value])
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+  const commit = (v: string): void => {
+    window.clearTimeout(timer.current)
+    if (v === sent.current) return
+    sent.current = v
+    onChange(v)
+  }
   return (
     <label className="filterfield">
       <span className="filterfield__label">{label}</span>
@@ -248,11 +268,20 @@ function FilterText({
       <div className="genrefield">
         <input
           className="filterfield__input"
-          value={value}
+          value={text}
           placeholder={placeholder}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value
+            setText(v)
+            window.clearTimeout(timer.current)
+            timer.current = window.setTimeout(() => commit(v), 400)
+          }}
+          onBlur={() => commit(text)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit(text)
+          }}
         />
-        {value ? (
+        {text ? (
           <button
             type="button"
             className="genrefield__clear"
@@ -261,7 +290,8 @@ function FilterText({
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              onChange('')
+              setText('')
+              commit('')
             }}
           >
             <Icon name="close" size={11} />

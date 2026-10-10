@@ -236,6 +236,25 @@ export function setOwnedKeys(keys: string[]): void {
 /** Zavře DB (při ukončení appky — ať WAL soubor korektně dosedne). Checkpoint
  *  slije WAL do hlavního souboru → po zavření zbývá jediný .db (nutné pro
  *  seed generátor, příjemné pro zálohy). */
+/** Jen pro čtecí vlákno (catalogworker.ts): existující katalog bez zápisu. */
+export function openCatalogReader(dbPath: string): void {
+  if (db) return
+  const d = new Database(dbPath, { readonly: true, fileMustExist: true })
+  d.exec('CREATE TEMP TABLE IF NOT EXISTS owned_keys (k TEXT PRIMARY KEY)')
+  db = d
+}
+
+/** Zahodí uložené počty (čtecí vlákno, když sync v hlavním procesu zapíše data). */
+export function clearCountCache(): void {
+  countCache.clear()
+}
+
+let dataChanged: (() => void) | null = null
+/** Upozornění, že se změnila data katalogu (pro čtecí vlákno). */
+export function onCatalogDataChange(cb: () => void): void {
+  dataChanged = cb
+}
+
 export function closeCatalog(): void {
   if (!db) return
   try {
@@ -450,6 +469,7 @@ const countCache = new Map<string, number>()
 export function upsertMany(items: CatalogItem[]): number {
   if (items.length === 0) return 0
   countCache.clear() // data se mění → uložené počty přestávají platit
+  dataChanged?.()
   const d = need()
   const stmt = d.prepare(INSERT_SQL)
   const run = d.transaction((rows: CatalogItem[]) => {

@@ -14,6 +14,7 @@ import { getCurrentReleaseNotes } from './core/update'
 import { isMac, isWin } from './core/platform'
 import { handleAudioProtocol, registerAudioScheme } from './core/localaudio'
 import { closeCatalog, ensureCatalogSeed, initCatalog, upgradeCatalogFromSeed } from './core/catalog'
+import { startCatalogReader, stopCatalogReader } from './core/catalogreader'
 import { DATA_VERSION as CATALOG_DATA_VERSION, scheduleCatalogSync, stopCatalogSync } from './core/catalogsync'
 
 /**
@@ -94,6 +95,8 @@ if (!app.requestSingleInstanceLock()) {
           return
         }
       }
+      // Dotazy z UI ve vlastním vlákně, ať dlouhý dotaz nebrzdí okno.
+      startCatalogReader(dbPath)
       scheduleCatalogSync((s) => getOverlay()?.webContents.send('catalog:status', s))
     })()
 
@@ -106,6 +109,7 @@ if (!app.requestSingleInstanceLock()) {
     unregisterHotkeys()
     stopGamePoll()
     stopCatalogSync()
+    stopCatalogReader()
     closeCatalog()
     destroyTray()
     destroyReminder()
