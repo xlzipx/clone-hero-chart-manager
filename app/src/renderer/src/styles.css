@@ -12563,7 +12563,9 @@ svg.lvfolder-ico {
 .app-blurred .fixbar__spin,
 .app-blurred .lv__tname--run .lv__tname-in,
 .app-blurred .side-catalog__fill,
-.app-blurred .catact__spin {
+.app-blurred .catact__spin,
+.app-blurred .side-railbtn--update,
+.app-blurred .side-railbtn--checking svg {
   animation-play-state: paused !important;
 }
 /* Další složky (mimo Songs): oprava stažením by nahradila složku v archivu
@@ -12941,3 +12943,160 @@ li.lvexist__more {
 .lvlsq b.lvlsq--m { --c: var(--lv-m); }
 .lvlsq b.lvlsq--h { --c: var(--lv-h); }
 .lvlsq b.lvlsq--x { --c: var(--lv-x); }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sbalený levý panel (Settings → Compact sidebar / šipka dole v panelu):
+   úzký pruh s ikonami a zkratkami. Šířka sloupce se mění plynule.
+   ════════════════════════════════════════════════════════════════════════ */
+.workspace {
+  transition: grid-template-columns 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.workspace:has(> .sidebar--rail) {
+  grid-template-columns: 84px minmax(0, 1fr);
+}
+.sidebar {
+  overflow-x: hidden;
+}
+.sidebar--rail {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.side-item__short {
+  display: none;
+}
+/* Řádek s verzí a šipkou pro sbalení (rozbalený panel). */
+.side-footrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.side-railbtn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color 0.14s ease, background 0.14s ease;
+}
+.side-railbtn:hover:not(:disabled) {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Launchery pod sebou, užší dlaždice. */
+.sidebar--rail .side-launchers {
+  flex-direction: column;
+  gap: 8px;
+}
+.sidebar--rail .side-launch {
+  flex: none;
+  width: 100%;
+  height: 52px;
+}
+.sidebar--rail .side-launch__logo {
+  height: 22px;
+}
+.sidebar--rail .side-launch--clone-hero .side-launch__logo {
+  height: 28px;
+}
+
+/* Surprise me / Import playlist: jen ikona. */
+.sidebar--rail .side-surprise {
+  justify-content: center;
+  padding: 0;
+  height: 48px;
+  gap: 0;
+}
+.sidebar--rail .side-surprise__text {
+  display: none;
+}
+
+/* Database / System: zkratky místo názvů, bez teček; popisek sekce menší. */
+.sidebar--rail .side-label {
+  text-align: center;
+  padding: 0;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+}
+.sidebar--rail .side-list {
+  padding: 6px 5px;
+}
+.sidebar--rail .side-indicator {
+  left: 5px;
+  right: 5px;
+}
+.sidebar--rail .side-item {
+  padding: 0;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.sidebar--rail .side-item::before {
+  display: none;
+}
+.sidebar--rail .side-item__full {
+  display: none;
+}
+.sidebar--rail .side-item__short {
+  display: inline;
+}
+
+/* Patička: šipka pro rozbalení + ikona aktualizací pod sebou, na střed. */
+.sidebar--rail .side-footer {
+  align-items: center;
+}
+.sidebar--rail .side-railbtn {
+  width: 44px;
+  height: 36px;
+  border-radius: 10px;
+}
+.side-railbtn--toggle svg {
+  transform: rotate(180deg);
+}
+.side-railbtn--check {
+  background: var(--pill, rgba(255, 255, 255, 0.04));
+}
+.side-railbtn--checking svg {
+  animation: plspin 0.9s linear infinite;
+}
+.side-railbtn--uptodate {
+  color: var(--ok);
+}
+.side-railbtn--error {
+  color: var(--warn);
+}
+/* Dostupná aktualizace: akcentem zalité tlačítko s jemným pulzem. */
+.side-railbtn--update {
+  color: #fff;
+  background: rgba(var(--accent-rgb), 0.55);
+  box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.5);
+  animation: railPulse 2.2s ease-out infinite;
+}
+.side-railbtn--update:hover:not(:disabled) {
+  background: rgba(var(--accent-rgb), 0.75);
+}
+@keyframes railPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.45);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 8px rgba(var(--accent-rgb), 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace {
+    transition: none;
+  }
+  .side-railbtn--update {
+    animation: none;
+  }
+}

@@ -342,6 +342,8 @@ export interface AppConfig {
   reduceMotion: boolean
   /** Nižší řádky výsledků hledání (menší obal, bez popisků nástrojů). */
   compactRows: boolean
+  /** Levý panel sbalený na úzký pruh s ikonami (víc místa pro výsledky). */
+  sidebarCompact: boolean
   /** Hlasitost zvukových ukázek (0–1). */
   previewVolume: number
   /** Zobrazit malý reminder pill přes hru, když CH běží. */

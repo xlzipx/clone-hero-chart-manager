@@ -17,17 +17,18 @@ const DISMISS_KEY = 'chm.updateDismissed'
 
 type Game = 'clone-hero' | 'yarg' | null
 
-const DATABASES: { id: Database; label: string; hint: string }[] = [
-  { id: 'rhythmverse', label: 'RhythmVerse', hint: 'Largest catalogue — CH, Phase Shift and Rock Band CON' },
-  { id: 'enchor', label: 'Chorus Encore', hint: 'Curated Clone Hero charts hosted directly as .sng files' },
-  { id: 'both', label: 'Both', hint: 'Merged & de-duplicated results from both sources' }
+// `short` = zkratka v sbaleném panelu (plný název je v tooltipu).
+const DATABASES: { id: Database; label: string; short: string; hint: string }[] = [
+  { id: 'rhythmverse', label: 'RhythmVerse', short: 'RV', hint: 'Largest catalogue — CH, Phase Shift and Rock Band CON' },
+  { id: 'enchor', label: 'Chorus Encore', short: 'CE', hint: 'Curated Clone Hero charts hosted directly as .sng files' },
+  { id: 'both', label: 'Both', short: 'Both', hint: 'Merged & de-duplicated results from both sources' }
 ]
 
-const SYSTEMS: { id: RhythmVerseSystem; label: string; hint: string }[] = [
-  { id: 'ch', label: 'Clone Hero', hint: 'Native charts (no conversion)' },
-  { id: 'ps', label: 'Phase Shift', hint: 'Read by Clone Hero directly' },
-  { id: 'rb3', label: 'Rock Band', hint: 'CON → converted to CH' },
-  { id: 'all', label: 'All', hint: 'All formats' }
+const SYSTEMS: { id: RhythmVerseSystem; label: string; short: string; hint: string }[] = [
+  { id: 'ch', label: 'Clone Hero', short: 'CH', hint: 'Native charts (no conversion)' },
+  { id: 'ps', label: 'Phase Shift', short: 'PS', hint: 'Read by Clone Hero directly' },
+  { id: 'rb3', label: 'Rock Band', short: 'RB', hint: 'CON → converted to CH' },
+  { id: 'all', label: 'All', short: 'All', hint: 'All formats' }
 ]
 
 function gameName(g: Exclude<Game, null>): string {
@@ -55,6 +56,10 @@ export function Sidebar(): JSX.Element {
   // exe nenalezené → launcher označíme jako „nelze spustit" a klik pošle do Nastavení.
   const config = useStore((s) => s.config)
   const setShowSettings = useStore((s) => s.setShowSettings)
+  const saveConfig = useStore((s) => s.saveConfig)
+  // Sbalený panel: úzký pruh s ikonami a zkratkami (uloženo v nastavení).
+  const compact = !!config?.sidebarCompact
+  const toggleCompact = (): void => void saveConfig({ sidebarCompact: !compact })
   const [chOk, setChOk] = useState(true)
   const [yargOk, setYargOk] = useState(true)
   useEffect(() => {
@@ -191,7 +196,7 @@ export function Sidebar(): JSX.Element {
   const showSystems = database !== 'enchor'
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${compact ? 'sidebar--rail' : ''}`}>
       <div className="side-launchers">
         {launcher('clone-hero', chLogo)}
         {launcher('yarg', yargLogo)}
@@ -206,6 +211,7 @@ export function Sidebar(): JSX.Element {
         <button
           type="button"
           className="side-surprise"
+          title={compact ? 'Surprise me: discover 5 random charts' : undefined}
           onClick={() => {
             setShowLibrary(false)
             void surpriseMe()
@@ -221,6 +227,7 @@ export function Sidebar(): JSX.Element {
         <button
           type="button"
           className="side-surprise side-import"
+          title={compact ? 'Import playlist: turn a playlist into charts' : undefined}
           onClick={() => setShowPlaylistImport(true)}
         >
           <span
@@ -251,7 +258,7 @@ export function Sidebar(): JSX.Element {
             <button
               key={d.id}
               type="button"
-              title={d.hint}
+              title={compact ? `${d.label}: ${d.hint}` : d.hint}
               className={`side-item ${database === d.id ? 'side-item--on' : ''}`}
               onClick={() => {
                 setShowLibrary(false)
@@ -261,7 +268,8 @@ export function Sidebar(): JSX.Element {
                 void doSearch(1)
               }}
             >
-              {d.label}
+              <span className="side-item__full">{d.label}</span>
+              <span className="side-item__short" aria-hidden="true">{d.short}</span>
             </button>
           ))}
         </div>
@@ -280,7 +288,7 @@ export function Sidebar(): JSX.Element {
               <button
                 key={sys.id}
                 type="button"
-                title={sys.hint}
+                title={compact ? `${sys.label}: ${sys.hint}` : sys.hint}
                 className={`side-item ${system === sys.id ? 'side-item--on' : ''}`}
                 onClick={() => {
                   setShowLibrary(false)
@@ -289,7 +297,8 @@ export function Sidebar(): JSX.Element {
                   void doSearch(1)
                 }}
               >
-                {sys.label}
+                <span className="side-item__full">{sys.label}</span>
+                <span className="side-item__short" aria-hidden="true">{sys.short}</span>
               </button>
             ))}
           </div>
@@ -299,7 +308,41 @@ export function Sidebar(): JSX.Element {
       <div className="side-sep" aria-hidden="true" />
 
       <div className="side-footer">
-        {downloaded && available ? (
+        {compact ? (
+          // Sbalený panel: jen ikony. Aktualizace = svítící tlačítko, klik panel rozbalí
+          // (karta s podrobnostmi a tlačítky se do úzkého pruhu nevejde).
+          <>
+            <button type="button" className="side-railbtn side-railbtn--toggle" onClick={toggleCompact} title="Expand sidebar">
+              <Icon name="chevronLeft" size={16} />
+            </button>
+            {available ? (
+              <button
+                type="button"
+                className="side-railbtn side-railbtn--update"
+                onClick={toggleCompact}
+                title={downloaded ? `Update ${available.version} ready to install` : `Update ${available.version} available`}
+              >
+                <Icon name="download" size={16} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={`side-railbtn side-railbtn--check side-railbtn--${checkState}`}
+                onClick={() => void checkUpdates()}
+                disabled={checkState === 'checking'}
+                title={
+                  checkState === 'uptodate'
+                    ? "You're on the latest version"
+                    : checkState === 'error'
+                      ? "Couldn't check right now"
+                      : `Check for updates (version ${version || '…'})`
+                }
+              >
+                <Icon name={checkState === 'uptodate' ? 'check' : checkState === 'error' ? 'alert' : 'refresh'} size={16} />
+              </button>
+            )}
+          </>
+        ) : downloaded && available ? (
           // Staženo → stačí restart. Zelený „ready" nádech + obíhající okraj.
           <div className="side-update-card side-update-card--ready side-update-card--live">
             <div className="side-update-card__title">Update ready</div>
@@ -366,14 +409,19 @@ export function Sidebar(): JSX.Element {
             <CatalogActivity onOpen={() => setShowSettings(true)} />
             {/* Verze je klikací → otevře „What's new" (bez `since` = poslední
                 vydání). Jediná cesta, jak se k poznámkám dostat i bez updatu. */}
-            <button
-              type="button"
-              className="side-version"
-              title="See what's new in this version"
-              onClick={() => openWhatsNew()}
-            >
-              version {version || '…'}
-            </button>
+            <div className="side-footrow">
+              <button
+                type="button"
+                className="side-version"
+                title="See what's new in this version"
+                onClick={() => openWhatsNew()}
+              >
+                version {version || '…'}
+              </button>
+              <button type="button" className="side-railbtn side-collapse" onClick={toggleCompact} title="Collapse sidebar">
+                <Icon name="chevronLeft" size={15} />
+              </button>
+            </div>
             <button
               type="button"
               className="side-update"

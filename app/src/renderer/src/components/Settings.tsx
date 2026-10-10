@@ -834,6 +834,12 @@ export function Settings(): JSX.Element | null {
               <Row title="Compact rows" desc="Shorter song rows in Search and Library, so more songs fit on the screen.">
                 <Switch label="Compact rows" checked={!!config.compactRows} onChange={(v) => set({ compactRows: v })} />
               </Row>
+              <Row
+                title="Compact sidebar"
+                desc="Shrinks the left panel to icons, so results get more room. The arrow at the bottom of the panel toggles it too."
+              >
+                <Switch label="Compact sidebar" checked={!!config.sidebarCompact} onChange={(v) => set({ sidebarCompact: v })} />
+              </Row>
               <Row title="Reduce motion" desc="Turns off animations and transitions. Can help on slower computers.">
                 <Switch label="Reduce motion" checked={!!config.reduceMotion} onChange={(v) => set({ reduceMotion: v })} />
               </Row>

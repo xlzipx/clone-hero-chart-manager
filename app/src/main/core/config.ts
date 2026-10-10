@@ -203,6 +203,7 @@ function defaults(): AppConfig {
     showTips: true, // rotující tipy v liště (uživatel může vypnout)
     reduceMotion: false,
     compactRows: false,
+    sidebarCompact: false,
     previewVolume: 0.5,
     showReminder: false, // opt-in
     reminderPosition: 'bottom-right',
