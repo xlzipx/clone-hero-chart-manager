@@ -223,6 +223,7 @@ function defaults(): AppConfig {
     autoCheckUpdates: true,
     libraryView: 'cards',
     librarySort: { key: 'name', dir: 1 },
+    libraryLast: null,
     windowState: null,
     encoreFormat: 'folder',
     downloadVideos: true,

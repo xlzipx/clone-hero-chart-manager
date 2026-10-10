@@ -132,14 +132,14 @@ function isJunkEntry(name: string): boolean {
   return JUNK_NAMES.has(lower) || lower.startsWith('._')
 }
 
-export async function libList(rel: string): Promise<{ path: string; entries: LibEntry[] }> {
+export async function libList(rel: string): Promise<{ path: string; entries: LibEntry[]; missing?: boolean }> {
   const abs = safeAbs(rel)
   // Kořen vytvoříme (první spuštění), ale neexistující PODcesty ne — listování
   // je čtecí operace a nemá zakládat adresáře podle libovolného vstupu.
   if (!existsSync(abs)) {
     if (abs === rootDir()) mkdirSync(abs, { recursive: true })
     else if (isRootAbs(abs)) throw new Error('Folder not found. Is the drive connected?')
-    else return { path: rel, entries: [] }
+    else return { path: rel, entries: [], missing: true }
   }
   let names: string[] = []
   try {

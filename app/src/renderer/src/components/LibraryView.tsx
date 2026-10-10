@@ -116,7 +116,12 @@ let navPos = -1
 /** Byla už knihovna v tomto běhu otevřená? (Vpřed z hledání se pak do ní vrátí.) */
 export const libraryVisited = (): boolean => navHist.length > 0
 // Hledání a filtry drží jen po dobu běhu appky (po restartu začínají čisté,
-// aby uživatel nehledal, proč mu v knihovně chybí písně).
+// aby uživatel nehledal, proč mu v knihovně chybí písně). Složka, nástroj a
+// rozbalený panel filtrů se ukládají do configu (libraryLast) a obnoví se.
+/** Stav z configu už načtený? (jen při prvním otevření Library po startu) */
+let restored = false
+/** Obnovená složka se ještě nenačetla — když mezitím zmizela, spadne se do Songs. */
+let restoredPending = false
 let lastQ = ''
 let lastFilters: Filters = NO_FILTERS
 let lastFiltersOpen = false
@@ -192,6 +197,16 @@ export function LibraryView(): JSX.Element {
   const bulkRun = useStore((s) => s.bulkRun)
   const dismissBulkRun = useStore((s) => s.dismissBulkRun)
 
+  if (!restored && config) {
+    restored = true
+    const last = config.libraryLast
+    if (last) {
+      lastCwd = typeof last.cwd === 'string' ? last.cwd : ''
+      lastTool = last.tool === 'setlists' || last.tool === 'duplicates' ? last.tool : null
+      lastFiltersOpen = !!last.filtersOpen
+      restoredPending = lastCwd !== ''
+    }
+  }
   const [cwd, setCwd] = useState(lastCwd)
   const initSnap = snap && snap.path === lastCwd ? snap : null
   const [entries, setEntries] = useState<LibEntry[]>(() => initSnap?.entries ?? [])
@@ -490,6 +505,12 @@ export function LibraryView(): JSX.Element {
     try {
       const res = await window.api.libList(rel)
       if (my !== loadSeq.current) return
+      // Složka uložená z minula mezitím zmizela → tiše zpět do Songs.
+      if (res.missing && restoredPending) {
+        restoredPending = false
+        void load('')
+        return
+      }
       // Novou složku ukaž až s metadaty: ze známé cache hned, jinak po první dávce
       // (typicky celá viditelná část). Jinak by na okamžik blikly holé názvy složek.
       const rels = songRels(res.path, res.entries)
@@ -520,6 +541,7 @@ export function LibraryView(): JSX.Element {
         allInfos.set(g.rel, g)
       }
       infosPath.current = res.path
+      restoredPending = false
       setInfos(nextInfos)
       lastCwd = res.path
       setCwd(res.path)
@@ -539,6 +561,12 @@ export function LibraryView(): JSX.Element {
       void scanBroken(res.path, my)
     } catch (e) {
       if (my !== loadSeq.current) return
+      // Složka uložená z minula už neexistuje → tiše zpět do Songs.
+      if (restoredPending) {
+        restoredPending = false
+        void load('')
+        return
+      }
       if (rel.startsWith('::')) {
         // Složka mezitím odebraná ze seznamu → zpět do Songs. Odpojený disk →
         // ukázat chybu přímo v té složce (prázdný seznam), ne v té předchozí.
@@ -846,6 +874,13 @@ export function LibraryView(): JSX.Element {
     lastFilters = filters
     lastFiltersOpen = filtersOpen
   }, [q, filters, filtersOpen])
+
+  // Složka, nástroj a panel filtrů do configu → obnoví se po restartu.
+  useEffect(() => {
+    const prev = useStore.getState().config?.libraryLast
+    if (prev && prev.cwd === cwd && prev.tool === tool && prev.filtersOpen === filtersOpen) return
+    void saveConfig({ libraryLast: { cwd, tool, filtersOpen } })
+  }, [cwd, tool, filtersOpen, saveConfig])
 
   // Řazení se ukládá do configu, takže vydrží přepnutí na Search i restart.
   const sortSaved = useRef(false)
@@ -1174,6 +1209,17 @@ export function LibraryView(): JSX.Element {
         }
         return
       }
+      // Ctrl+F (Cmd+F) = do filtru složky, i z jiného pole.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f' && !anyDialog && !existingDialog && !useStore.getState().showSettings) {
+        const input = document.getElementById('lv-q') as HTMLInputElement | null
+        if (input) {
+          e.preventDefault()
+          e.stopPropagation()
+          input.focus()
+          input.select()
+        }
+        return
+      }
       if (isTypingTarget(e.target) || anyDialog || existingDialog) return
       const ctrl = e.ctrlKey || e.metaKey
       // Otevřené menu složky z levého panelu: zkratky míří na tu složku, ne na
@@ -1441,7 +1487,7 @@ export function LibraryView(): JSX.Element {
                 id="lv-q"
                 type="search"
                 placeholder="Filter…"
-                title="Filter this folder by name, title, artist or album"
+                title="Filter this folder by name, title, artist or album (Ctrl+F)"
                 value={q}
                 autoComplete="off"
                 onChange={(e) => setQ(e.target.value)}

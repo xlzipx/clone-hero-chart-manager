@@ -487,9 +487,12 @@ export function App(): JSX.Element {
         useStore.getState().showAbout
       )
         return
-      if (e.key === '/' && !typing) {
+      // „/" nebo Ctrl+F (Cmd+F) = do vyhledávacího pole; Ctrl+F i z jiného pole.
+      if ((e.key === '/' && !typing) || ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f')) {
         e.preventDefault()
-        ;(document.querySelector('.searchbar input') as HTMLInputElement)?.focus()
+        const input = document.querySelector('.searchbar input') as HTMLInputElement | null
+        input?.focus()
+        input?.select()
         return
       }
       if (typing) return

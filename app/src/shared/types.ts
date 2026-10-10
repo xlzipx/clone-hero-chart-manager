@@ -380,6 +380,8 @@ export interface AppConfig {
   libraryView: 'cards' | 'list'
   /** Poslední řazení v Library (klíč z nabídky řazení + směr), obnoví se po restartu. */
   librarySort: { key: string; dir: 1 | -1 }
+  /** Poslední otevřená složka / nástroj Library a rozbalený panel filtrů, obnoví se po restartu. */
+  libraryLast: { cwd: string; tool: 'setlists' | 'duplicates' | null; filtersOpen: boolean } | null
   /** Poslední poloha a velikost hlavního okna (DIP); null = výchozí uprostřed. */
   windowState: { x: number; y: number; width: number; height: number; maximized: boolean } | null
   /** Chart z Chorus Encore: 'folder' = rozbalit do složky písně (výchozí,
@@ -428,6 +430,8 @@ export interface LibEntry {
 export interface LibListing {
   path: string
   entries: LibEntry[]
+  /** Podsložka neexistuje (smazaná / přejmenovaná mimo appku). */
+  missing?: boolean
 }
 
 /** Detailní info o písni z knihovny (pro bohaté řádky v Library manageru). */
