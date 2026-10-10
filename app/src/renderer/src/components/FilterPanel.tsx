@@ -175,9 +175,15 @@ function GenreField({
             type="button"
             className="genrefield__clear"
             aria-label="Clear genre"
-            onClick={() => {
+            // Klik nesmí přes <label> zaměřit pole (to by znovu otevřelo nabídku).
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
               setText('')
               commit('')
+              setOpen(false)
+              ;(document.activeElement as HTMLElement | null)?.blur()
             }}
           >
             <Icon name="close" size={11} />
@@ -251,8 +257,10 @@ function FilterText({
             type="button"
             className="genrefield__clear"
             aria-label={`Clear ${label.toLowerCase()}`}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => {
               e.preventDefault()
+              e.stopPropagation()
               onChange('')
             }}
           >
