@@ -257,7 +257,7 @@ export function LibraryView(): JSX.Element {
     if (navHist[navPos] === navKey) return
     navHist.splice(navPos + 1)
     navHist.push(navKey)
-    if (navHist.length > 100) navHist.shift()
+    if (navHist.length > 30) navHist.shift()
     navPos = navHist.length - 1
   }, [navKey])
   const navGo = (step: -1 | 1): boolean => {
