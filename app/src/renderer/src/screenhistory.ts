@@ -23,16 +23,12 @@ const current = (): Screen => {
 
 function record(cur: Screen): void {
   if (hist[pos] === cur) return
-  // Návrat na sousední obrazovku jinou cestou (Escape, křížek, tlačítko v liště)
-  // se chová jako Zpět / Vpřed — historie za ní se nezahodí.
-  if (hist[pos - 1] === cur) pos--
-  else if (hist[pos + 1] === cur) pos++
-  else {
-    hist.splice(pos + 1)
-    hist.push(cur)
-    if (hist.length > 50) hist.shift()
-    pos = hist.length - 1
-  }
+  // Každé přepnutí kliknutím / Escapem je nový krok (jako odkaz v prohlížeči):
+  // Zpět pak vždy vede na obrazovku, odkud uživatel přišel.
+  hist.splice(pos + 1)
+  hist.push(cur)
+  if (hist.length > 50) hist.shift()
+  pos = hist.length - 1
 }
 
 /** Začne sledovat přepínání obrazovek; vrací odhlášení. */
