@@ -233,9 +233,6 @@ export function setOwnedKeys(keys: string[]): void {
   countCache.clear()
 }
 
-/** Zavře DB (při ukončení appky — ať WAL soubor korektně dosedne). Checkpoint
- *  slije WAL do hlavního souboru → po zavření zbývá jediný .db (nutné pro
- *  seed generátor, příjemné pro zálohy). */
 /** Jen pro čtecí vlákno (catalogworker.ts): existující katalog bez zápisu. */
 export function openCatalogReader(dbPath: string): void {
   if (db) return
@@ -255,6 +252,9 @@ export function onCatalogDataChange(cb: () => void): void {
   dataChanged = cb
 }
 
+/** Zavře DB (při ukončení appky — ať WAL soubor korektně dosedne). Checkpoint
+ *  slije WAL do hlavního souboru → po zavření zbývá jediný .db (nutné pro
+ *  seed generátor, příjemné pro zálohy). */
 export function closeCatalog(): void {
   if (!db) return
   try {

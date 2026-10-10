@@ -44,6 +44,10 @@ export function startScreenHistory(): () => void {
   })
 }
 
+/** Je otevřené modální okno nebo dialog knihovny? Zpět / Vpřed pak nic nedělá
+ *  (okno zavírá Escape), ať se pod ním nepřepne obrazovka ani složka. */
+export const overlayOpen = (): boolean => !!document.querySelector('.modal-overlay, .lib__dialog-overlay')
+
 /** Krok v historii obrazovek; false = dál už nic není. */
 export function screenGo(step: -1 | 1): boolean {
   const to = pos + step

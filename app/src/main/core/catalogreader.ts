@@ -38,8 +38,10 @@ export function startCatalogReader(dbPath: string): void {
     }
     w.on('error', drop)
     w.on('exit', (code) => {
+      // Ukončené přes stopCatalogReader (zavírání appky) → nic nehlásit.
+      if (worker !== w) return
       if (code !== 0) drop(new Error(`exit ${code}`))
-      else if (worker === w) worker = null
+      else worker = null
     })
     worker = w
     if (lastOwned) w.postMessage({ type: 'owned', keys: lastOwned })
@@ -76,6 +78,8 @@ export function setOwnedKeysEverywhere(keys: string[]): void {
 }
 
 export function stopCatalogReader(): void {
-  void worker?.terminate()
+  const w = worker
   worker = null
+  failAll(new Error('Catalog closed'))
+  void w?.terminate()
 }

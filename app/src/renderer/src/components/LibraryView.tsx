@@ -15,7 +15,7 @@ import { SetlistsView } from './SetlistsView'
 import { SongMetaDialog } from './SongMetaDialog'
 import { BulkRenameDialog, FolderPickerDialog, useExistingCheck, type BulkItem } from './LibraryDialogs'
 import { isTypingTarget } from '../rangeToggle'
-import { screenGo } from '../screenhistory'
+import { overlayOpen, screenGo } from '../screenhistory'
 import { LEVELS, LevelsBadge, type Level } from './LevelsBadge'
 import { artistWords } from '../../../shared/songid'
 
@@ -299,6 +299,7 @@ export function LibraryView(): JSX.Element {
         step = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
       if (!step) return
       e.preventDefault()
+      if (overlayOpen()) return
       // Ani globální handler v App (stejné okno) už krok nesmí zpracovat podruhé.
       e.stopImmediatePropagation()
       // Za okrajem historie složek pokračuje historie obrazovek (Zpět do hledání…).

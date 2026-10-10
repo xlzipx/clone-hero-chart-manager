@@ -6,7 +6,7 @@ import { DownloadQueue } from './components/DownloadQueue'
 import { FilterBar } from './components/FilterBar'
 import { Icon } from './components/Icon'
 import { LibraryView } from './components/LibraryView'
-import { screenGo, startScreenHistory } from './screenhistory'
+import { overlayOpen, screenGo, startScreenHistory } from './screenhistory'
 import { LocalDropModal } from './components/LocalDropModal'
 import { MarketplaceModal } from './components/MarketplaceModal'
 import { AboutModal } from './components/AboutModal'
@@ -557,9 +557,8 @@ export function App(): JSX.Element {
       else if (e.altKey && !e.ctrlKey && !e.metaKey && !isTypingTarget(e.target))
         step = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
       if (!step) return
-      // Jiné otevřené okno (What's new, Import…) má přednost; zavírá ho Escape.
-      const st = useStore.getState()
-      if (st.showWhatsNew || st.showPlaylistImport || st.showAbout) return
+      // Otevřené okno (What's new, Import, dialog…) má přednost; zavírá ho Escape.
+      if (overlayOpen()) return
       if (!screenGo(step === -1 ? -1 : 1)) return
       e.preventDefault()
     }
