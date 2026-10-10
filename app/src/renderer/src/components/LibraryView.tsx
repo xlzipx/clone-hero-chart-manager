@@ -1101,6 +1101,10 @@ export function LibraryView(): JSX.Element {
         } else if (checked.size) {
           setChecked(new Set())
           e.stopPropagation()
+        } else if (clip) {
+          // Zkopírované / vyjmuté položky: Escape schránku zruší (a nepřepne na hledání).
+          setClip(null)
+          e.stopPropagation()
         }
         return
       }
@@ -1857,9 +1861,19 @@ export function LibraryView(): JSX.Element {
           ) : null}
           <div className="lib__spacer" />
           {clip ? (
-            <button className="lib__btn lib__btn--accent" onClick={doPaste}>
-              <Icon name="paste" size={14} /> Paste ({clip.items.length})
-            </button>
+            <>
+              <button className="lib__btn lib__btn--accent" onClick={doPaste}>
+                <Icon name="paste" size={14} /> Paste ({clip.items.length})
+              </button>
+              <button
+                className="lib__btn lib__btn--icon"
+                onClick={() => setClip(null)}
+                title={clip.op === 'cut' ? 'Cancel cut (Esc)' : 'Cancel copy (Esc)'}
+                aria-label="Clear clipboard"
+              >
+                <Icon name="close" size={13} />
+              </button>
+            </>
           ) : null}
           <span className="lib__hint">
             {IS_MAC
