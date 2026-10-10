@@ -2396,10 +2396,12 @@ const LibRow = memo(function LibRow({
       <div className={`lvli ${cls} ${it.kind === 'broken' ? 'lvli--broken' : ''}`} {...common}>
         {check}
         <Icon
-          name={it.kind === 'broken' ? 'alert' : it.e.type === 'dir' ? 'folder' : it.isSng ? 'note' : 'file'}
+          // Ikona podle toho, čím položka je: píseň (složka i .sng) = nota, složka
+          // = jen to, do čeho se vstupuje. Formát písně říká štítek vpravo.
+          name={it.kind === 'broken' ? 'alert' : it.kind === 'song' ? 'note' : it.kind === 'folder' ? 'folder' : 'file'}
           size={17}
           color={it.kind === 'song' ? 'var(--accent)' : undefined}
-          className={it.kind !== 'broken' && it.e.type === 'dir' ? 'lvfolder-ico' : undefined}
+          className={it.kind === 'folder' ? 'lvfolder-ico' : undefined}
         />
         <span className="lvli__name">
           {it.dir ? <span className="lvli__dir">{it.dir}/</span> : null}
@@ -2410,7 +2412,9 @@ const LibRow = memo(function LibRow({
             {problemOf(it).badge.toLowerCase()}
           </span>
         ) : it.kind === 'song' ? (
-          <span className="lib__tag">song</span>
+          <span className="lib__tag" title={it.isSng ? 'Single-file chart (.sng)' : 'Song folder'}>
+            {it.isSng ? 'sng' : 'song'}
+          </span>
         ) : it.kind === 'folder' ? (
           count && count > 0 ? (
             <span className="lib__tag lib__tag--count">
