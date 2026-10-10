@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { DownloadQueue } from './components/DownloadQueue'
 import { FilterBar } from './components/FilterBar'
 import { Icon } from './components/Icon'
-import { LibraryView, libraryVisited } from './components/LibraryView'
+import { LibraryView } from './components/LibraryView'
+import { screenGo, startScreenHistory } from './screenhistory'
 import { LocalDropModal } from './components/LocalDropModal'
 import { MarketplaceModal } from './components/MarketplaceModal'
 import { AboutModal } from './components/AboutModal'
@@ -545,9 +546,10 @@ export function App(): JSX.Element {
     goToPage
   ])
 
-  // Boční tlačítka myši (a Alt+←/→) mimo knihovnu: Zpět zavře Nastavení,
-  // Vpřed z hledání vrátí do knihovny, pokud v ní uživatel už byl.
-  // Uvnitř knihovny (procházení složek) je obsluhuje LibraryView.
+  // Boční tlačítka myši (a Alt+←/→): historie obrazovek Search / Library /
+  // Settings (screenhistory.ts). Uvnitř knihovny je nejdřív obslouží LibraryView
+  // (procházení složek) a sem pustí jen krok za okraj své historie.
+  useEffect(() => startScreenHistory(), [])
   useEffect(() => {
     const onNav = (e: MouseEvent | KeyboardEvent): void => {
       let step = 0
@@ -555,11 +557,10 @@ export function App(): JSX.Element {
       else if (e.altKey && !e.ctrlKey && !e.metaKey && !isTypingTarget(e.target))
         step = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
       if (!step) return
+      // Jiné otevřené okno (What's new, Import…) má přednost; zavírá ho Escape.
       const st = useStore.getState()
-      if (st.showSettings) {
-        if (step === -1) st.setShowSettings(false)
-      } else if (!st.showLibrary && step === 1 && libraryVisited()) st.setShowLibrary(true)
-      else return
+      if (st.showWhatsNew || st.showPlaylistImport || st.showAbout) return
+      if (!screenGo(step === -1 ? -1 : 1)) return
       e.preventDefault()
     }
     const block = (e: MouseEvent): void => {

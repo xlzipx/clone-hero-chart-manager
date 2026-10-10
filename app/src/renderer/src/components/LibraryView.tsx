@@ -15,6 +15,7 @@ import { SetlistsView } from './SetlistsView'
 import { SongMetaDialog } from './SongMetaDialog'
 import { BulkRenameDialog, FolderPickerDialog, useExistingCheck, type BulkItem } from './LibraryDialogs'
 import { isTypingTarget } from '../rangeToggle'
+import { screenGo } from '../screenhistory'
 import { LEVELS, LevelsBadge, type Level } from './LevelsBadge'
 import { artistWords } from '../../../shared/songid'
 
@@ -113,8 +114,6 @@ let lastTool: 'setlists' | 'duplicates' | null = null
  *  tlačítka myši nebo Alt+šipky, jako v prohlížeči. Přežije přepnutí do hledání. */
 const navHist: string[] = []
 let navPos = -1
-/** Byla už knihovna v tomto běhu otevřená? (Vpřed z hledání se pak do ní vrátí.) */
-export const libraryVisited = (): boolean => navHist.length > 0
 // Hledání a filtry drží jen po dobu běhu appky (po restartu začínají čisté,
 // aby uživatel nehledal, proč mu v knihovně chybí písně). Složka, nástroj a
 // rozbalený panel filtrů se ukládají do configu (libraryLast) a obnoví se.
@@ -272,7 +271,7 @@ export function LibraryView(): JSX.Element {
     if (navHist[navPos] === navKey) return
     navHist.splice(navPos + 1)
     navHist.push(navKey)
-    if (navHist.length > 30) navHist.shift()
+    if (navHist.length > 50) navHist.shift()
     navPos = navHist.length - 1
   }, [navKey])
   const navGo = (step: -1 | 1): boolean => {
@@ -300,9 +299,10 @@ export function LibraryView(): JSX.Element {
         step = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
       if (!step) return
       e.preventDefault()
-      e.stopPropagation()
-      // Na začátku historie vede Zpět z knihovny do hledání (jako zavřít).
-      if (!navRef.current(step) && step === -1) st.setShowLibrary(false)
+      // Ani globální handler v App (stejné okno) už krok nesmí zpracovat podruhé.
+      e.stopImmediatePropagation()
+      // Za okrajem historie složek pokračuje historie obrazovek (Zpět do hledání…).
+      if (!navRef.current(step)) screenGo(step)
     }
     // Boční tlačítka: zabránit i výchozí akci při stisku (jinak by Chromium
     // mohlo zkusit navigaci stránky).
