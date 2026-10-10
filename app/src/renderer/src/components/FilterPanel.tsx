@@ -238,12 +238,28 @@ function FilterText({
   return (
     <label className="filterfield">
       <span className="filterfield__label">{label}</span>
-      <input
-        className="filterfield__input"
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      {/* Stejný obal a křížek pro smazání jako u žánru. */}
+      <div className="genrefield">
+        <input
+          className="filterfield__input"
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {value ? (
+          <button
+            type="button"
+            className="genrefield__clear"
+            aria-label={`Clear ${label.toLowerCase()}`}
+            onClick={(e) => {
+              e.preventDefault()
+              onChange('')
+            }}
+          >
+            <Icon name="close" size={11} />
+          </button>
+        ) : null}
+      </div>
     </label>
   )
 }

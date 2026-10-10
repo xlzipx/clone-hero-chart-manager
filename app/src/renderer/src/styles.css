@@ -12659,8 +12659,10 @@ li.lvexist__more {
   transform: translateY(-50%);
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
+  padding: 0; /* bez paddingu z obecných stylů tlačítek, jinak křížek uhne ze středu */
+  line-height: 0;
   border: 0;
   border-radius: 50%;
   background: transparent;
