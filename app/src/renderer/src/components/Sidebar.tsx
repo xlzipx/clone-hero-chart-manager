@@ -31,6 +31,9 @@ const SYSTEMS: { id: RhythmVerseSystem; label: string; short: string; hint: stri
   { id: 'all', label: 'All', short: 'All', hint: 'All formats' }
 ]
 
+/** Délka vysunutí / zatažení panelu (= transition v CSS). */
+const SIDE_ROLL_MS = 300
+
 function gameName(g: Exclude<Game, null>): string {
   return g === 'yarg' ? 'YARG' : 'Clone Hero'
 }
@@ -60,15 +63,31 @@ export function Sidebar(): JSX.Element {
   // Sbalený panel: úzký pruh s ikonami a zkratkami (uloženo v nastavení).
   const compact = !!config?.sidebarCompact
   const toggleCompact = (): void => void saveConfig({ sidebarCompact: !compact })
-  // Po přepnutí obsah panelu krátce naběhne (viz .sidebar--switching).
+  // Vysunutí / zatažení jako roleta filtrů: šířka sloupce (`narrow`) se mění
+  // plynule a obsah drží rozložení, které se do ní vejde (`rail`):
+  //  - sbalení: široký obsah se zasouvá (ořezává), na konci naskočí úzký pruh,
+  //  - rozbalení: hned široký obsah, který se postupně odkrývá.
+  const [narrow, setNarrow] = useState(compact)
+  const [rail, setRail] = useState(compact)
   const [switching, setSwitching] = useState(false)
   const firstCompact = useRef(compact)
   useEffect(() => {
     if (firstCompact.current === compact) return
     firstCompact.current = compact
-    setSwitching(true)
-    const t = setTimeout(() => setSwitching(false), 260)
-    return () => clearTimeout(t)
+    setNarrow(compact)
+    if (!compact) {
+      setRail(false)
+      return
+    }
+    const t = setTimeout(() => {
+      setRail(true)
+      setSwitching(true)
+    }, SIDE_ROLL_MS)
+    const t2 = setTimeout(() => setSwitching(false), SIDE_ROLL_MS + 220)
+    return () => {
+      clearTimeout(t)
+      clearTimeout(t2)
+    }
   }, [compact])
   const [chOk, setChOk] = useState(true)
   const [yargOk, setYargOk] = useState(true)
@@ -206,7 +225,11 @@ export function Sidebar(): JSX.Element {
   const showSystems = database !== 'enchor'
 
   return (
-    <aside className={`sidebar ${compact ? 'sidebar--rail' : ''} ${switching ? 'sidebar--switching' : ''}`}>
+    <aside
+      className={`sidebar ${narrow ? 'sidebar--narrow' : ''} ${rail ? 'sidebar--rail' : ''} ${
+        switching ? 'sidebar--switching' : ''
+      }`}
+    >
       <div className="side-launchers">
         {launcher('clone-hero', chLogo)}
         {launcher('yarg', yargLogo)}
@@ -221,7 +244,7 @@ export function Sidebar(): JSX.Element {
         <button
           type="button"
           className="side-surprise"
-          title={compact ? 'Surprise me: discover 5 random charts' : undefined}
+          title={rail ? 'Surprise me: discover 5 random charts' : undefined}
           onClick={() => {
             setShowLibrary(false)
             void surpriseMe()
@@ -237,7 +260,7 @@ export function Sidebar(): JSX.Element {
         <button
           type="button"
           className="side-surprise side-import"
-          title={compact ? 'Import playlist: turn a playlist into charts' : undefined}
+          title={rail ? 'Import playlist: turn a playlist into charts' : undefined}
           onClick={() => setShowPlaylistImport(true)}
         >
           <span
@@ -268,7 +291,7 @@ export function Sidebar(): JSX.Element {
             <button
               key={d.id}
               type="button"
-              title={compact ? `${d.label}: ${d.hint}` : d.hint}
+              title={rail ? `${d.label}: ${d.hint}` : d.hint}
               className={`side-item ${database === d.id ? 'side-item--on' : ''}`}
               onClick={() => {
                 setShowLibrary(false)
@@ -298,7 +321,7 @@ export function Sidebar(): JSX.Element {
               <button
                 key={sys.id}
                 type="button"
-                title={compact ? `${sys.label}: ${sys.hint}` : sys.hint}
+                title={rail ? `${sys.label}: ${sys.hint}` : sys.hint}
                 className={`side-item ${system === sys.id ? 'side-item--on' : ''}`}
                 onClick={() => {
                   setShowLibrary(false)
@@ -318,7 +341,7 @@ export function Sidebar(): JSX.Element {
       <div className="side-sep" aria-hidden="true" />
 
       <div className="side-footer">
-        {compact ? (
+        {rail ? (
           // Sbalený panel: jen ikony. Aktualizace = svítící tlačítko, klik panel rozbalí
           // (karta s podrobnostmi a tlačítky se do úzkého pruhu nevejde).
           <>

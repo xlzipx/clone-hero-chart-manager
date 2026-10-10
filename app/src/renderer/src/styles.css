@@ -12949,20 +12949,25 @@ li.lvexist__more {
    Sbalený levý panel (Settings → Compact sidebar / šipka dole v panelu):
    úzký pruh s ikonami a zkratkami. Šířka sloupce se mění plynule.
    ════════════════════════════════════════════════════════════════════════ */
-/* Šířka se přepne naráz (animovaná šířka by v každém snímku přepočítávala celé
-   výsledky a obsah panelu by mezi rozložením problikával); obsah panelu
-   jen krátce plynule naběhne. */
+/* Vysunutí / zatažení jako roleta filtrů (stejná délka i křivka). Obsah drží
+   pevnou šířku, takže se při změně sloupce jen zasouvá / odkrývá a nepřeskládává;
+   úzký pruh po zatažení krátce naběhne. */
+.workspace {
+  transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.workspace:has(> .sidebar--narrow) {
+  grid-template-columns: 84px minmax(0, 1fr);
+}
+.sidebar:not(.sidebar--rail) > * {
+  min-width: 232px; /* = vnitřní šířka rozbaleného panelu */
+}
 .sidebar--switching > * {
-  animation: sideIn 0.22s ease-out both;
+  animation: sideIn 0.2s ease-out both;
 }
 @keyframes sideIn {
   from {
     opacity: 0;
-    transform: translateX(-4px);
   }
-}
-.workspace:has(> .sidebar--rail) {
-  grid-template-columns: 84px minmax(0, 1fr);
 }
 .sidebar {
   overflow-x: hidden;
@@ -13102,6 +13107,9 @@ li.lvexist__more {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .workspace {
+    transition: none;
+  }
   .sidebar--switching > * {
     animation: none;
   }
