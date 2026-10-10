@@ -1650,29 +1650,29 @@ export function LibraryView(): JSX.Element {
             {/* Druhý řádek mřížky: textová pole pod sloupci prvního řádku. */}
             <div className="lv__fgroup">
               <span className="lv__flabel">Artist</span>
-              <input
-                className="lv__finput"
+              <LibFilterInput
+                label="Artist"
                 placeholder="e.g. Linkin Park"
                 value={filters.artist}
-                onChange={(e) => setFilters((f) => ({ ...f, artist: e.target.value }))}
+                onChange={(v) => setFilters((f) => ({ ...f, artist: v }))}
               />
             </div>
             <div className="lv__fgroup">
               <span className="lv__flabel">Album</span>
-              <input
-                className="lv__finput"
+              <LibFilterInput
+                label="Album"
                 placeholder="e.g. Meteora"
                 value={filters.album}
-                onChange={(e) => setFilters((f) => ({ ...f, album: e.target.value }))}
+                onChange={(v) => setFilters((f) => ({ ...f, album: v }))}
               />
             </div>
             <div className="lv__fgroup">
               <span className="lv__flabel">Charter</span>
-              <input
-                className="lv__finput"
+              <LibFilterInput
+                label="Charter"
                 placeholder="Charter name"
                 value={filters.charter}
-                onChange={(e) => setFilters((f) => ({ ...f, charter: e.target.value }))}
+                onChange={(v) => setFilters((f) => ({ ...f, charter: v }))}
               />
             </div>
             {/* Souhrn panelu: kolik písní filtrům odpovídá (vymazání je u tlačítka Filters). */}
@@ -2538,6 +2538,76 @@ const LibRow = memo(function LibRow({
     </div>
   )
 })
+
+/**
+ * Textový filtr knihovny s křížkem pro smazání. Psaní jde do vlastního stavu
+ * pole a filtr se použije až po krátké pauze (nebo Enter / opuštění pole) —
+ * u velké knihovny by přefiltrování po každém písmenu brzdilo psaní.
+ */
+function LibFilterInput({
+  label,
+  value,
+  placeholder,
+  onChange
+}: {
+  label: string
+  value: string
+  placeholder: string
+  onChange: (v: string) => void
+}): JSX.Element {
+  const [text, setText] = useState(value)
+  const timer = useRef<number>()
+  const sent = useRef(value)
+  // Změna zvenku (klik na interpreta / album / chartera v kartě, Clear filters).
+  useEffect(() => {
+    if (value !== sent.current) {
+      sent.current = value
+      setText(value)
+    }
+  }, [value])
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+  const commit = (v: string): void => {
+    window.clearTimeout(timer.current)
+    if (v === sent.current) return
+    sent.current = v
+    onChange(v)
+  }
+  return (
+    <div className="genrefield">
+      <input
+        className="lv__finput"
+        placeholder={placeholder}
+        value={text}
+        onChange={(e) => {
+          const v = e.target.value
+          setText(v)
+          window.clearTimeout(timer.current)
+          timer.current = window.setTimeout(() => commit(v), 250)
+        }}
+        onBlur={() => commit(text)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit(text)
+        }}
+      />
+      {text ? (
+        <button
+          type="button"
+          className="genrefield__clear"
+          aria-label={`Clear ${label.toLowerCase()}`}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setText('')
+            commit('')
+          }}
+        >
+          <Icon name="close" size={11} />
+        </button>
+      ) : null}
+    </div>
+  )
+}
 
 function DetailPanel({
   it,

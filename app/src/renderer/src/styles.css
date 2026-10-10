@@ -12648,9 +12648,10 @@ li.lvexist__more {
 .genrefield {
   position: relative;
 }
-.genrefield .filterfield__input {
+.genrefield .filterfield__input,
+.genrefield .lv__finput {
   width: 100%;
-  padding-right: 28px;
+  padding-right: 34px;
 }
 .genrefield__clear {
   position: absolute;
