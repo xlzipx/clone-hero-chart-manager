@@ -13112,3 +13112,16 @@ li.lvexist__more {
     animation: none;
   }
 }
+
+/* Kolečko Nastavení: když je Nastavení otevřené, zbělá jako aktivní Search /
+   Library (ukazatel „kde právě jsem"). Grafit má u tmavých tlačítek
+   !important, proto i tady. */
+.titlebar__btn.titlebar__btn--on,
+[data-theme='graphite'] .titlebar__btn.titlebar__btn--on,
+[data-theme='graphite'] .titlebar__btn.titlebar__btn--on:hover {
+  background: var(--pill-primary, #ececef) !important;
+  color: var(--on-pill, #111) !important;
+  border-color: transparent !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), inset 0 -2px 3px rgba(0, 0, 0, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.5), 0 5px 14px rgba(0, 0, 0, 0.4) !important;
+}
