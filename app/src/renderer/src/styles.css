@@ -12949,8 +12949,17 @@ li.lvexist__more {
    Sbalený levý panel (Settings → Compact sidebar / šipka dole v panelu):
    úzký pruh s ikonami a zkratkami. Šířka sloupce se mění plynule.
    ════════════════════════════════════════════════════════════════════════ */
-.workspace {
-  transition: grid-template-columns 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+/* Šířka se přepne naráz (animovaná šířka by v každém snímku přepočítávala celé
+   výsledky a obsah panelu by mezi rozložením problikával); obsah panelu
+   jen krátce plynule naběhne. */
+.sidebar--switching > * {
+  animation: sideIn 0.22s ease-out both;
+}
+@keyframes sideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
 }
 .workspace:has(> .sidebar--rail) {
   grid-template-columns: 84px minmax(0, 1fr);
@@ -13021,7 +13030,7 @@ li.lvexist__more {
 /* Database / System: zkratky místo názvů, bez teček; popisek sekce menší. */
 .sidebar--rail .side-label {
   text-align: center;
-  padding: 0;
+  padding: 0 0 7px; /* stejný odstup od seznamu jako v rozbaleném panelu */
   font-size: 9.5px;
   letter-spacing: 0.08em;
 }
@@ -13093,8 +13102,8 @@ li.lvexist__more {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .workspace {
-    transition: none;
+  .sidebar--switching > * {
+    animation: none;
   }
   .side-railbtn--update {
     animation: none;

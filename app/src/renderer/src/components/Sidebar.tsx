@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CatalogActivity } from './CatalogActivity'
 import type { Database, RhythmVerseSystem, UpdateAvailable } from '../../../shared/types'
 import { errMsg } from '../../../shared/errors'
@@ -60,6 +60,16 @@ export function Sidebar(): JSX.Element {
   // Sbalený panel: úzký pruh s ikonami a zkratkami (uloženo v nastavení).
   const compact = !!config?.sidebarCompact
   const toggleCompact = (): void => void saveConfig({ sidebarCompact: !compact })
+  // Po přepnutí obsah panelu krátce naběhne (viz .sidebar--switching).
+  const [switching, setSwitching] = useState(false)
+  const firstCompact = useRef(compact)
+  useEffect(() => {
+    if (firstCompact.current === compact) return
+    firstCompact.current = compact
+    setSwitching(true)
+    const t = setTimeout(() => setSwitching(false), 260)
+    return () => clearTimeout(t)
+  }, [compact])
   const [chOk, setChOk] = useState(true)
   const [yargOk, setYargOk] = useState(true)
   useEffect(() => {
@@ -196,7 +206,7 @@ export function Sidebar(): JSX.Element {
   const showSystems = database !== 'enchor'
 
   return (
-    <aside className={`sidebar ${compact ? 'sidebar--rail' : ''}`}>
+    <aside className={`sidebar ${compact ? 'sidebar--rail' : ''} ${switching ? 'sidebar--switching' : ''}`}>
       <div className="side-launchers">
         {launcher('clone-hero', chLogo)}
         {launcher('yarg', yargLogo)}
