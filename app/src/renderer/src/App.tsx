@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { DownloadQueue } from './components/DownloadQueue'
 import { FilterBar } from './components/FilterBar'
 import { Icon } from './components/Icon'
-import { LibraryView } from './components/LibraryView'
+import { LibraryView, libraryVisited } from './components/LibraryView'
 import { LocalDropModal } from './components/LocalDropModal'
 import { MarketplaceModal } from './components/MarketplaceModal'
 import { AboutModal } from './components/AboutModal'
@@ -541,6 +541,36 @@ export function App(): JSX.Element {
     openMarketplace,
     goToPage
   ])
+
+  // Boční tlačítka myši (a Alt+←/→) mimo knihovnu: Zpět zavře Nastavení,
+  // Vpřed z hledání vrátí do knihovny, pokud v ní uživatel už byl.
+  // Uvnitř knihovny (procházení složek) je obsluhuje LibraryView.
+  useEffect(() => {
+    const onNav = (e: MouseEvent | KeyboardEvent): void => {
+      let step = 0
+      if (e instanceof MouseEvent) step = e.button === 3 ? -1 : e.button === 4 ? 1 : 0
+      else if (e.altKey && !e.ctrlKey && !e.metaKey && !isTypingTarget(e.target))
+        step = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
+      if (!step) return
+      const st = useStore.getState()
+      if (st.showSettings) {
+        if (step === -1) st.setShowSettings(false)
+      } else if (!st.showLibrary && step === 1 && libraryVisited()) st.setShowLibrary(true)
+      else return
+      e.preventDefault()
+    }
+    const block = (e: MouseEvent): void => {
+      if (e.button === 3 || e.button === 4) e.preventDefault()
+    }
+    window.addEventListener('mouseup', onNav)
+    window.addEventListener('mousedown', block)
+    window.addEventListener('keydown', onNav)
+    return () => {
+      window.removeEventListener('mouseup', onNav)
+      window.removeEventListener('mousedown', block)
+      window.removeEventListener('keydown', onNav)
+    }
+  }, [])
 
   // Scroll vybrané položky do view.
   useEffect(() => {

@@ -109,6 +109,12 @@ const VIRT_MIN = 120
 const VIRT_OVERSCAN = 8
 /** Otevřený nástroj knihovny (Setlists / Duplicates) — přežije přepnutí do hledání. */
 let lastTool: 'setlists' | 'duplicates' | null = null
+/** Historie procházení knihovny (složky a nástroje) pro Zpět / Vpřed — boční
+ *  tlačítka myši nebo Alt+šipky, jako v prohlížeči. Přežije přepnutí do hledání. */
+const navHist: string[] = []
+let navPos = -1
+/** Byla už knihovna v tomto běhu otevřená? (Vpřed z hledání se pak do ní vrátí.) */
+export const libraryVisited = (): boolean => navHist.length > 0
 // Hledání a filtry drží jen po dobu běhu appky (po restartu začínají čisté,
 // aby uživatel nehledal, proč mu v knihovně chybí písně).
 let lastQ = ''
@@ -237,6 +243,66 @@ export function LibraryView(): JSX.Element {
   const [detail, setDetail] = useState<SongDetail | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [revealActive, setRevealActive] = useState<string | null>(null)
+
+  // ── Zpět / Vpřed (boční tlačítka myši, Alt+←/→) ──
+  // Poloha = otevřený nástroj, nebo složka. Nová poloha se zapíše do historie,
+  // pokud ji nezpůsobil právě krok Zpět / Vpřed (ten jen posune ukazatel).
+  const navFromHistory = useRef(false)
+  const navKey = tool ? `tool:${tool}` : `dir:${cwd}`
+  useEffect(() => {
+    if (navFromHistory.current) {
+      navFromHistory.current = false
+      return
+    }
+    if (navHist[navPos] === navKey) return
+    navHist.splice(navPos + 1)
+    navHist.push(navKey)
+    if (navHist.length > 100) navHist.shift()
+    navPos = navHist.length - 1
+  }, [navKey])
+  const navGo = (step: -1 | 1): boolean => {
+    const to = navPos + step
+    if (to < 0 || to >= navHist.length) return false
+    navPos = to
+    navFromHistory.current = true
+    const key = navHist[to]
+    if (key.startsWith('tool:')) setTool(key.slice(5) as 'setlists' | 'duplicates')
+    else {
+      setTool(null)
+      void load(key.slice(4))
+    }
+    return true
+  }
+  const navRef = useRef(navGo)
+  navRef.current = navGo
+  useEffect(() => {
+    const onNav = (e: MouseEvent | KeyboardEvent): void => {
+      const st = useStore.getState()
+      if (!st.showLibrary || st.showSettings) return
+      let step: -1 | 1 | 0 = 0
+      if (e instanceof MouseEvent) step = e.button === 3 ? -1 : e.button === 4 ? 1 : 0
+      else if (e.altKey && !e.ctrlKey && !e.metaKey && !isTypingTarget(e.target))
+        step = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
+      if (!step) return
+      e.preventDefault()
+      e.stopPropagation()
+      // Na začátku historie vede Zpět z knihovny do hledání (jako zavřít).
+      if (!navRef.current(step) && step === -1) st.setShowLibrary(false)
+    }
+    // Boční tlačítka: zabránit i výchozí akci při stisku (jinak by Chromium
+    // mohlo zkusit navigaci stránky).
+    const block = (e: MouseEvent): void => {
+      if (e.button === 3 || e.button === 4) e.preventDefault()
+    }
+    window.addEventListener('mouseup', onNav, true)
+    window.addEventListener('mousedown', block, true)
+    window.addEventListener('keydown', onNav, true)
+    return () => {
+      window.removeEventListener('mouseup', onNav, true)
+      window.removeEventListener('mousedown', block, true)
+      window.removeEventListener('keydown', onNav, true)
+    }
+  }, [])
 
   const listRef = useRef<HTMLDivElement>(null)
   // Virtualizace karet: u velkých složek se vykreslí jen karty ve výřezu (+ rezerva).
