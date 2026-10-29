@@ -1,6 +1,6 @@
 <svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
   <!-- Rhythm mark: 4 sloupce v barvách nástrojů na tmavém zaobleném čtverci.
-       Shodné s faviconou landing page (chartmanager.pages.dev), škálované na 256. -->
+       Shodné s faviconou landing page (chartmanager.app), škálované na 256. -->
   <rect width="256" height="256" rx="56" fill="#16171a"/>
   <rect x="52"  y="120" width="28" height="84"  rx="12" fill="#ff5257"/>
   <rect x="96"  y="68"  width="28" height="136" rx="12" fill="#ffc63d"/>

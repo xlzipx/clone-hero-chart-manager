@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://chartmanager.pages.dev/" title="Open the Chart Manager website">
+  <a href="https://chartmanager.app/" title="Open the Chart Manager website">
     <img alt="Chart Manager, a desktop app for Clone Hero and YARG charts" width="880" src="docs/img/readme-hero.webp" />
   </a>
 </p>
@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <b><a href="https://chartmanager.pages.dev/">Website</a></b>
+  <b><a href="https://chartmanager.app/">Website</a></b>
   &nbsp;·&nbsp;
   <b><a href="https://github.com/xlzipx/clone-hero-chart-manager/releases/latest">Download</a></b>
   &nbsp;·&nbsp;
@@ -76,7 +76,7 @@ Also included:
 | Linux | `CHM-<version>-linux-x86_64.AppImage` | `chmod +x` and run. |
 
 Get them from the [latest release](https://github.com/xlzipx/clone-hero-chart-manager/releases/latest)
-or the [website](https://chartmanager.pages.dev/). On first launch the app finds your
+or the [website](https://chartmanager.app/). On first launch the app finds your
 Songs folder and games where it can; otherwise Settings opens and you point it at the
 Songs folder once.
 

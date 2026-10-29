@@ -72,5 +72,5 @@ app/                     Electron + React + TypeScript (electron-vite)
   src/renderer/          React UI
 native/                  Onyx CLI and 7-Zip binaries per platform
 worker/                  Cloudflare Worker that reads full Spotify playlists
-pages/                   landing page (chartmanager.pages.dev)
+pages/                   landing page (chartmanager.app)
 ```
